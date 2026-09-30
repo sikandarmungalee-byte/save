@@ -1,0 +1,7 @@
+{
+  "name": "ApexERP - Enterprise Invoicing, Logistics & Credit Control",
+  "description": "Comprehensive enterprise ERP for tax invoicing, multi-branch customer directory, quotations, delivery notes with proof-of-delivery (POD), accounts receivable ledger, and multi-device role-based access control.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

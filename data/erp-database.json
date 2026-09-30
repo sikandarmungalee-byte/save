@@ -1,0 +1,32 @@
+{
+  "users": [],
+  "company": {
+    "companyName": "Savouré - A Taste of Tradition",
+    "tradingName": "Savouré Artisanal Bakers",
+    "registrationNumber": "2024/782194/07",
+    "vatNumber": "4980291847",
+    "address": "Unit 4, Tradition Square, 18 Artisanal Way, Sandton, Johannesburg, 2196",
+    "phone": "+27 (0)11 555 4920",
+    "email": "orders@savoure.co.za",
+    "currency": "R",
+    "vatRate": 15,
+    "bankName": "First National Bank (FNB)",
+    "accountHolder": "Savouré (Pty) Ltd",
+    "accountNumber": "62983104821",
+    "branchCode": "250655",
+    "swiftCode": "FIRNZAJJ",
+    "defaultPaymentTerms": "Strictly 30 days from invoice date. Please use your invoice number as EFT payment reference.",
+    "pinCode": "1234",
+    "logoUrl": "/src/assets/images/savoure_master_logo_1790775722136.jpg"
+  },
+  "customers": [],
+  "categories": [],
+  "products": [],
+  "invoices": [],
+  "deliveryNotes": [],
+  "quotations": [],
+  "payments": [],
+  "leads": [],
+  "communications": [],
+  "lastUpdated": "2026-09-30T13:58:00.000Z"
+}

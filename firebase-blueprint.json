@@ -1,0 +1,177 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "System user with RBAC permissions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "lastLogin": { "type": "string" }
+      },
+      "required": ["id", "name", "email", "role"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "Customer and multi-branch directory",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "registeredName": { "type": "string" },
+        "tradingName": { "type": "string" },
+        "accountCode": { "type": "string" },
+        "vatNumber": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "branches": { "type": "array" }
+      },
+      "required": ["id", "registeredName"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Itemized catalog",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sku": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "unitPrice": { "type": "number" },
+        "packSize": { "type": "string" }
+      },
+      "required": ["id", "sku", "name", "unitPrice"]
+    },
+    "Invoice": {
+      "title": "Invoice",
+      "description": "Tax Invoices",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "customerId": { "type": "string" },
+        "status": { "type": "string" },
+        "total": { "type": "number" },
+        "balanceDue": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "invoiceNumber", "customerId"]
+    },
+    "DeliveryNote": {
+      "title": "DeliveryNote",
+      "description": "Delivery Notes and POD",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "deliveryNumber": { "type": "string" },
+        "invoiceId": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "deliveryNumber", "invoiceId"]
+    },
+    "Quotation": {
+      "title": "Quotation",
+      "description": "Quotations",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "quoteNumber": { "type": "string" },
+        "customerId": { "type": "string" },
+        "status": { "type": "string" },
+        "total": { "type": "number" }
+      },
+      "required": ["id", "quoteNumber", "customerId"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Accounts receivable ledger payments",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "paymentNumber": { "type": "string" },
+        "invoiceId": { "type": "string" },
+        "amount": { "type": "number" }
+      },
+      "required": ["id", "paymentNumber", "invoiceId", "amount"]
+    },
+    "Lead": {
+      "title": "Lead",
+      "description": "CRM Sales leads",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "companyName": { "type": "string" },
+        "status": { "type": "string" },
+        "value": { "type": "number" }
+      },
+      "required": ["id", "companyName"]
+    },
+    "CommunicationLog": {
+      "title": "CommunicationLog",
+      "description": "Customer communication logs",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "subject": { "type": "string" },
+        "type": { "type": "string" }
+      },
+      "required": ["id", "subject"]
+    },
+    "CompanySettings": {
+      "title": "CompanySettings",
+      "description": "Company profile and banking settings",
+      "type": "object",
+      "properties": {
+        "companyName": { "type": "string" },
+        "currency": { "type": "string" },
+        "vatRate": { "type": "number" }
+      },
+      "required": ["companyName", "currency"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles and RBAC permissions"
+    },
+    "/customers/{customerId}": {
+      "schema": "Customer",
+      "description": "Customers and multi-branch configurations"
+    },
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Catalog products and pricing"
+    },
+    "/invoices/{invoiceId}": {
+      "schema": "Invoice",
+      "description": "Tax invoices and balances"
+    },
+    "/deliveryNotes/{deliveryNoteId}": {
+      "schema": "DeliveryNote",
+      "description": "Delivery notes and signed PODs"
+    },
+    "/quotations/{quotationId}": {
+      "schema": "Quotation",
+      "description": "Customer quotations and estimates"
+    },
+    "/payments/{paymentId}": {
+      "schema": "Payment",
+      "description": "Accounts receivable payment entries"
+    },
+    "/leads/{leadId}": {
+      "schema": "Lead",
+      "description": "Sales leads pipeline"
+    },
+    "/communications/{commId}": {
+      "schema": "CommunicationLog",
+      "description": "Correspondence history"
+    },
+    "/company/settings": {
+      "schema": "CompanySettings",
+      "description": "Company profile, VAT and banking credentials"
+    }
+  }
+}

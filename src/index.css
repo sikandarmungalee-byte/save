@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --brand-espresso: #201713;
+    --brand-dark-brown: #2C211B;
+    --brand-bronze: #C98A5B;
+    --brand-rose-gold: #DE9E74;
+    --brand-creme: #FDF9F5;
+    --brand-sand: #EFE7DE;
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background-color: #120F0D;
+    color: #EDE6DE;
+  }
+  
+  .font-serif, .brand-display {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    letter-spacing: -0.01em;
+  }
+
+  .font-mono, .tabular-nums {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Luxury satin metal accents */
+.bronze-gradient {
+  background: linear-gradient(135deg, #DE9E74 0%, #C98A5B 50%, #9B5D34 100%);
+}
+
+.bronze-text-gradient {
+  background: linear-gradient(135deg, #F3D2BF 0%, #DE9E74 50%, #C98A5B 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Print Stylesheet for Tax Invoices, Quotations & Delivery Slips */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+  
+  body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  .no-print, nav, aside, header, .action-toolbar, button {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .print-container {
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: transparent !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
