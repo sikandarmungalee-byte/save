@@ -18,15 +18,15 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Connection test document
-    match /test/connection {
-      allow read, write: if true;
-    }
-
     // User management & profiles
     match /users/{userId} {
       allow read: if isSignedIn();
       allow write: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin());
+    }
+
+    // Categories
+    match /categories/{categoryId} {
+      allow read, write: if isSignedIn();
     }
 
     // Customers collection
