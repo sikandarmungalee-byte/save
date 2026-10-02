@@ -161,14 +161,20 @@ export const ProductsView: React.FC = () => {
     setIsModalOpen(false);
   };
 
-  const filteredProducts = products.filter((p) => {
-    const term = search.toLowerCase();
+  const filteredProducts = (products || []).filter((p) => {
+    if (!p) return false;
+    const term = (search || '').toLowerCase().trim();
+    const sku = (p.sku || '').toLowerCase();
+    const name = (p.name || '').toLowerCase();
+    const packSize = (p.packSize || '').toLowerCase();
+    const category = (p.category || '').toLowerCase();
     const matchesSearch =
-      p.sku.toLowerCase().includes(term) ||
-      p.name.toLowerCase().includes(term) ||
-      p.packSize.toLowerCase().includes(term) ||
-      (p.category && p.category.toLowerCase().includes(term));
-    const matchesCategory = categoryFilter === 'ALL' || p.category === categoryFilter;
+      !term ||
+      sku.includes(term) ||
+      name.includes(term) ||
+      packSize.includes(term) ||
+      category.includes(term);
+    const matchesCategory = categoryFilter === 'ALL' || (p.category || '') === categoryFilter;
     return matchesSearch && matchesCategory;
   });
 
@@ -355,7 +361,7 @@ export const ProductsView: React.FC = () => {
                               <div key={cp.id} className="text-xs text-[#C5B7AC] flex items-center justify-between">
                                 <span className="truncate max-w-[180px]">{cp.name}</span>
                                 <span className="font-mono text-[#DE9E74] text-[11px] shrink-0">
-                                  {company.currency} {cp.unitPrice.toFixed(2)}
+                                  {company.currency} {(Number(cp?.unitPrice) || 0).toFixed(2)}
                                 </span>
                               </div>
                             ))}
@@ -607,7 +613,9 @@ export const ProductsView: React.FC = () => {
                     </tr>
                   ) : (
                     filteredProducts.map((p) => {
-                      const grossMargin = p.unitPrice > 0 ? ((p.unitPrice - p.costPrice) / p.unitPrice) * 100 : 0;
+                      const uPrice = Number(p.unitPrice) || 0;
+                      const cPrice = Number(p.costPrice) || 0;
+                      const grossMargin = uPrice > 0 ? ((uPrice - cPrice) / uPrice) * 100 : 0;
 
                       return (
                         <tr key={p.id} className="hover:bg-[#221B17]/60 transition-colors">
@@ -629,11 +637,11 @@ export const ProductsView: React.FC = () => {
                           </td>
 
                           <td className="py-3 px-4 text-right font-mono font-bold text-white tabular-nums">
-                            {company.currency} {p.unitPrice.toFixed(2)}
+                            {company.currency} {uPrice.toFixed(2)}
                           </td>
 
                           <td className="py-3 px-4 text-right font-mono text-[#A69385] tabular-nums">
-                            {company.currency} {p.costPrice.toFixed(2)}
+                            {company.currency} {cPrice.toFixed(2)}
                           </td>
 
                           <td className="py-3 px-4 text-right font-mono tabular-nums">

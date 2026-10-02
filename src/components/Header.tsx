@@ -116,14 +116,18 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, onOpenLoginModal }) 
           )}
         </div>
 
-        {/* Security PIN Lock button */}
+        {/* Security PIN Lock button (Desktop/Confirmed only to prevent mobile accidental tap) */}
         <button
-          onClick={lockApp}
+          onClick={() => {
+            if (window.confirm('Lock ERP screen with PIN? (Default PIN: 1234)')) {
+              lockApp();
+            }
+          }}
           title="Lock Screen (Requires Security PIN)"
-          className="p-1.5 sm:px-2.5 sm:py-1 rounded-lg bg-[#171311] hover:bg-[#221B17] border border-[#2C211B] text-[#C5B7AC] text-xs font-medium flex items-center gap-1.5 transition-colors"
+          className="hidden md:flex p-1.5 sm:px-2.5 sm:py-1 rounded-lg bg-[#171311] hover:bg-[#221B17] border border-[#2C211B] text-[#C5B7AC] text-xs font-medium items-center gap-1.5 transition-colors"
         >
           <Lock className="w-3.5 h-3.5 text-[#DE9E74]" />
-          <span className="hidden md:inline">Lock PIN</span>
+          <span>Lock PIN</span>
         </button>
 
         {/* Current User & Device Switcher */}

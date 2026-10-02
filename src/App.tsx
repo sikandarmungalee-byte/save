@@ -16,6 +16,7 @@ import { CRMLeadsView } from './components/CRMLeadsView';
 import { UserManagementView } from './components/UserManagementView';
 import { DatabaseExplorerView } from './components/DatabaseExplorerView';
 import { CompanySettingsView } from './components/CompanySettingsView';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Menu } from 'lucide-react';
 
 const MainLayout: React.FC = () => {
@@ -117,8 +118,10 @@ const MainLayout: React.FC = () => {
 
 export default function App() {
   return (
-    <ERPProvider>
-      <MainLayout />
-    </ERPProvider>
+    <ErrorBoundary>
+      <ERPProvider>
+        <MainLayout />
+      </ERPProvider>
+    </ErrorBoundary>
   );
 }

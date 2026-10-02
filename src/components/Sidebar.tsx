@@ -243,9 +243,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
 
           <button
+            type="button"
             onClick={() => {
-              setMobileOpen(false);
-              logout();
+              if (window.confirm('Do you want to sign out of this device?')) {
+                setMobileOpen(false);
+                logout();
+              }
             }}
             className="w-full py-1.5 px-3 rounded-lg bg-[#221B17] hover:bg-rose-950/40 text-neutral-400 hover:text-rose-300 border border-[#3A2D25] hover:border-rose-800/50 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
           >

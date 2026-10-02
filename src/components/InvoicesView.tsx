@@ -323,13 +323,20 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
     }
   };
 
-  const filteredInvoices = invoices.filter((inv) => {
-    const term = search.toLowerCase();
+  const filteredInvoices = (invoices || []).filter((inv) => {
+    if (!inv) return false;
+    const term = (search || '').toLowerCase().trim();
+    const invNum = (inv.invoiceNumber || '').toLowerCase();
+    const custName = (inv.customerName || '').toLowerCase();
+    const tradingName = (inv.customerTradingName || '').toLowerCase();
+    const branchName = (inv.branchName || '').toLowerCase();
+
     const matchesSearch =
-      inv.invoiceNumber.toLowerCase().includes(term) ||
-      inv.customerName.toLowerCase().includes(term) ||
-      (inv.customerTradingName && inv.customerTradingName.toLowerCase().includes(term)) ||
-      (inv.branchName && inv.branchName.toLowerCase().includes(term));
+      !term ||
+      invNum.includes(term) ||
+      custName.includes(term) ||
+      tradingName.includes(term) ||
+      branchName.includes(term);
 
     const matchesStatus = statusFilter === 'ALL' || inv.status === statusFilter;
     return matchesSearch && matchesStatus;

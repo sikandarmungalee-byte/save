@@ -183,10 +183,23 @@ const ERPContext = createContext<ERPContextType | null>(null);
 const CACHE_KEY = 'apex_erp_cache';
 const USER_KEY = 'apex_erp_user';
 
+export const normalizeProduct = (p: any, idx = 0): Product => ({
+  id: p?.id || `prod_${Date.now()}_${idx}`,
+  sku: p?.sku || `SKU-${String(idx + 1).padStart(3, '0')}`,
+  name: p?.name || 'Untitled Product',
+  category: p?.category || 'Artisanal Bread',
+  packSize: p?.packSize || 'Single / Each',
+  physicalSize: p?.physicalSize || 'Standard',
+  unitPrice: Number(p?.unitPrice) || 0,
+  costPrice: Number(p?.costPrice) || 0,
+  vatApplicable: p?.vatApplicable !== undefined ? Boolean(p?.vatApplicable) : true,
+  stockOnHand: Number(p?.stockOnHand) || 0,
+});
+
 export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
-      const saved = localStorage.getItem(USER_KEY);
+      const saved = localStorage.getItem(USER_KEY) || sessionStorage.getItem(USER_KEY);
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
@@ -248,20 +261,33 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setLastSynced(new Date().toLocaleTimeString());
     } catch (err) {
       console.warn('Cloud sync notice:', err);
-    } finally {
-      setTimeout(() => {
-        isWritingCloud.current = false;
-      }, 800);
     }
+
+    // Also background-sync to server if reachable
+    try {
+      safeFetchJson('/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      }).catch(() => {});
+    } catch {}
+
+    setTimeout(() => {
+      isWritingCloud.current = false;
+    }, 800);
   }, []);
 
-  // Synchronize current user in local storage
+  // Synchronize current user in local and session storage
   useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem(USER_KEY);
-    }
+    try {
+      if (currentUser) {
+        localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
+        sessionStorage.setItem(USER_KEY, JSON.stringify(currentUser));
+      } else {
+        localStorage.removeItem(USER_KEY);
+        sessionStorage.removeItem(USER_KEY);
+      }
+    } catch (e) {}
   }, [currentUser]);
 
   // Load from local storage initially
@@ -272,7 +298,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const parsed: ERPDatabase = JSON.parse(cached);
         if (parsed.company) setCompany(parsed.company);
         if (parsed.customers) setCustomers(parsed.customers);
-        if (parsed.products) setProducts(parsed.products);
+        if (parsed.products && Array.isArray(parsed.products)) {
+          setProducts(parsed.products.map((p, i) => normalizeProduct(p, i)));
+        }
         if (parsed.categories) setCategories(parsed.categories);
         if (parsed.invoices) setInvoices(parsed.invoices);
         if (parsed.deliveryNotes) setDeliveryNotes(parsed.deliveryNotes);
@@ -301,7 +329,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const cloudData = snapshot.data() as Partial<ERPDatabase>;
         
         if (cloudData.company) setCompany(cloudData.company);
-        if (cloudData.products) setProducts(cloudData.products);
+        if (cloudData.products && Array.isArray(cloudData.products)) {
+          setProducts(cloudData.products.map((p, i) => normalizeProduct(p, i)));
+        }
         if (cloudData.customers) setCustomers(cloudData.customers);
         if (cloudData.categories) setCategories(cloudData.categories);
         if (cloudData.invoices) setInvoices(cloudData.invoices);
@@ -356,7 +386,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const snap = await getDoc(doc(db, 'erp', 'main'));
       if (snap.exists()) {
         const cloudData = snap.data() as Partial<ERPDatabase>;
-        if (cloudData.products) setProducts(cloudData.products);
+        if (cloudData.products && Array.isArray(cloudData.products)) {
+          setProducts(cloudData.products.map((p, i) => normalizeProduct(p, i)));
+        }
         if (cloudData.customers) setCustomers(cloudData.customers);
         if (cloudData.invoices) setInvoices(cloudData.invoices);
         if (cloudData.deliveryNotes) setDeliveryNotes(cloudData.deliveryNotes);
@@ -377,12 +409,15 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const cleanEmail = email.trim().toLowerCase();
     const cleanPassword = password.trim();
 
-    // Check Master Admin credentials
+    // Check Master Admin credentials (tolerant to mobile casing)
     if (cleanEmail === 'admin@savoure.co.za') {
-      if (cleanPassword === 'Shazia') {
+      if (cleanPassword === 'Shazia' || cleanPassword.toLowerCase() === 'shazia') {
         const master = { ...MASTER_ADMIN_USER, lastLogin: new Date().toISOString() };
         setCurrentUser(master);
-        localStorage.setItem(USER_KEY, JSON.stringify(master));
+        try {
+          localStorage.setItem(USER_KEY, JSON.stringify(master));
+          sessionStorage.setItem(USER_KEY, JSON.stringify(master));
+        } catch (e) {}
         setUsers((prev) => {
           const filtered = prev.filter((u) => u.email.toLowerCase() !== 'admin@savoure.co.za');
           const updated = [master, ...filtered];
@@ -405,7 +440,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         throw new Error('This user account has been disabled by an administrator.');
       }
       setCurrentUser(matchedUser);
-      localStorage.setItem(USER_KEY, JSON.stringify(matchedUser));
+      try {
+        localStorage.setItem(USER_KEY, JSON.stringify(matchedUser));
+        sessionStorage.setItem(USER_KEY, JSON.stringify(matchedUser));
+      } catch (e) {}
       return matchedUser;
     }
 
@@ -414,7 +452,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const logout = () => {
     setCurrentUser(null);
-    localStorage.removeItem(USER_KEY);
+    try {
+      localStorage.removeItem(USER_KEY);
+      sessionStorage.removeItem(USER_KEY);
+    } catch (e) {}
   };
 
   // Lock & Unlock Screen

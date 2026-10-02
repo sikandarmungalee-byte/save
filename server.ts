@@ -1127,6 +1127,26 @@ app.get('/api/sync', (_req: Request, res: Response) => {
   res.json(db);
 });
 
+app.post('/api/sync', (req: Request, res: Response) => {
+  try {
+    const payload = req.body;
+    if (payload && typeof payload === 'object') {
+      const current = getDatabase();
+      const updated = {
+        ...current,
+        ...payload,
+        lastUpdated: new Date().toISOString()
+      };
+      saveDatabase(updated);
+      res.json({ success: true, lastUpdated: updated.lastUpdated });
+    } else {
+      res.status(400).json({ error: 'Invalid payload' });
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Sync write failed' });
+  }
+});
+
 // Fallback for unmatched API routes - always returns JSON, never HTML
 app.all('/api/*', (req: Request, res: Response) => {
   res.status(404).json({ error: `API route not found: ${req.method} ${req.path}` });
