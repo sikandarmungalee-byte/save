@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import {
   User,
   CompanySettings,
@@ -12,8 +12,10 @@ import {
   CommunicationLog,
   ERPDatabase
 } from '../types/erp';
+import { db } from '../lib/firebase';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 
-// Safe API caller that catches non-JSON/404 errors gracefully
+// Safe API caller for local / server endpoints
 async function safeFetchJson<T = any>(
   url: string,
   options?: RequestInit
@@ -119,7 +121,7 @@ interface ERPContextType {
   lastSynced: string | null;
   refreshData: () => Promise<void>;
   
-  // User Management (restricted to signed in users)
+  // User Management
   createUser: (data: Partial<User>) => Promise<User>;
   updateUser: (id: string, data: Partial<User>) => Promise<User>;
   deleteUser: (id: string) => Promise<void>;
@@ -207,7 +209,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'offline'>('synced');
   const [lastSynced, setLastSynced] = useState<string | null>(null);
 
-  // Helper to persist entire state to local cache
+  const isWritingCloud = useRef(false);
+
+  // Helper to persist state to local cache
   const persistToLocal = useCallback((override?: Partial<ERPDatabase>) => {
     try {
       const currentDb: ERPDatabase = {
@@ -227,9 +231,29 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       localStorage.setItem(CACHE_KEY, JSON.stringify(currentDb));
     } catch (e) {
-      console.warn('Failed to save to local cache:', e);
+      console.warn('Cache write warning:', e);
     }
   }, [users, company, customers, products, categories, invoices, deliveryNotes, quotations, payments, leads, communications]);
+
+  // Synchronize state directly to Cloud Firestore (so phone and laptop sync in real-time)
+  const syncToCloud = useCallback(async (data: Partial<ERPDatabase>) => {
+    isWritingCloud.current = true;
+    setSyncStatus('syncing');
+    try {
+      await setDoc(doc(db, 'erp', 'main'), {
+        ...data,
+        lastUpdated: new Date().toISOString(),
+      }, { merge: true });
+      setSyncStatus('synced');
+      setLastSynced(new Date().toLocaleTimeString());
+    } catch (err) {
+      console.warn('Cloud sync notice:', err);
+    } finally {
+      setTimeout(() => {
+        isWritingCloud.current = false;
+      }, 800);
+    }
+  }, []);
 
   // Synchronize current user in local storage
   useEffect(() => {
@@ -240,7 +264,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [currentUser]);
 
-  // Load from cache on startup
+  // Load from local storage initially
   useEffect(() => {
     try {
       const cached = localStorage.getItem(CACHE_KEY);
@@ -256,127 +280,104 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (parsed.payments) setPayments(parsed.payments);
         if (parsed.leads) setLeads(parsed.leads);
         if (parsed.communications) setCommunications(parsed.communications);
-        
+
         let loadedUsers = parsed.users || [];
         if (!loadedUsers.some((u) => u.email.toLowerCase() === 'admin@savoure.co.za')) {
           loadedUsers = [MASTER_ADMIN_USER, ...loadedUsers];
         }
         setUsers(loadedUsers);
-      } else {
-        // Initialize default cache
-        persistToLocal({ users: [MASTER_ADMIN_USER], company: INITIAL_COMPANY });
       }
     } catch (e) {
       console.warn('Cache parse error:', e);
     }
   }, []);
 
+  // REAL-TIME CLOUD FIRESTORE SYNCHRONIZATION
+  // Connects phone, laptop, tablet and any device via live Cloud Firestore listener
+  useEffect(() => {
+    setSyncStatus('syncing');
+    const unsub = onSnapshot(doc(db, 'erp', 'main'), (snapshot) => {
+      if (snapshot.exists()) {
+        const cloudData = snapshot.data() as Partial<ERPDatabase>;
+        
+        if (cloudData.company) setCompany(cloudData.company);
+        if (cloudData.products) setProducts(cloudData.products);
+        if (cloudData.customers) setCustomers(cloudData.customers);
+        if (cloudData.categories) setCategories(cloudData.categories);
+        if (cloudData.invoices) setInvoices(cloudData.invoices);
+        if (cloudData.deliveryNotes) setDeliveryNotes(cloudData.deliveryNotes);
+        if (cloudData.quotations) setQuotations(cloudData.quotations);
+        if (cloudData.payments) setPayments(cloudData.payments);
+        if (cloudData.leads) setLeads(cloudData.leads);
+        if (cloudData.communications) setCommunications(cloudData.communications);
+
+        let cloudUsers = cloudData.users || [];
+        if (!cloudUsers.some((u) => u.email.toLowerCase() === 'admin@savoure.co.za')) {
+          cloudUsers = [MASTER_ADMIN_USER, ...cloudUsers];
+        }
+        setUsers(cloudUsers);
+
+        // Update local storage cache
+        try {
+          localStorage.setItem(CACHE_KEY, JSON.stringify(cloudData));
+        } catch (e) {}
+
+        setSyncStatus('synced');
+        setLastSynced(new Date().toLocaleTimeString());
+      } else {
+        // Initialize cloud database with initial Master Admin and company settings
+        setDoc(doc(db, 'erp', 'main'), {
+          users: [MASTER_ADMIN_USER],
+          company: INITIAL_COMPANY,
+          products: [],
+          customers: [],
+          invoices: [],
+          deliveryNotes: [],
+          quotations: [],
+          payments: [],
+          leads: [],
+          communications: [],
+          lastUpdated: new Date().toISOString(),
+        }).catch(() => {});
+        setSyncStatus('synced');
+      }
+    }, (error) => {
+      console.warn('Firestore real-time subscription error:', error);
+      setSyncStatus('synced');
+    });
+
+    return () => unsub();
+  }, []);
+
+  // Manual refresh trigger
   const refreshData = useCallback(async () => {
     try {
       setSyncStatus('syncing');
-      const res = await safeFetchJson<ERPDatabase>('/api/sync');
-      
-      if (res.ok && res.data) {
-        const data = res.data;
-        if (data.company) setCompany(data.company);
-        setCustomers(data.customers || []);
-        setProducts(data.products || []);
-        setCategories(data.categories || []);
-        setInvoices(data.invoices || []);
-        setDeliveryNotes(data.deliveryNotes || []);
-        setQuotations(data.quotations || []);
-        setPayments(data.payments || []);
-        setLeads(data.leads || []);
-        setCommunications(data.communications || []);
-
-        let syncedUsers = data.users || [];
-        if (!syncedUsers.some((u) => u.email.toLowerCase() === 'admin@savoure.co.za')) {
-          syncedUsers = [MASTER_ADMIN_USER, ...syncedUsers];
-        }
-        setUsers(syncedUsers);
-        localStorage.setItem(CACHE_KEY, JSON.stringify(data));
-      } else {
-        // If /api/sync is 404 (e.g. static domain rotibros.co.za on Vercel), maintain local cache gracefully
-        setUsers((prev) => {
-          if (!prev.some((u) => u.email.toLowerCase() === 'admin@savoure.co.za')) {
-            return [MASTER_ADMIN_USER, ...prev];
-          }
-          return prev;
-        });
+      const snap = await getDoc(doc(db, 'erp', 'main'));
+      if (snap.exists()) {
+        const cloudData = snap.data() as Partial<ERPDatabase>;
+        if (cloudData.products) setProducts(cloudData.products);
+        if (cloudData.customers) setCustomers(cloudData.customers);
+        if (cloudData.invoices) setInvoices(cloudData.invoices);
+        if (cloudData.deliveryNotes) setDeliveryNotes(cloudData.deliveryNotes);
+        if (cloudData.quotations) setQuotations(cloudData.quotations);
+        if (cloudData.payments) setPayments(cloudData.payments);
+        if (cloudData.leads) setLeads(cloudData.leads);
+        if (cloudData.users) setUsers(cloudData.users);
       }
-
       setSyncStatus('synced');
       setLastSynced(new Date().toLocaleTimeString());
-
-      // If user is currently signed in, keep their live user record synchronized
-      if (currentUser) {
-        setUsers((currentList) => {
-          const liveUser = currentList.find(
-            (u) => u.id === currentUser.id || u.email.toLowerCase() === currentUser.email.toLowerCase()
-          );
-          if (liveUser) {
-            if (liveUser.status === 'inactive') {
-              setCurrentUser(null);
-              localStorage.removeItem(USER_KEY);
-            } else {
-              setCurrentUser((prev) => (prev ? { ...prev, ...liveUser } : null));
-            }
-          }
-          return currentList;
-        });
-      }
-    } catch (err) {
-      console.warn('Sync notice:', err);
+    } catch (e) {
       setSyncStatus('synced');
     }
-  }, [currentUser]);
+  }, []);
 
-  // Initial fetch and auto-polling every 8 seconds for multi-device sync
-  useEffect(() => {
-    refreshData();
-    const interval = setInterval(() => {
-      refreshData();
-    }, 8000);
-    const onFocus = () => refreshData();
-    window.addEventListener('focus', onFocus);
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('focus', onFocus);
-    };
-  }, [refreshData]);
-
-  // Authentication: Login & Logout with Zero-Failure Master Admin Fallback
+  // Authentication: Login & Logout
   const login = async (email: string, password: string): Promise<User> => {
     const cleanEmail = email.trim().toLowerCase();
     const cleanPassword = password.trim();
 
-    // First attempt server login
-    try {
-      const res = await safeFetchJson<{ success: boolean; user: User; token: string }>('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleanEmail, password: cleanPassword }),
-      });
-
-      if (res.ok && res.data?.user) {
-        const authedUser = res.data.user;
-        setCurrentUser(authedUser);
-        localStorage.setItem(USER_KEY, JSON.stringify(authedUser));
-        await refreshData();
-        return authedUser;
-      }
-      
-      // If server returned 401 specifically for bad password on an existing server user, show it
-      if (res.status === 401 && (res.data as any)?.error?.includes('password')) {
-        throw new Error('Incorrect password. Please verify your password and try again.');
-      }
-    } catch (netErr: any) {
-      if (netErr?.message?.includes('password')) {
-        throw netErr;
-      }
-    }
-
-    // Client-side authentication fallback (ensures rotibros.co.za on Vercel NEVER fails with 404)
+    // Check Master Admin credentials
     if (cleanEmail === 'admin@savoure.co.za') {
       if (cleanPassword === 'Shazia') {
         const master = { ...MASTER_ADMIN_USER, lastLogin: new Date().toISOString() };
@@ -385,7 +386,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setUsers((prev) => {
           const filtered = prev.filter((u) => u.email.toLowerCase() !== 'admin@savoure.co.za');
           const updated = [master, ...filtered];
-          localStorage.setItem(CACHE_KEY, JSON.stringify({ company, users: updated }));
+          syncToCloud({ users: updated });
           return updated;
         });
         return master;
@@ -394,7 +395,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    // Check if user exists in cached users
+    // Check users in state / cloud
     const matchedUser = users.find((u) => u.email.toLowerCase() === cleanEmail);
     if (matchedUser) {
       if (matchedUser.password && matchedUser.password !== cleanPassword) {
@@ -426,7 +427,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return false;
   };
 
-  // User Management (strictly restricted to signed in users)
+  // User Management
   const createUser = async (data: Partial<User>): Promise<User> => {
     if (!currentUser) {
       throw new Error('You must be signed in to create new users.');
@@ -460,22 +461,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
     };
 
-    // Attempt server sync
-    try {
-      await safeFetchJson('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-    } catch (e) {
-      console.warn('User saved in local database:', e);
-    }
-
-    setUsers((prev) => {
-      const updated = [...prev, newUser];
-      persistToLocal({ users: updated });
-      return updated;
-    });
+    const nextUsers = [...users, newUser];
+    setUsers(nextUsers);
+    persistToLocal({ users: nextUsers });
+    await syncToCloud({ users: nextUsers });
 
     return newUser;
   };
@@ -485,29 +474,19 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       throw new Error('You must be signed in to update users.');
     }
 
-    try {
-      await safeFetchJson(`/api/users/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-    } catch (e) {
-      console.warn('User update saved in local database');
-    }
-
     let updatedResult: User | null = null;
-    setUsers((prev) => {
-      const updated = prev.map((u) => {
-        if (u.id === id) {
-          const mod = { ...u, ...data };
-          updatedResult = mod;
-          return mod;
-        }
-        return u;
-      });
-      persistToLocal({ users: updated });
-      return updated;
+    const nextUsers = users.map((u) => {
+      if (u.id === id) {
+        const mod = { ...u, ...data };
+        updatedResult = mod;
+        return mod;
+      }
+      return u;
     });
+
+    setUsers(nextUsers);
+    persistToLocal({ users: nextUsers });
+    await syncToCloud({ users: nextUsers });
 
     if (currentUser?.id === id && updatedResult) {
       setCurrentUser(updatedResult);
@@ -521,36 +500,18 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       throw new Error('You must be signed in to delete users.');
     }
 
-    try {
-      await safeFetchJson(`/api/users/${id}`, { method: 'DELETE' });
-    } catch (e) {
-      console.warn('User deletion saved in local database');
-    }
-
-    setUsers((prev) => {
-      const updated = prev.filter((u) => u.id !== id);
-      persistToLocal({ users: updated });
-      return updated;
-    });
+    const nextUsers = users.filter((u) => u.id !== id);
+    setUsers(nextUsers);
+    persistToLocal({ users: nextUsers });
+    await syncToCloud({ users: nextUsers });
   };
 
   // Company Settings
   const updateCompany = async (data: Partial<CompanySettings>) => {
-    try {
-      await safeFetchJson('/api/company', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-    } catch (e) {
-      console.warn('Company updated locally');
-    }
-
-    setCompany((prev) => {
-      const updated = { ...prev, ...data };
-      persistToLocal({ company: updated });
-      return updated;
-    });
+    const updated = { ...company, ...data };
+    setCompany(updated);
+    persistToLocal({ company: updated });
+    await syncToCloud({ company: updated });
   };
 
   // Customer Management
@@ -573,62 +534,40 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
     };
 
-    try {
-      await safeFetchJson('/api/customers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-    } catch (e) {}
-
-    setCustomers((prev) => {
-      const updated = [newCust, ...prev];
-      persistToLocal({ customers: updated });
-      return updated;
-    });
+    const nextCustomers = [newCust, ...customers];
+    setCustomers(nextCustomers);
+    persistToLocal({ customers: nextCustomers });
+    await syncToCloud({ customers: nextCustomers });
 
     return newCust;
   };
 
   const updateCustomer = async (id: string, data: Partial<Customer>): Promise<Customer> => {
-    try {
-      await safeFetchJson(`/api/customers/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-    } catch (e) {}
-
     let resCust: Customer | null = null;
-    setCustomers((prev) => {
-      const updated = prev.map((c) => {
-        if (c.id === id) {
-          const mod = { ...c, ...data };
-          resCust = mod;
-          return mod;
-        }
-        return c;
-      });
-      persistToLocal({ customers: updated });
-      return updated;
+    const nextCustomers = customers.map((c) => {
+      if (c.id === id) {
+        const mod = { ...c, ...data };
+        resCust = mod;
+        return mod;
+      }
+      return c;
     });
+
+    setCustomers(nextCustomers);
+    persistToLocal({ customers: nextCustomers });
+    await syncToCloud({ customers: nextCustomers });
 
     return resCust || (data as Customer);
   };
 
   const deleteCustomer = async (id: string) => {
-    try {
-      await safeFetchJson(`/api/customers/${id}`, { method: 'DELETE' });
-    } catch (e) {}
-
-    setCustomers((prev) => {
-      const updated = prev.filter((c) => c.id !== id);
-      persistToLocal({ customers: updated });
-      return updated;
-    });
+    const nextCustomers = customers.filter((c) => c.id !== id);
+    setCustomers(nextCustomers);
+    persistToLocal({ customers: nextCustomers });
+    await syncToCloud({ customers: nextCustomers });
   };
 
-  // Products
+  // Products (Saves to Google Cloud Firestore immediately so it appears on phone & laptop)
   const createProduct = async (data: Partial<Product>): Promise<Product> => {
     const newProd: Product = {
       id: 'prod_' + Date.now(),
@@ -643,93 +582,57 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       stockOnHand: Number(data.stockOnHand) || 0,
     };
 
-    try {
-      await safeFetchJson('/api/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-    } catch (e) {}
-
-    setProducts((prev) => {
-      const updated = [newProd, ...prev];
-      persistToLocal({ products: updated });
-      return updated;
-    });
+    const nextProducts = [newProd, ...products];
+    setProducts(nextProducts);
+    persistToLocal({ products: nextProducts });
+    await syncToCloud({ products: nextProducts });
 
     return newProd;
   };
 
   const updateProduct = async (id: string, data: Partial<Product>): Promise<Product> => {
-    try {
-      await safeFetchJson(`/api/products/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-    } catch (e) {}
-
     let resProd: Product | null = null;
-    setProducts((prev) => {
-      const updated = prev.map((p) => {
-        if (p.id === id) {
-          const mod = { ...p, ...data };
-          resProd = mod;
-          return mod;
-        }
-        return p;
-      });
-      persistToLocal({ products: updated });
-      return updated;
+    const nextProducts = products.map((p) => {
+      if (p.id === id) {
+        const mod = { ...p, ...data };
+        resProd = mod;
+        return mod;
+      }
+      return p;
     });
+
+    setProducts(nextProducts);
+    persistToLocal({ products: nextProducts });
+    await syncToCloud({ products: nextProducts });
 
     return resProd || (data as Product);
   };
 
   const deleteProduct = async (id: string) => {
-    try {
-      await safeFetchJson(`/api/products/${id}`, { method: 'DELETE' });
-    } catch (e) {}
-
-    setProducts((prev) => {
-      const updated = prev.filter((p) => p.id !== id);
-      persistToLocal({ products: updated });
-      return updated;
-    });
+    const nextProducts = products.filter((p) => p.id !== id);
+    setProducts(nextProducts);
+    persistToLocal({ products: nextProducts });
+    await syncToCloud({ products: nextProducts });
   };
 
   // Custom Categories
   const createCategory = async (name: string): Promise<string[]> => {
     const clean = name.trim();
-    try {
-      await safeFetchJson('/api/categories', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: clean }),
-      });
-    } catch (e) {}
-
     let nextCats = categories;
     if (clean && !categories.includes(clean)) {
       nextCats = [...categories, clean];
       setCategories(nextCats);
       persistToLocal({ categories: nextCats });
+      await syncToCloud({ categories: nextCats });
     }
     return nextCats;
   };
 
   const deleteCategory = async (name: string): Promise<string[]> => {
-    try {
-      await safeFetchJson('/api/categories', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
-      });
-    } catch (e) {}
-
     const updated = categories.filter((c) => c !== name);
     setCategories(updated);
     persistToLocal({ categories: updated });
+    await syncToCloud({ categories: updated });
     return updated;
   };
 
@@ -776,45 +679,28 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdBy: currentUser?.name || 'Administrator',
     };
 
-    try {
-      await safeFetchJson('/api/invoices', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...data, createdBy: currentUser?.name || 'Administrator' }),
-      });
-    } catch (e) {}
-
-    setInvoices((prev) => {
-      const updated = [newInv, ...prev];
-      persistToLocal({ invoices: updated });
-      return updated;
-    });
+    const nextInvoices = [newInv, ...invoices];
+    setInvoices(nextInvoices);
+    persistToLocal({ invoices: nextInvoices });
+    await syncToCloud({ invoices: nextInvoices });
 
     return newInv;
   };
 
   const updateInvoice = async (id: string, data: any): Promise<Invoice> => {
-    try {
-      await safeFetchJson(`/api/invoices/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-    } catch (e) {}
-
     let resInv: Invoice | null = null;
-    setInvoices((prev) => {
-      const updated = prev.map((inv) => {
-        if (inv.id === id) {
-          const mod = { ...inv, ...data };
-          resInv = mod;
-          return mod;
-        }
-        return inv;
-      });
-      persistToLocal({ invoices: updated });
-      return updated;
+    const nextInvoices = invoices.map((inv) => {
+      if (inv.id === id) {
+        const mod = { ...inv, ...data };
+        resInv = mod;
+        return mod;
+      }
+      return inv;
     });
+
+    setInvoices(nextInvoices);
+    persistToLocal({ invoices: nextInvoices });
+    await syncToCloud({ invoices: nextInvoices });
 
     return resInv || (data as Invoice);
   };
@@ -856,15 +742,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           createdBy: currentUser?.name || 'Administrator',
         };
 
-    try {
-      await safeFetchJson(`/api/invoices/${id}/clone`, { method: 'POST' });
-    } catch (e) {}
-
-    setInvoices((prev) => {
-      const updated = [cloned, ...prev];
-      persistToLocal({ invoices: updated });
-      return updated;
-    });
+    const nextInvoices = [cloned, ...invoices];
+    setInvoices(nextInvoices);
+    persistToLocal({ invoices: nextInvoices });
+    await syncToCloud({ invoices: nextInvoices });
 
     return cloned;
   };
@@ -900,33 +781,19 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
     };
 
-    try {
-      await safeFetchJson(`/api/invoices/${invoiceId}/generate-delivery-note`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(details || {}),
-      });
-    } catch (e) {}
-
-    setDeliveryNotes((prev) => {
-      const updated = [newDn, ...prev];
-      persistToLocal({ deliveryNotes: updated });
-      return updated;
-    });
+    const nextDeliveryNotes = [newDn, ...deliveryNotes];
+    setDeliveryNotes(nextDeliveryNotes);
+    persistToLocal({ deliveryNotes: nextDeliveryNotes });
+    await syncToCloud({ deliveryNotes: nextDeliveryNotes });
 
     return newDn;
   };
 
   const deleteInvoice = async (id: string) => {
-    try {
-      await safeFetchJson(`/api/invoices/${id}`, { method: 'DELETE' });
-    } catch (e) {}
-
-    setInvoices((prev) => {
-      const updated = prev.filter((i) => i.id !== id);
-      persistToLocal({ invoices: updated });
-      return updated;
-    });
+    const nextInvoices = invoices.filter((i) => i.id !== id);
+    setInvoices(nextInvoices);
+    persistToLocal({ invoices: nextInvoices });
+    await syncToCloud({ invoices: nextInvoices });
   };
 
   // Delivery Notes
@@ -954,93 +821,63 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
     };
 
-    try {
-      await safeFetchJson('/api/delivery-notes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-    } catch (e) {}
-
-    setDeliveryNotes((prev) => {
-      const updated = [newDn, ...prev];
-      persistToLocal({ deliveryNotes: updated });
-      return updated;
-    });
+    const nextDeliveryNotes = [newDn, ...deliveryNotes];
+    setDeliveryNotes(nextDeliveryNotes);
+    persistToLocal({ deliveryNotes: nextDeliveryNotes });
+    await syncToCloud({ deliveryNotes: nextDeliveryNotes });
 
     return newDn;
   };
 
   const updateDeliveryNote = async (id: string, data: any): Promise<DeliveryNote> => {
-    try {
-      await safeFetchJson(`/api/delivery-notes/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-    } catch (e) {}
-
     let resDn: DeliveryNote | null = null;
-    setDeliveryNotes((prev) => {
-      const updated = prev.map((d) => {
-        if (d.id === id) {
-          const mod = { ...d, ...data };
-          resDn = mod;
-          return mod;
-        }
-        return d;
-      });
-      persistToLocal({ deliveryNotes: updated });
-      return updated;
+    const nextDeliveryNotes = deliveryNotes.map((d) => {
+      if (d.id === id) {
+        const mod = { ...d, ...data };
+        resDn = mod;
+        return mod;
+      }
+      return d;
     });
+
+    setDeliveryNotes(nextDeliveryNotes);
+    persistToLocal({ deliveryNotes: nextDeliveryNotes });
+    await syncToCloud({ deliveryNotes: nextDeliveryNotes });
 
     return resDn || (data as DeliveryNote);
   };
 
   const savePOD = async (id: string, podData: { podSignature: string; podReceivedBy: string; notes?: string }): Promise<DeliveryNote> => {
-    try {
-      await safeFetchJson(`/api/delivery-notes/${id}/pod`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(podData),
-      });
-    } catch (e) {}
-
     let resDn: DeliveryNote | null = null;
-    setDeliveryNotes((prev) => {
-      const updated = prev.map((d) => {
-        if (d.id === id) {
-          const mod: DeliveryNote = {
-            ...d,
-            podSignature: podData.podSignature,
-            podReceivedBy: podData.podReceivedBy,
-            podReceivedAt: new Date().toISOString(),
-            deliveryDate: new Date().toISOString(),
-            status: 'Delivered',
-            notes: podData.notes ? `${d.notes ? d.notes + ' ' : ''}${podData.notes}` : d.notes,
-          };
-          resDn = mod;
-          return mod;
-        }
-        return d;
-      });
-      persistToLocal({ deliveryNotes: updated });
-      return updated;
+    const nextDeliveryNotes = deliveryNotes.map((d) => {
+      if (d.id === id) {
+        const mod: DeliveryNote = {
+          ...d,
+          podSignature: podData.podSignature,
+          podReceivedBy: podData.podReceivedBy,
+          podReceivedAt: new Date().toISOString(),
+          deliveryDate: new Date().toISOString(),
+          status: 'Delivered',
+          notes: podData.notes ? `${d.notes ? d.notes + ' ' : ''}${podData.notes}` : d.notes,
+        };
+        resDn = mod;
+        return mod;
+      }
+      return d;
     });
+
+    setDeliveryNotes(nextDeliveryNotes);
+    persistToLocal({ deliveryNotes: nextDeliveryNotes });
+    await syncToCloud({ deliveryNotes: nextDeliveryNotes });
 
     return resDn || (podData as any);
   };
 
   const deleteDeliveryNote = async (id: string) => {
-    try {
-      await safeFetchJson(`/api/delivery-notes/${id}`, { method: 'DELETE' });
-    } catch (e) {}
-
-    setDeliveryNotes((prev) => {
-      const updated = prev.filter((d) => d.id !== id);
-      persistToLocal({ deliveryNotes: updated });
-      return updated;
-    });
+    const nextDeliveryNotes = deliveryNotes.filter((d) => d.id !== id);
+    setDeliveryNotes(nextDeliveryNotes);
+    persistToLocal({ deliveryNotes: nextDeliveryNotes });
+    await syncToCloud({ deliveryNotes: nextDeliveryNotes });
   };
 
   // Quotations
@@ -1075,45 +912,28 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
     };
 
-    try {
-      await safeFetchJson('/api/quotations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-    } catch (e) {}
-
-    setQuotations((prev) => {
-      const updated = [newQuote, ...prev];
-      persistToLocal({ quotations: updated });
-      return updated;
-    });
+    const nextQuotes = [newQuote, ...quotations];
+    setQuotations(nextQuotes);
+    persistToLocal({ quotations: nextQuotes });
+    await syncToCloud({ quotations: nextQuotes });
 
     return newQuote;
   };
 
   const updateQuotation = async (id: string, data: any): Promise<Quotation> => {
-    try {
-      await safeFetchJson(`/api/quotations/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-    } catch (e) {}
-
     let resQ: Quotation | null = null;
-    setQuotations((prev) => {
-      const updated = prev.map((q) => {
-        if (q.id === id) {
-          const mod = { ...q, ...data };
-          resQ = mod;
-          return mod;
-        }
-        return q;
-      });
-      persistToLocal({ quotations: updated });
-      return updated;
+    const nextQuotes = quotations.map((q) => {
+      if (q.id === id) {
+        const mod = { ...q, ...data };
+        resQ = mod;
+        return mod;
+      }
+      return q;
     });
+
+    setQuotations(nextQuotes);
+    persistToLocal({ quotations: nextQuotes });
+    await syncToCloud({ quotations: nextQuotes });
 
     return resQ || (data as Quotation);
   };
@@ -1180,44 +1000,30 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     newInvoice.linkedDeliveryNoteId = newDn.id;
 
-    try {
-      await safeFetchJson(`/api/quotations/${id}/convert`, { method: 'POST' });
-    } catch (e) {}
-
     let updatedQuote = quote;
     if (quote) {
       updatedQuote = { ...quote, status: 'Converted', convertedInvoiceId: newInvoice.id, convertedDeliveryNoteId: newDn.id };
     }
 
-    setQuotations((prev) => {
-      const updated = prev.map((q) => (q.id === id ? updatedQuote! : q));
-      return updated;
-    });
+    const nextQuotes = quotations.map((q) => (q.id === id ? updatedQuote! : q));
+    const nextInvoices = [newInvoice, ...invoices];
+    const nextDeliveryNotes = [newDn, ...deliveryNotes];
 
-    setInvoices((prev) => {
-      const updated = [newInvoice, ...prev];
-      return updated;
-    });
+    setQuotations(nextQuotes);
+    setInvoices(nextInvoices);
+    setDeliveryNotes(nextDeliveryNotes);
 
-    setDeliveryNotes((prev) => {
-      const updated = [newDn, ...prev];
-      persistToLocal({ invoices: [newInvoice, ...invoices], deliveryNotes: updated });
-      return updated;
-    });
+    persistToLocal({ quotations: nextQuotes, invoices: nextInvoices, deliveryNotes: nextDeliveryNotes });
+    await syncToCloud({ quotations: nextQuotes, invoices: nextInvoices, deliveryNotes: nextDeliveryNotes });
 
     return { quotation: updatedQuote!, invoice: newInvoice, deliveryNote: newDn };
   };
 
   const deleteQuotation = async (id: string) => {
-    try {
-      await safeFetchJson(`/api/quotations/${id}`, { method: 'DELETE' });
-    } catch (e) {}
-
-    setQuotations((prev) => {
-      const updated = prev.filter((q) => q.id !== id);
-      persistToLocal({ quotations: updated });
-      return updated;
-    });
+    const nextQuotes = quotations.filter((q) => q.id !== id);
+    setQuotations(nextQuotes);
+    persistToLocal({ quotations: nextQuotes });
+    await syncToCloud({ quotations: nextQuotes });
   };
 
   // Payments
@@ -1241,14 +1047,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
     };
 
-    try {
-      await safeFetchJson('/api/payments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...data, recordedBy: currentUser?.name || 'Accounts Officer' }),
-      });
-    } catch (e) {}
-
+    let nextInvoices = invoices;
     if (inv) {
       const newPaid = Math.round((inv.amountPaid + amount) * 100) / 100;
       const newBal = Math.max(0, Math.round((inv.grandTotal - newPaid) * 100) / 100);
@@ -1256,28 +1055,23 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (newBal <= 0.01) newStat = 'Paid';
       else if (newPaid > 0) newStat = 'Partial';
 
-      setInvoices((prev) => prev.map((i) => (i.id === inv.id ? { ...i, amountPaid: newPaid, balanceDue: newBal, status: newStat } : i)));
+      nextInvoices = invoices.map((i) => (i.id === inv.id ? { ...i, amountPaid: newPaid, balanceDue: newBal, status: newStat } : i));
+      setInvoices(nextInvoices);
     }
 
-    setPayments((prev) => {
-      const updated = [newPay, ...prev];
-      persistToLocal({ payments: updated });
-      return updated;
-    });
+    const nextPayments = [newPay, ...payments];
+    setPayments(nextPayments);
+    persistToLocal({ payments: nextPayments, invoices: nextInvoices });
+    await syncToCloud({ payments: nextPayments, invoices: nextInvoices });
 
     return newPay;
   };
 
   const deletePayment = async (id: string) => {
-    try {
-      await safeFetchJson(`/api/payments/${id}`, { method: 'DELETE' });
-    } catch (e) {}
-
-    setPayments((prev) => {
-      const updated = prev.filter((p) => p.id !== id);
-      persistToLocal({ payments: updated });
-      return updated;
-    });
+    const nextPayments = payments.filter((p) => p.id !== id);
+    setPayments(nextPayments);
+    persistToLocal({ payments: nextPayments });
+    await syncToCloud({ payments: nextPayments });
   };
 
   // CRM Leads & Communications
@@ -1297,59 +1091,37 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updatedAt: new Date().toISOString(),
     };
 
-    try {
-      await safeFetchJson('/api/leads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-    } catch (e) {}
-
-    setLeads((prev) => {
-      const updated = [newL, ...prev];
-      persistToLocal({ leads: updated });
-      return updated;
-    });
+    const nextLeads = [newL, ...leads];
+    setLeads(nextLeads);
+    persistToLocal({ leads: nextLeads });
+    await syncToCloud({ leads: nextLeads });
 
     return newL;
   };
 
   const updateLead = async (id: string, data: any): Promise<Lead> => {
-    try {
-      await safeFetchJson(`/api/leads/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-    } catch (e) {}
-
     let resL: Lead | null = null;
-    setLeads((prev) => {
-      const updated = prev.map((l) => {
-        if (l.id === id) {
-          const mod = { ...l, ...data, updatedAt: new Date().toISOString() };
-          resL = mod;
-          return mod;
-        }
-        return l;
-      });
-      persistToLocal({ leads: updated });
-      return updated;
+    const nextLeads = leads.map((l) => {
+      if (l.id === id) {
+        const mod = { ...l, ...data, updatedAt: new Date().toISOString() };
+        resL = mod;
+        return mod;
+      }
+      return l;
     });
+
+    setLeads(nextLeads);
+    persistToLocal({ leads: nextLeads });
+    await syncToCloud({ leads: nextLeads });
 
     return resL || (data as Lead);
   };
 
   const deleteLead = async (id: string) => {
-    try {
-      await safeFetchJson(`/api/leads/${id}`, { method: 'DELETE' });
-    } catch (e) {}
-
-    setLeads((prev) => {
-      const updated = prev.filter((l) => l.id !== id);
-      persistToLocal({ leads: updated });
-      return updated;
-    });
+    const nextLeads = leads.filter((l) => l.id !== id);
+    setLeads(nextLeads);
+    persistToLocal({ leads: nextLeads });
+    await syncToCloud({ leads: nextLeads });
   };
 
   const addCommunication = async (data: any): Promise<CommunicationLog> => {
@@ -1366,29 +1138,16 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       author: currentUser?.name || 'System User',
     };
 
-    try {
-      await safeFetchJson('/api/communications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...data, author: currentUser?.name || 'System User' }),
-      });
-    } catch (e) {}
-
-    setCommunications((prev) => {
-      const updated = [newComm, ...prev];
-      persistToLocal({ communications: updated });
-      return updated;
-    });
+    const nextComms = [newComm, ...communications];
+    setCommunications(nextComms);
+    persistToLocal({ communications: nextComms });
+    await syncToCloud({ communications: nextComms });
 
     return newComm;
   };
 
   // Database Tools
   const purgeMockData = async () => {
-    try {
-      await safeFetchJson('/api/database/purge', { method: 'POST' });
-    } catch (e) {}
-
     setCustomers([]);
     setProducts([]);
     setInvoices([]);
@@ -1397,7 +1156,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPayments([]);
     setLeads([]);
     setCommunications([]);
-    persistToLocal({
+    const purgedData = {
       customers: [],
       products: [],
       invoices: [],
@@ -1406,18 +1165,12 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       payments: [],
       leads: [],
       communications: [],
-    });
+    };
+    persistToLocal(purgedData);
+    await syncToCloud(purgedData);
   };
 
   const restoreBackup = async (importedDb: ERPDatabase) => {
-    try {
-      await safeFetchJson('/api/database/restore', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(importedDb),
-      });
-    } catch (e) {}
-
     if (importedDb.company) setCompany(importedDb.company);
     if (importedDb.customers) setCustomers(importedDb.customers);
     if (importedDb.products) setProducts(importedDb.products);
@@ -1430,6 +1183,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (importedDb.communications) setCommunications(importedDb.communications);
     if (importedDb.users) setUsers(importedDb.users);
     persistToLocal(importedDb);
+    await syncToCloud(importedDb);
   };
 
   return (
