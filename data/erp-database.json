@@ -1,10 +1,10 @@
 {
   "users": [
     {
-      "id": "usr_1790873550611",
-      "name": "Test",
-      "email": "test@test.com",
-      "password": "pass",
+      "id": "usr_master_savoure",
+      "name": "Master Admin",
+      "email": "admin@savoure.co.za",
+      "password": "Shazia",
       "role": "super_admin",
       "permissions": {
         "manageUsers": true,
@@ -20,8 +20,8 @@
         "companySettings": true
       },
       "status": "active",
-      "createdAt": "2026-10-01T16:52:30.611Z",
-      "lastLogin": "2026-10-01T16:52:30.611Z"
+      "createdAt": "2026-10-02T05:00:00.000Z",
+      "lastLogin": "2026-10-02T12:17:48.370Z"
     }
   ],
   "company": {
@@ -52,5 +52,5 @@
   "payments": [],
   "leads": [],
   "communications": [],
-  "lastUpdated": "2026-10-01T16:52:30.611Z"
+  "lastUpdated": "2026-10-02T12:18:02.205Z"
 }

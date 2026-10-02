@@ -20,7 +20,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ currentTab, onOpenLoginModal }) => {
   const {
     currentUser,
-    setCurrentUser,
+    logout,
     company,
     syncStatus,
     lastSynced,
@@ -169,31 +169,6 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, onOpenLoginModal }) 
                 </div>
               </div>
 
-              {/* Fast Device User Switcher list */}
-              <div className="py-1">
-                <div className="px-3.5 py-1 text-[10px] uppercase font-bold tracking-wider text-[#8A776B]">
-                  Switch User Account
-                </div>
-                {users.map((u) => (
-                  <button
-                    key={u.id}
-                    onClick={() => {
-                      setCurrentUser(u);
-                      setShowUserDropdown(false);
-                    }}
-                    className={`w-full text-left px-3.5 py-1.5 text-xs flex items-center justify-between hover:bg-[#221B17] transition-colors ${
-                      currentUser?.id === u.id ? 'bg-[#C98A5B]/15 text-[#DE9E74] font-semibold' : 'text-[#C5B7AC]'
-                    }`}
-                  >
-                    <div className="truncate">
-                      <div>{u.name}</div>
-                      <div className="text-[10px] text-[#8A776B]">{u.email}</div>
-                    </div>
-                    {currentUser?.id === u.id && <CheckCircle2 className="w-3.5 h-3.5 text-[#DE9E74] shrink-0" />}
-                  </button>
-                ))}
-              </div>
-
               <div className="border-t border-[#2C211B] pt-1 mt-1">
                 <button
                   onClick={() => {
@@ -203,18 +178,18 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, onOpenLoginModal }) 
                   className="w-full text-left px-3.5 py-2 text-xs text-[#C5B7AC] hover:bg-[#221B17] flex items-center gap-2"
                 >
                   <Smartphone className="w-3.5 h-3.5 text-[#A69385]" />
-                  <span>Sign In from Another Device</span>
+                  <span>Switch Account / Sign In</span>
                 </button>
                 <button
                   onClick={() => {
-                    setCurrentUser(null);
                     setShowUserDropdown(false);
+                    logout();
                     onOpenLoginModal();
                   }}
                   className="w-full text-left px-3.5 py-2 text-xs text-rose-400 hover:bg-[#221B17] flex items-center gap-2"
                 >
                   <LogOut className="w-3.5 h-3.5" />
-                  <span>Log Out of this Device</span>
+                  <span>Sign Out of this Device</span>
                 </button>
               </div>
             </div>

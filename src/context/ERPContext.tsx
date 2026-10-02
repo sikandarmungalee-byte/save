@@ -13,9 +13,53 @@ import {
   ERPDatabase
 } from '../types/erp';
 
+// Safe API caller that prevents "Unexpected token 'T', 'The page c'... is not valid JSON"
+async function safeFetchJson<T = any>(
+  url: string,
+  options?: RequestInit
+): Promise<{ ok: boolean; status: number; data: T | null; error?: string }> {
+  try {
+    const res = await fetch(url, options);
+    const text = await res.text();
+    let data: any = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      // If server returned HTML (e.g. Cloud Run / proxy error page)
+      console.warn(`Non-JSON response from ${url} (status ${res.status}):`, text.slice(0, 100));
+      return {
+        ok: false,
+        status: res.status,
+        data: null,
+        error: `Server communication response invalid (${res.status}). Please try again in a few moments.`,
+      };
+    }
+
+    if (!res.ok) {
+      return {
+        ok: false,
+        status: res.status,
+        data,
+        error: data?.error || `Request failed (${res.status})`,
+      };
+    }
+
+    return { ok: true, status: res.status, data, error: undefined };
+  } catch (err: any) {
+    return {
+      ok: false,
+      status: 0,
+      data: null,
+      error: err?.message || 'Network error occurred. Please verify connection.',
+    };
+  }
+}
+
 interface ERPContextType {
   currentUser: User | null;
   setCurrentUser: (u: User | null) => void;
+  login: (email: string, password: string) => Promise<User>;
+  logout: () => void;
   users: User[];
   company: CompanySettings;
   customers: Customer[];
@@ -33,7 +77,7 @@ interface ERPContextType {
   lastSynced: string | null;
   refreshData: () => Promise<void>;
   
-  // User Management
+  // User Management (restricted to signed in users)
   createUser: (data: Partial<User>) => Promise<User>;
   updateUser: (id: string, data: Partial<User>) => Promise<User>;
   deleteUser: (id: string) => Promise<void>;
@@ -107,22 +151,23 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [users, setUsers] = useState<User[]>([]);
   const [company, setCompany] = useState<CompanySettings>({
-    companyName: 'Apex Enterprise Solutions (Pty) Ltd',
-    tradingName: 'Apex Enterprise',
-    registrationNumber: '',
-    vatNumber: '',
+    companyName: 'Savouré (Pty) Ltd',
+    tradingName: 'Savouré - A Taste of Tradition',
+    registrationNumber: '2024/782194/07',
+    vatNumber: '4980291847',
     address: 'Johannesburg, South Africa',
-    phone: '',
-    email: 'sikandarmungalee@gmail.com',
+    phone: '+27 (0)11 555 4920',
+    email: 'admin@savoure.co.za',
     currency: 'R',
     vatRate: 15,
-    bankName: '',
-    accountHolder: '',
-    accountNumber: '',
-    branchCode: '',
-    swiftCode: '',
+    bankName: 'First National Bank (FNB)',
+    accountHolder: 'Savouré (Pty) Ltd',
+    accountNumber: '62983104821',
+    branchCode: '250655',
+    swiftCode: 'FIRNZAJJ',
     defaultPaymentTerms: 'Strictly 30 days from invoice date. Please use your invoice number as EFT payment reference.',
     pinCode: '1234',
+    logoUrl: '/src/assets/images/savoure_master_logo_1790775722136.jpg',
   });
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -138,7 +183,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'offline'>('syncing');
   const [lastSynced, setLastSynced] = useState<string | null>(null);
 
-  // Save current user in local storage
+  // Synchronize current user in local storage
   useEffect(() => {
     if (currentUser) {
       localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
@@ -156,6 +201,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (parsed.company) setCompany(parsed.company);
         if (parsed.customers) setCustomers(parsed.customers);
         if (parsed.products) setProducts(parsed.products);
+        if (parsed.categories) setCategories(parsed.categories);
         if (parsed.invoices) setInvoices(parsed.invoices);
         if (parsed.deliveryNotes) setDeliveryNotes(parsed.deliveryNotes);
         if (parsed.quotations) setQuotations(parsed.quotations);
@@ -172,11 +218,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const refreshData = useCallback(async () => {
     try {
       setSyncStatus('syncing');
-      const res = await fetch('/api/sync');
-      if (!res.ok) throw new Error('Network response not ok');
-      const data: ERPDatabase = await res.json();
+      const res = await safeFetchJson<ERPDatabase>('/api/sync');
+      if (!res.ok || !res.data) {
+        setSyncStatus('offline');
+        return;
+      }
+      const data = res.data;
       
-      setCompany(data.company);
+      if (data.company) setCompany(data.company);
       setCustomers(data.customers || []);
       setProducts(data.products || []);
       setCategories(data.categories || []);
@@ -192,26 +241,65 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSyncStatus('synced');
       setLastSynced(new Date().toLocaleTimeString());
 
-      // If no current user is logged in, select existing user if available
-      if (!currentUser && data.users && data.users.length > 0) {
-        setCurrentUser(data.users[0]);
+      // If user is currently signed in, keep their live user record synchronized
+      if (currentUser) {
+        const liveUser = data.users?.find(
+          (u) => u.id === currentUser.id || u.email.toLowerCase() === currentUser.email.toLowerCase()
+        );
+        if (liveUser) {
+          if (liveUser.status === 'inactive') {
+            setCurrentUser(null);
+            localStorage.removeItem(USER_KEY);
+          } else {
+            setCurrentUser((prev) => (prev ? { ...prev, ...liveUser } : null));
+          }
+        }
       }
     } catch (err) {
-      console.warn('Offline mode or failed to sync:', err);
+      console.warn('Sync error:', err);
       setSyncStatus('offline');
     }
   }, [currentUser]);
 
-  // Initial fetch and auto-polling every 10 seconds for multi-device sync
+  // Initial fetch and auto-polling every 6 seconds for instant multi-device sync
   useEffect(() => {
     refreshData();
     const interval = setInterval(() => {
       refreshData();
-    }, 10000);
-    return () => clearInterval(interval);
+    }, 6000);
+    const onFocus = () => refreshData();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
   }, [refreshData]);
 
-  // Lock & Unlock
+  // Authentication: Login & Logout
+  const login = async (email: string, password: string): Promise<User> => {
+    const res = await safeFetchJson<{ success: boolean; user: User; token: string }>('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email.trim(), password: password.trim() }),
+    });
+
+    if (!res.ok || !res.data?.user) {
+      throw new Error(res.error || 'Authentication failed. Please verify your email and password.');
+    }
+
+    const authedUser = res.data.user;
+    setCurrentUser(authedUser);
+    localStorage.setItem(USER_KEY, JSON.stringify(authedUser));
+    await refreshData();
+    return authedUser;
+  };
+
+  const logout = () => {
+    setCurrentUser(null);
+    localStorage.removeItem(USER_KEY);
+  };
+
+  // Lock & Unlock Screen
   const lockApp = () => setIsLocked(true);
   const unlockApp = (pin: string) => {
     if (pin === company.pinCode || pin === '1234') {
@@ -221,33 +309,38 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return false;
   };
 
-  // User Management
+  // User Management (restricted to signed in users)
   const createUser = async (data: Partial<User>): Promise<User> => {
-    const res = await fetch('/api/users', {
+    if (!currentUser) {
+      throw new Error('You must be signed in to create new users.');
+    }
+    const res = await safeFetchJson<User>('/api/users', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Failed to create user');
+    if (!res.ok || !res.data) {
+      throw new Error(res.error || 'Failed to create user');
     }
-    const created: User = await res.json();
+    const created = res.data;
     setUsers((prev) => [...prev, created]);
+    await refreshData();
     return created;
   };
 
   const updateUser = async (id: string, data: Partial<User>): Promise<User> => {
-    const res = await fetch(`/api/users/${id}`, {
+    if (!currentUser) {
+      throw new Error('You must be signed in to update users.');
+    }
+    const res = await safeFetchJson<User>(`/api/users/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Failed to update user');
+    if (!res.ok || !res.data) {
+      throw new Error(res.error || 'Failed to update user');
     }
-    const updated: User = await res.json();
+    const updated = res.data;
     setUsers((prev) => prev.map((u) => (u.id === id ? updated : u)));
     if (currentUser?.id === id) {
       setCurrentUser(updated);
@@ -256,220 +349,241 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteUser = async (id: string): Promise<void> => {
-    const res = await fetch(`/api/users/${id}`, { method: 'DELETE' });
+    if (!currentUser) {
+      throw new Error('You must be signed in to delete users.');
+    }
+    const res = await safeFetchJson(`/api/users/${id}`, { method: 'DELETE' });
     if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Failed to delete user');
+      throw new Error(res.error || 'Failed to delete user');
     }
     setUsers((prev) => prev.filter((u) => u.id !== id));
   };
 
   // Company Settings
   const updateCompany = async (data: Partial<CompanySettings>) => {
-    const res = await fetch('/api/company', {
+    const res = await safeFetchJson<CompanySettings>('/api/company', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    const updated = await res.json();
-    setCompany(updated);
+    if (res.ok && res.data) {
+      setCompany(res.data);
+    }
   };
 
   // Customer Management
   const createCustomer = async (data: Partial<Customer>): Promise<Customer> => {
-    const res = await fetch('/api/customers', {
+    const res = await safeFetchJson<Customer>('/api/customers', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    const created = await res.json();
+    if (!res.ok || !res.data) {
+      throw new Error(res.error || 'Failed to create customer');
+    }
+    const created = res.data;
     setCustomers((prev) => [created, ...prev]);
     return created;
   };
 
   const updateCustomer = async (id: string, data: Partial<Customer>): Promise<Customer> => {
-    const res = await fetch(`/api/customers/${id}`, {
+    const res = await safeFetchJson<Customer>(`/api/customers/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    const updated = await res.json();
+    if (!res.ok || !res.data) {
+      throw new Error(res.error || 'Failed to update customer');
+    }
+    const updated = res.data;
     setCustomers((prev) => prev.map((c) => (c.id === id ? updated : c)));
     return updated;
   };
 
   const deleteCustomer = async (id: string) => {
-    await fetch(`/api/customers/${id}`, { method: 'DELETE' });
+    const res = await safeFetchJson(`/api/customers/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(res.error || 'Failed to delete customer');
     setCustomers((prev) => prev.filter((c) => c.id !== id));
   };
 
   // Products
   const createProduct = async (data: Partial<Product>): Promise<Product> => {
-    const res = await fetch('/api/products', {
+    const res = await safeFetchJson<Product>('/api/products', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    const created = await res.json();
+    if (!res.ok || !res.data) throw new Error(res.error || 'Failed to create product');
+    const created = res.data;
     setProducts((prev) => [created, ...prev]);
     return created;
   };
 
   const updateProduct = async (id: string, data: Partial<Product>): Promise<Product> => {
-    const res = await fetch(`/api/products/${id}`, {
+    const res = await safeFetchJson<Product>(`/api/products/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    const updated = await res.json();
+    if (!res.ok || !res.data) throw new Error(res.error || 'Failed to update product');
+    const updated = res.data;
     setProducts((prev) => prev.map((p) => (p.id === id ? updated : p)));
     return updated;
   };
 
   const deleteProduct = async (id: string) => {
-    await fetch(`/api/products/${id}`, { method: 'DELETE' });
+    const res = await safeFetchJson(`/api/products/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(res.error || 'Failed to delete product');
     setProducts((prev) => prev.filter((p) => p.id !== id));
   };
 
   // Custom Categories
   const createCategory = async (name: string): Promise<string[]> => {
-    const res = await fetch('/api/categories', {
+    const res = await safeFetchJson<string[]>('/api/categories', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
     });
-    const updated = await res.json();
-    setCategories(updated);
-    return updated;
+    if (!res.ok || !res.data) throw new Error(res.error || 'Failed to create category');
+    setCategories(res.data);
+    return res.data;
   };
 
   const deleteCategory = async (name: string): Promise<string[]> => {
-    const res = await fetch('/api/categories', {
+    const res = await safeFetchJson<string[]>('/api/categories', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
     });
-    const updated = await res.json();
-    setCategories(updated);
-    return updated;
+    if (!res.ok || !res.data) throw new Error(res.error || 'Failed to delete category');
+    setCategories(res.data);
+    return res.data;
   };
 
   // Invoices
   const createInvoice = async (data: any): Promise<Invoice> => {
-    const res = await fetch('/api/invoices', {
+    const res = await safeFetchJson<Invoice>('/api/invoices', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...data, createdBy: currentUser?.name || 'Administrator' }),
     });
-    const created: Invoice = await res.json();
+    if (!res.ok || !res.data) throw new Error(res.error || 'Failed to create invoice');
+    const created = res.data;
     setInvoices((prev) => [created, ...prev]);
     refreshData();
     return created;
   };
 
   const updateInvoice = async (id: string, data: any): Promise<Invoice> => {
-    const res = await fetch(`/api/invoices/${id}`, {
+    const res = await safeFetchJson<Invoice>(`/api/invoices/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    const updated = await res.json();
+    if (!res.ok || !res.data) throw new Error(res.error || 'Failed to update invoice');
+    const updated = res.data;
     setInvoices((prev) => prev.map((inv) => (inv.id === id ? updated : inv)));
     return updated;
   };
 
   const cloneInvoice = async (id: string): Promise<Invoice> => {
-    const res = await fetch(`/api/invoices/${id}/clone`, { method: 'POST' });
-    const cloned = await res.json();
+    const res = await safeFetchJson<Invoice>(`/api/invoices/${id}/clone`, { method: 'POST' });
+    if (!res.ok || !res.data) throw new Error(res.error || 'Failed to clone invoice');
+    const cloned = res.data;
     setInvoices((prev) => [cloned, ...prev]);
     return cloned;
   };
 
   const generateDeliveryNoteFromInvoice = async (invoiceId: string, details?: any): Promise<DeliveryNote> => {
-    const res = await fetch(`/api/invoices/${invoiceId}/generate-delivery-note`, {
+    const res = await safeFetchJson<{ deliveryNote: DeliveryNote; invoice: Invoice }>(`/api/invoices/${invoiceId}/generate-delivery-note`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(details || {}),
     });
-    const data = await res.json();
-    setDeliveryNotes((prev) => [data.deliveryNote, ...prev]);
-    setInvoices((prev) => prev.map((i) => (i.id === invoiceId ? data.invoice : i)));
-    return data.deliveryNote;
+    if (!res.ok || !res.data) throw new Error(res.error || 'Failed to generate delivery note');
+    setDeliveryNotes((prev) => [res.data!.deliveryNote, ...prev]);
+    setInvoices((prev) => prev.map((i) => (i.id === invoiceId ? res.data!.invoice : i)));
+    return res.data.deliveryNote;
   };
 
   const deleteInvoice = async (id: string) => {
-    await fetch(`/api/invoices/${id}`, { method: 'DELETE' });
-    setInvoices((prev) => prev.filter((inv) => inv.id !== id));
+    const res = await safeFetchJson(`/api/invoices/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(res.error || 'Failed to delete invoice');
+    setInvoices((prev) => prev.filter((i) => i.id !== id));
   };
 
   // Delivery Notes
   const createDeliveryNote = async (data: any): Promise<DeliveryNote> => {
-    const res = await fetch('/api/delivery-notes', {
+    const res = await safeFetchJson<DeliveryNote>('/api/delivery-notes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    const created = await res.json();
+    if (!res.ok || !res.data) throw new Error(res.error || 'Failed to create delivery note');
+    const created = res.data;
     setDeliveryNotes((prev) => [created, ...prev]);
     return created;
   };
 
   const updateDeliveryNote = async (id: string, data: any): Promise<DeliveryNote> => {
-    const res = await fetch(`/api/delivery-notes/${id}`, {
+    const res = await safeFetchJson<DeliveryNote>(`/api/delivery-notes/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    const updated = await res.json();
-    setDeliveryNotes((prev) => prev.map((dn) => (dn.id === id ? updated : dn)));
+    if (!res.ok || !res.data) throw new Error(res.error || 'Failed to update delivery note');
+    const updated = res.data;
+    setDeliveryNotes((prev) => prev.map((d) => (d.id === id ? updated : d)));
     return updated;
   };
 
-  const savePOD = async (
-    id: string,
-    podData: { podSignature: string; podReceivedBy: string; notes?: string }
-  ): Promise<DeliveryNote> => {
-    const res = await fetch(`/api/delivery-notes/${id}/pod`, {
+  const savePOD = async (id: string, podData: { podSignature: string; podReceivedBy: string; notes?: string }): Promise<DeliveryNote> => {
+    const res = await safeFetchJson<DeliveryNote>(`/api/delivery-notes/${id}/pod`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(podData),
     });
-    const updated = await res.json();
-    setDeliveryNotes((prev) => prev.map((dn) => (dn.id === id ? updated : dn)));
+    if (!res.ok || !res.data) throw new Error(res.error || 'Failed to save POD signature');
+    const updated = res.data;
+    setDeliveryNotes((prev) => prev.map((d) => (d.id === id ? updated : d)));
     return updated;
   };
 
   const deleteDeliveryNote = async (id: string) => {
-    await fetch(`/api/delivery-notes/${id}`, { method: 'DELETE' });
-    setDeliveryNotes((prev) => prev.filter((dn) => dn.id !== id));
+    const res = await safeFetchJson(`/api/delivery-notes/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(res.error || 'Failed to delete delivery note');
+    setDeliveryNotes((prev) => prev.filter((d) => d.id !== id));
   };
 
   // Quotations
   const createQuotation = async (data: any): Promise<Quotation> => {
-    const res = await fetch('/api/quotations', {
+    const res = await safeFetchJson<Quotation>('/api/quotations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    const created = await res.json();
+    if (!res.ok || !res.data) throw new Error(res.error || 'Failed to create quotation');
+    const created = res.data;
     setQuotations((prev) => [created, ...prev]);
     return created;
   };
 
   const updateQuotation = async (id: string, data: any): Promise<Quotation> => {
-    const res = await fetch(`/api/quotations/${id}`, {
+    const res = await safeFetchJson<Quotation>(`/api/quotations/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    const updated = await res.json();
+    if (!res.ok || !res.data) throw new Error(res.error || 'Failed to update quotation');
+    const updated = res.data;
     setQuotations((prev) => prev.map((q) => (q.id === id ? updated : q)));
     return updated;
   };
 
-  const convertQuotation = async (id: string) => {
-    const res = await fetch(`/api/quotations/${id}/convert`, { method: 'POST' });
-    const data = await res.json();
+  const convertQuotation = async (id: string): Promise<{ quotation: Quotation; invoice: Invoice; deliveryNote: DeliveryNote }> => {
+    const res = await safeFetchJson<{ quotation: Quotation; invoice: Invoice; deliveryNote: DeliveryNote }>(`/api/quotations/${id}/convert`, { method: 'POST' });
+    if (!res.ok || !res.data) throw new Error(res.error || 'Failed to convert quotation');
+    const data = res.data;
     setQuotations((prev) => prev.map((q) => (q.id === id ? data.quotation : q)));
     setInvoices((prev) => [data.invoice, ...prev]);
     setDeliveryNotes((prev) => [data.deliveryNote, ...prev]);
@@ -477,83 +591,91 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteQuotation = async (id: string) => {
-    await fetch(`/api/quotations/${id}`, { method: 'DELETE' });
+    const res = await safeFetchJson(`/api/quotations/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(res.error || 'Failed to delete quotation');
     setQuotations((prev) => prev.filter((q) => q.id !== id));
   };
 
   // Payments
   const recordPayment = async (data: any): Promise<Payment> => {
-    const res = await fetch('/api/payments', {
+    const res = await safeFetchJson<{ payment: Payment; updatedInvoice: Invoice }>('/api/payments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, recordedBy: currentUser?.name || 'Accounts Staff' }),
+      body: JSON.stringify({ ...data, recordedBy: currentUser?.name || 'Accounts Officer' }),
     });
-    const result = await res.json();
-    setPayments((prev) => [result.payment, ...prev]);
-    if (result.updatedInvoice) {
-      setInvoices((prev) => prev.map((inv) => (inv.id === result.updatedInvoice.id ? result.updatedInvoice : inv)));
+    if (!res.ok || !res.data) throw new Error(res.error || 'Failed to record payment');
+    const { payment, updatedInvoice } = res.data;
+    setPayments((prev) => [payment, ...prev]);
+    if (updatedInvoice) {
+      setInvoices((prev) => prev.map((inv) => (inv.id === updatedInvoice.id ? updatedInvoice : inv)));
     }
-    return result.payment;
+    return payment;
   };
 
   const deletePayment = async (id: string) => {
-    await fetch(`/api/payments/${id}`, { method: 'DELETE' });
+    const res = await safeFetchJson(`/api/payments/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(res.error || 'Failed to delete payment');
     setPayments((prev) => prev.filter((p) => p.id !== id));
-    refreshData();
+    await refreshData();
   };
 
-  // CRM Leads
+  // CRM Leads & Communications
   const createLead = async (data: any): Promise<Lead> => {
-    const res = await fetch('/api/leads', {
+    const res = await safeFetchJson<Lead>('/api/leads', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    const created = await res.json();
+    if (!res.ok || !res.data) throw new Error(res.error || 'Failed to create lead');
+    const created = res.data;
     setLeads((prev) => [created, ...prev]);
     return created;
   };
 
   const updateLead = async (id: string, data: any): Promise<Lead> => {
-    const res = await fetch(`/api/leads/${id}`, {
+    const res = await safeFetchJson<Lead>(`/api/leads/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    const updated = await res.json();
+    if (!res.ok || !res.data) throw new Error(res.error || 'Failed to update lead');
+    const updated = res.data;
     setLeads((prev) => prev.map((l) => (l.id === id ? updated : l)));
     return updated;
   };
 
   const deleteLead = async (id: string) => {
-    await fetch(`/api/leads/${id}`, { method: 'DELETE' });
+    const res = await safeFetchJson(`/api/leads/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(res.error || 'Failed to delete lead');
     setLeads((prev) => prev.filter((l) => l.id !== id));
   };
 
   const addCommunication = async (data: any): Promise<CommunicationLog> => {
-    const res = await fetch('/api/communications', {
+    const res = await safeFetchJson<CommunicationLog>('/api/communications', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, author: currentUser?.name || 'Staff' }),
+      body: JSON.stringify({ ...data, author: currentUser?.name || 'System User' }),
     });
-    const created = await res.json();
+    if (!res.ok || !res.data) throw new Error(res.error || 'Failed to log communication');
+    const created = res.data;
     setCommunications((prev) => [created, ...prev]);
     return created;
   };
 
   // Database Tools
   const purgeMockData = async () => {
-    await fetch('/api/database/purge', { method: 'POST' });
+    const res = await safeFetchJson('/api/database/purge', { method: 'POST' });
+    if (!res.ok) throw new Error(res.error || 'Purge failed');
     await refreshData();
   };
 
   const restoreBackup = async (importedDb: ERPDatabase) => {
-    const res = await fetch('/api/database/restore', {
+    const res = await safeFetchJson('/api/database/restore', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(importedDb),
     });
-    if (!res.ok) throw new Error('Restore failed');
+    if (!res.ok) throw new Error(res.error || 'Restore failed');
     await refreshData();
   };
 
@@ -562,6 +684,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         currentUser,
         setCurrentUser,
+        login,
+        logout,
         users,
         company,
         customers,

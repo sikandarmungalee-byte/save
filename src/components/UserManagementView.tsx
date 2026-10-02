@@ -58,8 +58,17 @@ export const UserManagementView: React.FC = () => {
   const [formLoading, setFormLoading] = useState(false);
 
   const isSuperAdmin = currentUser?.role === 'super_admin';
+  const canManageUsers = isSuperAdmin || !!currentUser?.permissions?.manageUsers;
 
   const openCreateModal = () => {
+    if (!currentUser) {
+      alert('You must be signed in to create users.');
+      return;
+    }
+    if (!canManageUsers) {
+      alert('Administrator permissions required to create users.');
+      return;
+    }
     setEditingUser(null);
     setFormData({
       name: '',

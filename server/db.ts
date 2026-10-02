@@ -26,11 +26,35 @@ export const CLEAN_COMPANY: CompanySettings = {
   logoUrl: '/src/assets/images/savoure_master_logo_1790775722136.jpg',
 };
 
-export const CLEAN_USERS: User[] = [];
+export const MASTER_ADMIN_USER: User = {
+  id: 'usr_master_savoure',
+  name: 'Master Admin',
+  email: 'admin@savoure.co.za',
+  password: 'Shazia',
+  role: 'super_admin',
+  permissions: {
+    manageUsers: true,
+    invoices: true,
+    deliveryNotes: true,
+    quotations: true,
+    payments: true,
+    customers: true,
+    catalog: true,
+    reports: true,
+    crmLeads: true,
+    databaseExplorer: true,
+    companySettings: true,
+  },
+  status: 'active',
+  createdAt: new Date().toISOString(),
+  lastLogin: new Date().toISOString(),
+};
+
+export const CLEAN_USERS: User[] = [MASTER_ADMIN_USER];
 
 export function getCleanEmptyDatabase(): ERPDatabase {
   return {
-    users: [],
+    users: [MASTER_ADMIN_USER],
     company: CLEAN_COMPANY,
     customers: [],
     products: [],
@@ -57,6 +81,43 @@ export function getDatabase(): ERPDatabase {
     }
     const raw = fs.readFileSync(DB_FILE, 'utf-8');
     const parsed = JSON.parse(raw) as ERPDatabase;
+
+    // Guarantee that Master Admin admin@savoure.co.za / Shazia always exists and is active
+    let modified = false;
+    if (!Array.isArray(parsed.users)) {
+      parsed.users = [];
+      modified = true;
+    }
+
+    // Filter out dummy test users
+    const filteredUsers = parsed.users.filter((u) => u.email.toLowerCase() !== 'test@test.com');
+    if (filteredUsers.length !== parsed.users.length) {
+      parsed.users = filteredUsers;
+      modified = true;
+    }
+
+    const masterIndex = parsed.users.findIndex(
+      (u) => u.email.toLowerCase() === 'admin@savoure.co.za'
+    );
+
+    if (masterIndex === -1) {
+      parsed.users.unshift({ ...MASTER_ADMIN_USER });
+      modified = true;
+    } else {
+      // Ensure password is Shazia and permissions are super admin
+      if (parsed.users[masterIndex].password !== 'Shazia' || parsed.users[masterIndex].status !== 'active') {
+        parsed.users[masterIndex].password = 'Shazia';
+        parsed.users[masterIndex].status = 'active';
+        parsed.users[masterIndex].role = 'super_admin';
+        parsed.users[masterIndex].permissions = { ...MASTER_ADMIN_USER.permissions };
+        modified = true;
+      }
+    }
+
+    if (modified) {
+      saveDatabase(parsed);
+    }
+
     return parsed;
   } catch (err) {
     console.error('Error reading database file:', err);

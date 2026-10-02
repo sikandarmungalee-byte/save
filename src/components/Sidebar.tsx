@@ -15,7 +15,8 @@ import {
   Building2,
   ChevronRight,
   Menu,
-  X
+  X,
+  LogOut
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -33,6 +34,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const {
     currentUser,
+    logout,
     company,
     invoices,
     deliveryNotes,
@@ -226,7 +228,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* System status footer */}
-        <div className="p-3 border-t border-[#2C211B] shrink-0 bg-[#171311]">
+        <div className="p-3 border-t border-[#2C211B] shrink-0 bg-[#171311] space-y-2">
           <div className="p-2.5 rounded-lg bg-[#221B17] border border-[#3A2D25] text-[11px] text-[#A69385]">
             <div className="flex items-center justify-between font-medium text-[#EDE6DE] mb-1">
               <span className="flex items-center gap-1.5 font-medium">
@@ -235,10 +237,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </span>
               <span className="text-[10px] text-[#DE9E74] font-serif">Savouré</span>
             </div>
-            <div className="text-[10px] text-[#A69385] leading-relaxed">
-              Super Admin: <span className="text-[#DE9E74] font-medium">{currentUser?.name || 'Administrator'}</span>
+            <div className="text-[10px] text-[#A69385] leading-relaxed truncate">
+              User: <span className="text-[#DE9E74] font-medium">{currentUser?.name || 'Administrator'}</span>
             </div>
           </div>
+
+          <button
+            onClick={() => {
+              setMobileOpen(false);
+              logout();
+            }}
+            className="w-full py-1.5 px-3 rounded-lg bg-[#221B17] hover:bg-rose-950/40 text-neutral-400 hover:text-rose-300 border border-[#3A2D25] hover:border-rose-800/50 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sign Out of Session</span>
+          </button>
         </div>
       </aside>
     </>

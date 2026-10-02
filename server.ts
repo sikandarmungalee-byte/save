@@ -78,49 +78,51 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
   const { email, password } = req.body;
   const db = getDatabase();
   const cleanEmail = (email || '').toLowerCase().trim();
-  const user = db.users.find((u) => u.email.toLowerCase() === cleanEmail);
+  const cleanPassword = (password || '').trim();
+
+  let user = db.users.find((u) => u.email.toLowerCase() === cleanEmail);
+
+  // If user is admin@savoure.co.za, ensure the master super admin account is present
+  if (!user && cleanEmail === 'admin@savoure.co.za') {
+    const masterAdmin: User = {
+      id: 'usr_master_savoure',
+      name: 'Master Admin',
+      email: 'admin@savoure.co.za',
+      password: 'Shazia',
+      role: 'super_admin',
+      permissions: {
+        manageUsers: true,
+        invoices: true,
+        deliveryNotes: true,
+        quotations: true,
+        payments: true,
+        customers: true,
+        catalog: true,
+        reports: true,
+        crmLeads: true,
+        databaseExplorer: true,
+        companySettings: true,
+      },
+      status: 'active',
+      createdAt: new Date().toISOString(),
+      lastLogin: new Date().toISOString(),
+    };
+    db.users.unshift(masterAdmin);
+    saveDatabase(db);
+    user = masterAdmin;
+  }
 
   if (!user) {
-    // If database has no users yet, allow creating first Super Admin directly with entered credentials
-    if (db.users.length === 0 && cleanEmail) {
-      const superAdmin: User = {
-        id: 'usr_' + Date.now(),
-        name: cleanEmail.split('@')[0],
-        email: cleanEmail,
-        password: password || 'admin123',
-        role: 'super_admin',
-        permissions: {
-          manageUsers: true,
-          invoices: true,
-          deliveryNotes: true,
-          quotations: true,
-          payments: true,
-          customers: true,
-          catalog: true,
-          reports: true,
-          crmLeads: true,
-          databaseExplorer: true,
-          companySettings: true,
-        },
-        status: 'active',
-        createdAt: new Date().toISOString(),
-        lastLogin: new Date().toISOString(),
-      };
-      db.users.push(superAdmin);
-      saveDatabase(db);
-      const { password: _, ...safeAdmin } = superAdmin;
-      return res.json({ success: true, user: safeAdmin, token: 'token_' + superAdmin.id });
-    }
-    return res.status(401).json({ error: 'Invalid user credentials. Please check your email or create a new account.' });
+    return res.status(401).json({ error: 'Invalid user credentials. Please check your email or contact your administrator.' });
   }
 
   if (user.status === 'inactive') {
     return res.status(403).json({ error: 'This user account has been disabled by an administrator.' });
   }
 
-  // Validate password (if password was set)
-  if (user.password && password && user.password !== password) {
-    return res.status(401).json({ error: 'Incorrect password.' });
+  // Validate password
+  if (user.password && cleanPassword !== user.password) {
+    return res.status(401).json({ error: 'Incorrect password. Please verify your password and try again.' });
   }
 
   // Update last login
@@ -1111,6 +1113,17 @@ app.get('/api/database/collections', (_req: Request, res: Response) => {
 app.get('/api/sync', (_req: Request, res: Response) => {
   const db = getDatabase();
   res.json(db);
+});
+
+// Fallback for unmatched API routes - always returns JSON, never HTML
+app.all('/api/*', (req: Request, res: Response) => {
+  res.status(404).json({ error: `API route not found: ${req.method} ${req.path}` });
+});
+
+// Global Express error handler to guarantee JSON response and prevent HTML 500 error pages
+app.use((err: any, _req: Request, res: Response, _next: any) => {
+  console.error('Server error:', err);
+  res.status(500).json({ error: err?.message || 'Internal server error occurred.' });
 });
 
 // ----------------------------------------------------
