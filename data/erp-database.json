@@ -1,5 +1,29 @@
 {
-  "users": [],
+  "users": [
+    {
+      "id": "usr_1790873550611",
+      "name": "Test",
+      "email": "test@test.com",
+      "password": "pass",
+      "role": "super_admin",
+      "permissions": {
+        "manageUsers": true,
+        "invoices": true,
+        "deliveryNotes": true,
+        "quotations": true,
+        "payments": true,
+        "customers": true,
+        "catalog": true,
+        "reports": true,
+        "crmLeads": true,
+        "databaseExplorer": true,
+        "companySettings": true
+      },
+      "status": "active",
+      "createdAt": "2026-10-01T16:52:30.611Z",
+      "lastLogin": "2026-10-01T16:52:30.611Z"
+    }
+  ],
   "company": {
     "companyName": "Savouré - A Taste of Tradition",
     "tradingName": "Savouré Artisanal Bakers",
@@ -28,5 +52,5 @@
   "payments": [],
   "leads": [],
   "communications": [],
-  "lastUpdated": "2026-09-30T13:58:00.000Z"
+  "lastUpdated": "2026-10-01T16:52:30.611Z"
 }
