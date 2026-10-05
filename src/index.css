@@ -38,16 +38,22 @@
   -webkit-text-fill-color: transparent;
 }
 
-/* Print Stylesheet for Tax Invoices, Quotations & Delivery Slips */
+/* Dedicated Luxury Print Stylesheet for Invoices & Documents */
 @media print {
   @page {
     size: A4 portrait;
-    margin: 10mm;
+    margin: 8mm;
   }
   
+  *, *::before, *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
   body {
-    background-color: #ffffff !important;
-    color: #000000 !important;
+    background-color: #FAF7F2 !important;
+    color: #23170F !important;
   }
 
   .no-print, nav, aside, header, .action-toolbar, button {
@@ -60,11 +66,37 @@
 
   .print-container {
     padding: 0 !important;
-    margin: 0 !important;
+    margin: 0 auto !important;
     box-shadow: none !important;
     border: none !important;
     background: transparent !important;
     width: 100% !important;
     max-width: 100% !important;
+  }
+
+  .invoice-root {
+    box-shadow: none !important;
+    margin: 0 auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    background-color: #FAF7F2 !important;
+    page-break-inside: avoid;
+  }
+
+  table {
+    page-break-inside: auto;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tfoot {
+    display: table-footer-group;
   }
 }

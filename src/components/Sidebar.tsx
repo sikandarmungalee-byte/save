@@ -16,7 +16,11 @@ import {
   ChevronRight,
   Menu,
   X,
-  LogOut
+  LogOut,
+  Sparkles,
+  Wallet,
+  ShoppingBag,
+  Landmark,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -40,7 +44,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     deliveryNotes,
     quotations,
     leads,
-    users
+    users,
+    stockItemStatuses,
+    staff,
   } = useERP();
 
   const isSuperAdmin = currentUser?.role === 'super_admin';
@@ -52,6 +58,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const inTransitCount = deliveryNotes.filter((d) => d.status === 'In Transit').length;
   // Pending quotes
   const pendingQuotesCount = quotations.filter((q) => q.status === 'Sent' || q.status === 'Accepted').length;
+  // Out of stock items
+  const finishedStockCount = (stockItemStatuses || []).filter((s) => s.isFinished || s.quantityOnHand <= 0).length;
 
   const navItems = [
     {
@@ -66,6 +74,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: FileText,
       allowed: perms?.invoices ?? true,
       badge: unpaidCount > 0 ? `${unpaidCount} due` : undefined,
+    },
+    {
+      id: 'invoice-studio',
+      label: 'Luxury Invoice Studio',
+      icon: Sparkles,
+      allowed: perms?.invoices ?? true,
+      highlight: true,
+      badge: 'Design',
     },
     {
       id: 'delivery-notes',
@@ -98,6 +114,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Bakery & Catalog',
       icon: Package,
       allowed: perms?.catalog ?? true,
+    },
+    {
+      id: 'stock',
+      label: 'Stock Capturing & Slips',
+      icon: ShoppingBag,
+      allowed: true,
+      highlight: true,
+      badge: finishedStockCount > 0 ? `${finishedStockCount} out` : undefined,
+    },
+    {
+      id: 'payroll',
+      label: 'Staff & Monthly Payroll',
+      icon: Wallet,
+      allowed: true,
+      badge: staff.length > 0 ? `${staff.length} staff` : undefined,
+    },
+    {
+      id: 'accounting',
+      label: 'Accounting & Ledgers',
+      icon: Landmark,
+      allowed: perms?.accounting ?? true,
+      highlight: true,
+    },
+    {
+      id: 'taskeen',
+      label: 'Ask Taskeen AI',
+      icon: Sparkles,
+      allowed: true,
+      highlight: true,
+      badge: 'Advisor',
     },
     {
       id: 'reports',

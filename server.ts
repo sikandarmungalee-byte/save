@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
+import { GoogleGenAI } from '@google/genai';
 import { getDatabase, saveDatabase } from './server/db';
 import {
   User,
@@ -92,14 +93,20 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
   const cleanEmail = (email || '').toLowerCase().trim();
   const cleanPassword = (password || '').trim();
 
-  let user = db.users.find((u) => u.email.toLowerCase() === cleanEmail);
+  let user = db.users.find(
+    (u) =>
+      u.email.toLowerCase() === cleanEmail ||
+      (u.username && u.username.toLowerCase() === cleanEmail) ||
+      (cleanEmail === 'admin' && u.email.toLowerCase() === 'admin@savoure.co.za')
+  );
 
-  // If user is admin@savoure.co.za, ensure the master super admin account is present
-  if (!user && cleanEmail === 'admin@savoure.co.za') {
+  // If user is admin@savoure.co.za or admin, ensure the master super admin account is present
+  if (!user && (cleanEmail === 'admin@savoure.co.za' || cleanEmail === 'admin')) {
     const masterAdmin: User = {
       id: 'usr_master_savoure',
       name: 'Master Admin',
       email: 'admin@savoure.co.za',
+      username: 'admin',
       password: 'Shazia',
       role: 'super_admin',
       permissions: {
@@ -110,6 +117,10 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
         payments: true,
         customers: true,
         catalog: true,
+        stock: true,
+        payroll: true,
+        accounting: true,
+        taskeenAI: true,
         reports: true,
         crmLeads: true,
         databaseExplorer: true,
@@ -124,21 +135,73 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
     user = masterAdmin;
   }
 
+  if (!db.loginLogs) {
+    db.loginLogs = [];
+  }
+
   if (!user) {
-    return res.status(401).json({ error: 'Invalid user credentials. Please check your email or contact your administrator.' });
+    // Record failed login attempt
+    db.loginLogs.unshift({
+      id: 'log_' + Date.now(),
+      userId: 'unknown',
+      userName: cleanEmail || 'Unknown User',
+      userEmail: cleanEmail,
+      action: 'LOGIN',
+      status: 'FAILED',
+      timestamp: new Date().toISOString(),
+      device: req.headers['user-agent'] || 'Web Browser',
+      details: 'Failed login: User account not found',
+    });
+    saveDatabase(db);
+    return res.status(401).json({ error: 'Invalid user credentials. Please check your username/email or contact your administrator.' });
   }
 
   if (user.status === 'inactive') {
+    db.loginLogs.unshift({
+      id: 'log_' + Date.now(),
+      userId: user.id,
+      userName: user.name,
+      userEmail: user.email,
+      action: 'LOGIN',
+      status: 'FAILED',
+      timestamp: new Date().toISOString(),
+      device: req.headers['user-agent'] || 'Web Browser',
+      details: 'Login blocked: Account is inactive/suspended',
+    });
+    saveDatabase(db);
     return res.status(403).json({ error: 'This user account has been disabled by an administrator.' });
   }
 
   // Validate password
   if (user.password && cleanPassword !== user.password) {
+    db.loginLogs.unshift({
+      id: 'log_' + Date.now(),
+      userId: user.id,
+      userName: user.name,
+      userEmail: user.email,
+      action: 'LOGIN',
+      status: 'FAILED',
+      timestamp: new Date().toISOString(),
+      device: req.headers['user-agent'] || 'Web Browser',
+      details: 'Failed login: Incorrect password provided',
+    });
+    saveDatabase(db);
     return res.status(401).json({ error: 'Incorrect password. Please verify your password and try again.' });
   }
 
   // Update last login
   user.lastLogin = new Date().toISOString();
+  db.loginLogs.unshift({
+    id: 'log_' + Date.now(),
+    userId: user.id,
+    userName: user.name,
+    userEmail: user.email,
+    action: 'LOGIN',
+    status: 'SUCCESS',
+    timestamp: new Date().toISOString(),
+    device: req.headers['user-agent'] || 'Web Browser',
+    details: 'User authenticated successfully',
+  });
   saveDatabase(db);
 
   const { password: _, ...safeUser } = user;
@@ -1144,6 +1207,125 @@ app.post('/api/sync', (req: Request, res: Response) => {
     }
   } catch (err: any) {
     res.status(500).json({ error: err?.message || 'Sync write failed' });
+  }
+});
+
+// ----------------------------------------------------
+// Taskeen AI Executive Business Advisor Endpoint
+// ----------------------------------------------------
+app.post('/api/ai/ask-taskeen', async (req: Request, res: Response) => {
+  try {
+    const { prompt, erpContext } = req.body;
+    if (!prompt || typeof prompt !== 'string') {
+      return res.status(400).json({ error: 'Prompt is required.' });
+    }
+
+    const db = getDatabase();
+    const company = db.company;
+    const invCount = db.invoices?.length || 0;
+    const totalRev = (db.invoices || []).reduce((acc, i) => acc + (Number(i.grandTotal) || 0), 0);
+    const unpaidBal = (db.invoices || []).reduce((acc, i) => acc + (Number(i.balanceDue) || 0), 0);
+    const prodCount = db.products?.length || 0;
+    const staffCount = db.staff?.length || 0;
+    const finishedStock = (db.stockItemStatuses || []).filter((s) => s.isFinished || s.quantityOnHand <= 0);
+
+    const businessSnapshot = `
+Company: ${company?.companyName || 'Savouré (Pty) Ltd'} (${company?.tradingName || 'Savouré - A Taste of Tradition'})
+Currency: ${company?.currency || 'R'}
+Total Tax Invoices: ${invCount} (Total Issued: ${company?.currency || 'R'} ${totalRev.toLocaleString()})
+Unsettled Accounts Receivable (Owed by Customers): ${company?.currency || 'R'} ${unpaidBal.toLocaleString()}
+Products in Catalog: ${prodCount}
+Registered Staff Members: ${staffCount}
+Stock Items Currently Marked FINISHED/DEPLETED: ${finishedStock.length > 0 ? finishedStock.map((s) => `${s.name} at ${s.branchName}`).join(', ') : 'None, all items in stock'}
+${erpContext ? `Live Client Session Context: ${JSON.stringify(erpContext)}` : ''}
+`;
+
+    const systemInstruction = `You are Taskeen, the dedicated Executive AI Advisor and Chief Operational Strategist for Savouré (Pty) Ltd — a premium artisanal bakery and luxury food enterprise in South Africa.
+Your personality is professional, proactive, warm, discerning, and razor-sharp on business figures.
+You assist the owner, executives, and department heads with:
+- Daily operations, bakery production scheduling, order prioritization, and inventory replenishment.
+- Financial analysis, gross and net margin optimization, accounts receivable collections, and pricing strategies.
+- South African tax standards (SARS 15% VAT, VAT 201 returns, CIPC regulations).
+- Staff overtime calculation, payroll management, and team allocation.
+- Drafting client correspondence, quotation proposals, and courteous collection notices.
+Always ground your answers in the live enterprise data provided. Keep your answers concise, practical, and formatted with clean bullet points and bold financial metrics where applicable.`;
+
+    // Attempt Gemini call using @google/genai
+    try {
+      const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+      const ai = new GoogleGenAI({
+        apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          },
+        },
+      });
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                text: `${systemInstruction}\n\n[LIVE ENTERPRISE BUSINESS SNAPSHOT]\n${businessSnapshot}\n\n[USER QUERY]\n${prompt}`,
+              },
+            ],
+          },
+        ],
+      });
+
+      const reply = response.text || 'I have analyzed your business operations. How else may I assist you today?';
+      return res.json({ reply, model: 'Taskeen (Gemini 3.8 Flash)' });
+    } catch (aiErr: any) {
+      console.warn('Gemini API call warning, running Taskeen Executive Engine fallback:', aiErr?.message);
+      // Smart Contextual Business Engine Fallback
+      let fallbackReply = '';
+      const lower = prompt.toLowerCase();
+
+      if (lower.includes('stock') || lower.includes('finish') || lower.includes('depleted') || lower.includes('inventory')) {
+        if (finishedStock.length > 0) {
+          fallbackReply = `**Taskeen Operational Alert: Out-of-Stock Items Detected**\n\nThere are currently **${finishedStock.length} items** marked as depleted across your branches:\n` +
+            finishedStock.map((s) => `• **${s.name}** at *${s.branchName}* (Depleted on ${s.lastFinishedAt || 'today'})`).join('\n') +
+            `\n\n**Action Recommended:** Capture a new stock purchase slip under **Stock Capturing & Slips** to restock these key ingredients immediately and prevent bakery kitchen downtime.`;
+        } else {
+          fallbackReply = `**Taskeen Inventory Report:** All tracked raw materials and ingredients across your branches are currently **In Stock** with zero depleted items flagged today. Total stock purchases recorded to date stand at **${company?.currency || 'R'} ${(db.stockPurchases || []).reduce((a, p) => a + (Number(p.totalAmount) || 0), 0).toLocaleString()}**.`;
+        }
+      } else if (lower.includes('sales') || lower.includes('revenue') || lower.includes('money') || lower.includes('profit') || lower.includes('invoice')) {
+        fallbackReply = `**Taskeen Financial Briefing:**\n\n` +
+          `• **Total Gross Revenue Issued:** ${company?.currency || 'R'} ${totalRev.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}\n` +
+          `• **Total Tax Invoices:** ${invCount} invoices issued\n` +
+          `• **Outstanding Accounts Receivable:** ${company?.currency || 'R'} ${unpaidBal.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}\n\n` +
+          `**Executive Recommendation:** ${unpaidBal > 0 ? `Prioritize collections on the outstanding balances to boost liquidity for weekly flour and butter orders.` : 'Your debtor ledger is clean with no overdue balances.'}`;
+      } else if (lower.includes('payroll') || lower.includes('staff') || lower.includes('salary') || lower.includes('overtime')) {
+        const totalPayouts = (db.payrollPayouts || []).reduce((a, p) => a + (Number(p.netPayout) || 0), 0);
+        fallbackReply = `**Taskeen Human Resources & Payroll Summary:**\n\n` +
+          `• **Active Team Members:** ${staffCount} registered staff\n` +
+          `• **Total Payroll Disbursed:** ${company?.currency || 'R'} ${totalPayouts.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}\n` +
+          `• **Overtime Calculation:** Overtime is computed on an hourly rate basis under the **Staff & Monthly Payroll** module.\n\n` +
+          `Would you like me to help calculate payment distributions for this month or draft staff payslips?`;
+      } else if (lower.includes('vat') || lower.includes('sars') || lower.includes('tax')) {
+        const vatRate = company?.vatRate || 15;
+        fallbackReply = `**Taskeen SARS VAT 201 Guidance:**\n\n` +
+          `• **Standard VAT Rate:** ${vatRate}%\n` +
+          `• **SARS Registration:** ${company?.vatNumber || 'Not specified'}\n` +
+          `• **Output Tax on Sales:** Automatically itemized on all issued Tax Invoices.\n` +
+          `• **Input Tax on Stock:** Claimable on all raw materials with supplier slips attached.\n\n` +
+          `You can view your complete net VAT position and print the eFiling schedule directly under the **Accounting & General Ledgers** section.`;
+      } else {
+        fallbackReply = `**Greetings! I am Taskeen, your Executive AI Advisor.**\n\n` +
+          `I am monitoring your Savouré operations in real time. Today's enterprise status:\n\n` +
+          `• **Revenue Issued:** ${company?.currency || 'R'} ${totalRev.toLocaleString()}\n` +
+          `• **Unsettled Debtors:** ${company?.currency || 'R'} ${unpaidBal.toLocaleString()}\n` +
+          `• **Depleted Stock Items:** ${finishedStock.length} flagged at branches\n` +
+          `• **Active Staff:** ${staffCount} members\n\n` +
+          `How can I assist you with your operations, cost calculations, customer agreements, or bakery planning today?`;
+      }
+
+      return res.json({ reply: fallbackReply, model: 'Taskeen Enterprise AI' });
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Taskeen advisor error' });
   }
 });
 

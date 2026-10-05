@@ -8,7 +8,10 @@ import {
   CreditCard,
   Lock,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Upload,
+  Camera,
+  Image as ImageIcon
 } from 'lucide-react';
 
 export const CompanySettingsView: React.FC = () => {
@@ -17,6 +20,29 @@ export const CompanySettingsView: React.FC = () => {
   const [form, setForm] = useState<CompanySettings>({ ...company });
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const brandLogos = [
+    { name: 'Savouré Master Emblem', url: '/src/assets/images/savoure_master_logo_1790775722136.jpg' },
+    { name: 'Savouré Brand Crest', url: '/src/assets/images/savoure_brand_logo_1790775476411.jpg' },
+    { name: 'Savouré Script Logo', url: '/src/assets/images/savoure_logo_1790774642893.jpg' },
+    { name: 'Apex Artisanal Logo', url: '/src/assets/images/apex_bakery_logo_1790773495656.jpg' },
+  ];
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload an image file (PNG, JPG, SVG, WEBP).');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setForm(prev => ({ ...prev, logoUrl: reader.result as string }));
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,6 +96,84 @@ export const CompanySettingsView: React.FC = () => {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Card 0: Brand Logo & Emblem Management */}
+        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 text-[#DE9E74]">
+              <ImageIcon className="w-4 h-4" />
+              <span>Official Business Logo & Emblem</span>
+            </h2>
+            <span className="text-[11px] text-[#A69385]">Applied to all invoices & headers</span>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center gap-6 p-4 rounded-xl bg-neutral-950/60 border border-neutral-800">
+            <div className="relative group shrink-0">
+              <img
+                src={form.logoUrl || "/src/assets/images/savoure_master_logo_1790775722136.jpg"}
+                alt="Current Logo"
+                className="w-24 h-24 rounded-2xl object-cover border-2 border-[#C98A5B] shadow-lg"
+              />
+              <span className="absolute -bottom-2 -right-2 px-2 py-0.5 rounded-full bg-[#C98A5B] text-[#120F0D] text-[9px] font-bold uppercase">
+                Active
+              </span>
+            </div>
+
+            <div className="flex-1 space-y-3 text-left">
+              <div>
+                <div className="text-xs font-semibold text-white mb-1">Upload Custom Brand Logo</div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    id="company-logo-file-input"
+                    onChange={handleLogoUpload}
+                    className="hidden"
+                  />
+                  <label
+                    htmlFor="company-logo-file-input"
+                    className="cursor-pointer px-3.5 py-1.5 rounded-lg bg-[#221B17] hover:bg-[#2C211B] text-xs font-semibold text-[#DE9E74] border border-[#3A2D25] flex items-center gap-1.5 transition-colors"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Upload Logo Image</span>
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, logoUrl: '/src/assets/images/savoure_master_logo_1790775722136.jpg' })}
+                    className="px-3 py-1.5 rounded-lg text-xs text-neutral-400 hover:text-white"
+                  >
+                    Reset to Default Emblem
+                  </button>
+                </div>
+              </div>
+
+              {/* Ready Brand Logo Presets */}
+              <div>
+                <span className="text-[10px] text-[#8A776B] uppercase font-mono block mb-1.5">
+                  Or Select Official Brand Presets:
+                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  {brandLogos.map((logo) => (
+                    <button
+                      key={logo.name}
+                      type="button"
+                      onClick={() => setForm({ ...form, logoUrl: logo.url })}
+                      className={`flex items-center gap-2 px-2.5 py-1 rounded-lg text-xs border transition-all ${
+                        form.logoUrl === logo.url
+                          ? 'bg-[#C98A5B]/20 border-[#C98A5B] text-white font-medium'
+                          : 'bg-neutral-800 border-neutral-700 text-neutral-300 hover:text-white'
+                      }`}
+                    >
+                      <img src={logo.url} alt={logo.name} className="w-5 h-5 rounded-full object-cover" />
+                      <span>{logo.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Card 1: Legal Registration & Branding */}
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4">
           <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 text-[#DE9E74]">

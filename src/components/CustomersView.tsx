@@ -35,18 +35,25 @@ export const CustomersView: React.FC = () => {
     accountCode: '',
     registrationNumber: '',
     vatNumber: '',
+    billingAddress: '',
+    website: '',
     primaryEmail: '',
     primaryPhone: '',
     primaryContact: '',
-    creditLimit: 100000,
-    paymentTermsDays: 30,
+    creditLimit: '',
+    paymentTermsDays: '',
     notes: '',
   });
 
-  // Branch Modal
+  // Branch Modal with comprehensive company details
   const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
   const [branchForm, setBranchForm] = useState({
     branchName: '',
+    companyName: '',
+    tradingName: '',
+    registrationNumber: '',
+    vatNumber: '',
+    billingAddress: '',
     deliveryAddress: '',
     contactPerson: '',
     phone: '',
@@ -70,11 +77,13 @@ export const CustomersView: React.FC = () => {
       accountCode: `ACC-${String(customers.length + 1).padStart(3, '0')}`,
       registrationNumber: '',
       vatNumber: '',
+      billingAddress: '',
+      website: '',
       primaryEmail: '',
       primaryPhone: '',
       primaryContact: '',
-      creditLimit: 100000,
-      paymentTermsDays: 30,
+      creditLimit: '',
+      paymentTermsDays: '30',
       notes: '',
     });
     setIsCustomerModalOpen(true);
@@ -88,11 +97,13 @@ export const CustomersView: React.FC = () => {
       accountCode: c.accountCode,
       registrationNumber: c.registrationNumber,
       vatNumber: c.vatNumber,
+      billingAddress: (c as any).billingAddress || '',
+      website: (c as any).website || '',
       primaryEmail: c.primaryEmail,
       primaryPhone: c.primaryPhone,
       primaryContact: c.primaryContact,
-      creditLimit: c.creditLimit,
-      paymentTermsDays: c.paymentTermsDays,
+      creditLimit: c.creditLimit ? String(c.creditLimit) : '',
+      paymentTermsDays: c.paymentTermsDays ? String(c.paymentTermsDays) : '',
       notes: c.notes || '',
     });
     setIsCustomerModalOpen(true);
@@ -109,13 +120,15 @@ export const CustomersView: React.FC = () => {
         accountCode: customerForm.accountCode,
         registrationNumber: customerForm.registrationNumber,
         vatNumber: customerForm.vatNumber,
+        billingAddress: customerForm.billingAddress,
+        website: customerForm.website,
         primaryEmail: customerForm.primaryEmail,
         primaryPhone: customerForm.primaryPhone,
         primaryContact: customerForm.primaryContact,
-        creditLimit: Number(customerForm.creditLimit),
-        paymentTermsDays: Number(customerForm.paymentTermsDays),
+        creditLimit: parseFloat(customerForm.creditLimit) || 0,
+        paymentTermsDays: parseInt(customerForm.paymentTermsDays) || 30,
         notes: customerForm.notes,
-      });
+      } as any);
       if (selectedCustomer?.id === editingCustomerId) {
         setSelectedCustomer(updated);
       }
@@ -129,12 +142,12 @@ export const CustomersView: React.FC = () => {
         primaryEmail: customerForm.primaryEmail,
         primaryPhone: customerForm.primaryPhone,
         primaryContact: customerForm.primaryContact,
-        creditLimit: Number(customerForm.creditLimit),
-        paymentTermsDays: Number(customerForm.paymentTermsDays),
+        creditLimit: parseFloat(customerForm.creditLimit) || 0,
+        paymentTermsDays: parseInt(customerForm.paymentTermsDays) || 30,
         notes: customerForm.notes,
         branches: [],
         documents: [],
-      });
+      } as any);
       setSelectedCustomer(created);
     }
     setIsCustomerModalOpen(false);
@@ -147,6 +160,11 @@ export const CustomersView: React.FC = () => {
     const newBranch: CustomerBranch = {
       id: 'br_' + Date.now(),
       branchName: branchForm.branchName,
+      companyName: branchForm.companyName || selectedCustomer.registeredName,
+      tradingName: branchForm.tradingName || selectedCustomer.tradingName,
+      registrationNumber: branchForm.registrationNumber || selectedCustomer.registrationNumber,
+      vatNumber: branchForm.vatNumber || selectedCustomer.vatNumber,
+      billingAddress: branchForm.billingAddress || '',
       deliveryAddress: branchForm.deliveryAddress,
       contactPerson: branchForm.contactPerson,
       phone: branchForm.phone,
@@ -160,6 +178,11 @@ export const CustomersView: React.FC = () => {
     setIsBranchModalOpen(false);
     setBranchForm({
       branchName: '',
+      companyName: '',
+      tradingName: '',
+      registrationNumber: '',
+      vatNumber: '',
+      billingAddress: '',
       deliveryAddress: '',
       contactPerson: '',
       phone: '',
@@ -426,7 +449,17 @@ export const CustomersView: React.FC = () => {
                           <div className="font-semibold text-white flex items-center gap-1.5">
                             <MapPin className="w-3.5 h-3.5 text-[#DE9E74] shrink-0" />
                             <span>{b.branchName}</span>
+                            {b.companyName && b.companyName !== selectedCustomer.registeredName && (
+                              <span className="text-[10px] text-neutral-400 font-normal">
+                                ({b.companyName})
+                              </span>
+                            )}
                           </div>
+                          {b.vatNumber && (
+                            <div className="text-[10px] text-[#DE9E74] pl-5 font-mono">
+                              Branch VAT: {b.vatNumber} {b.registrationNumber ? `· Reg: ${b.registrationNumber}` : ''}
+                            </div>
+                          )}
                           <div className="text-neutral-400 text-[11px] pl-5">{b.deliveryAddress}</div>
                           <div className="text-neutral-500 text-[10px] pl-5">
                             Contact: {b.contactPerson} · Tel: {b.phone}
@@ -647,13 +680,42 @@ export const CustomersView: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-neutral-300 mb-1">
+                    Company Registered Head Office / Billing Address
+                  </label>
+                  <input
+                    type="text"
+                    value={customerForm.billingAddress}
+                    onChange={(e) => setCustomerForm({ ...customerForm, billingAddress: e.target.value })}
+                    placeholder="Registered street address, City, Postal Code"
+                    className="w-full px-3 py-2 text-xs bg-neutral-800 border border-neutral-700 rounded text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-neutral-300 mb-1">
+                    Company Website
+                  </label>
+                  <input
+                    type="text"
+                    value={customerForm.website}
+                    onChange={(e) => setCustomerForm({ ...customerForm, website: e.target.value })}
+                    placeholder="e.g. https://www.client.co.za"
+                    className="w-full px-3 py-2 text-xs bg-neutral-800 border border-neutral-700 rounded text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-neutral-300 mb-1">
                     Credit Limit ({company.currency})
                   </label>
                   <input
                     type="number"
                     value={customerForm.creditLimit}
-                    onChange={(e) => setCustomerForm({ ...customerForm, creditLimit: Number(e.target.value) })}
-                    className="w-full px-3 py-2 text-xs bg-neutral-800 border border-neutral-700 rounded text-white font-mono"
+                    onChange={(e) => setCustomerForm({ ...customerForm, creditLimit: e.target.value })}
+                    placeholder="e.g. 50000"
+                    className="w-full px-3 py-2 text-xs bg-neutral-800 border border-neutral-700 rounded text-white font-mono placeholder-neutral-500"
                   />
                 </div>
 
@@ -664,8 +726,9 @@ export const CustomersView: React.FC = () => {
                   <input
                     type="number"
                     value={customerForm.paymentTermsDays}
-                    onChange={(e) => setCustomerForm({ ...customerForm, paymentTermsDays: Number(e.target.value) })}
-                    className="w-full px-3 py-2 text-xs bg-neutral-800 border border-neutral-700 rounded text-white font-mono"
+                    onChange={(e) => setCustomerForm({ ...customerForm, paymentTermsDays: e.target.value })}
+                    placeholder="e.g. 30"
+                    className="w-full px-3 py-2 text-xs bg-neutral-800 border border-neutral-700 rounded text-white font-mono placeholder-neutral-500"
                   />
                 </div>
               </div>
@@ -717,6 +780,59 @@ export const CustomersView: React.FC = () => {
                   placeholder="e.g. SPAR Sunward Park (Boksburg)"
                   className="w-full px-3 py-2 text-xs bg-neutral-800 border border-neutral-700 rounded text-white"
                 />
+              </div>
+
+              {/* Company Details for Branch / Outlet */}
+              <div className="p-3 rounded-lg bg-neutral-950/50 border border-neutral-800 space-y-2.5">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-[#DE9E74]">
+                  Branch Company & Tax Details (Optional / Franchise)
+                </div>
+                
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] font-medium text-neutral-300 mb-1">Company / Entity Name</label>
+                    <input
+                      type="text"
+                      value={branchForm.companyName}
+                      onChange={(e) => setBranchForm({ ...branchForm, companyName: e.target.value })}
+                      placeholder={selectedCustomer?.registeredName || "Legal company name"}
+                      className="w-full px-2.5 py-1.5 text-xs bg-neutral-800 border border-neutral-700 rounded text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-neutral-300 mb-1">Branch VAT Number</label>
+                    <input
+                      type="text"
+                      value={branchForm.vatNumber}
+                      onChange={(e) => setBranchForm({ ...branchForm, vatNumber: e.target.value })}
+                      placeholder="SARS VAT number"
+                      className="w-full px-2.5 py-1.5 text-xs bg-neutral-800 border border-neutral-700 rounded text-white font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] font-medium text-neutral-300 mb-1">Reg Number</label>
+                    <input
+                      type="text"
+                      value={branchForm.registrationNumber}
+                      onChange={(e) => setBranchForm({ ...branchForm, registrationNumber: e.target.value })}
+                      placeholder="CIPC Reg number"
+                      className="w-full px-2.5 py-1.5 text-xs bg-neutral-800 border border-neutral-700 rounded text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-neutral-300 mb-1">Branch Billing Address</label>
+                    <input
+                      type="text"
+                      value={branchForm.billingAddress}
+                      onChange={(e) => setBranchForm({ ...branchForm, billingAddress: e.target.value })}
+                      placeholder="Billing street address"
+                      className="w-full px-2.5 py-1.5 text-xs bg-neutral-800 border border-neutral-700 rounded text-white"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div>

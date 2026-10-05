@@ -10,25 +10,19 @@ interface UserLoginModalProps {
 export const UserLoginModal: React.FC<UserLoginModalProps> = ({ isOpen, onClose }) => {
   const { currentUser, login, logout, users } = useERP();
 
-  // Login form state
-  const [email, setEmail] = useState('admin@savoure.co.za');
-  const [password, setPassword] = useState('Shazia');
+  // Login form state (confidential credentials, not displayed on screen)
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleQuickFillMaster = () => {
-    setEmail('admin@savoure.co.za');
-    setPassword('Shazia');
-    setError(null);
-  };
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) {
-      setError('Please enter your email address.');
+      setError('Please enter your username.');
       return;
     }
     if (!password) {
@@ -47,7 +41,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({ isOpen, onClose 
         onClose();
       }, 500);
     } catch (err: any) {
-      setError(err?.message || 'Login failed. Please verify your email and password.');
+      setError(err?.message || 'Login failed. Please verify your username and password.');
     } finally {
       setLoading(false);
     }
@@ -83,29 +77,9 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({ isOpen, onClose 
             <p className="text-xs text-[#A69385]">
               {currentUser
                 ? `Currently signed in as ${currentUser.name}`
-                : 'Sign in to access your business on any phone, tablet, or PC'}
+                : 'Sign in with your enterprise credentials to access your business'}
             </p>
           </div>
-        </div>
-
-        {/* Quick Fill Master Credentials Banner */}
-        <div className="p-3 mb-4 rounded-xl bg-[#221B17] border border-[#3A2D25] flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#C98A5B]/20 border border-[#C98A5B]/30 flex items-center justify-center text-[#DE9E74] shrink-0">
-              <ShieldCheck className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="text-xs font-semibold text-white">Master Admin Login</div>
-              <div className="text-[11px] text-[#A69385] font-mono">admin@savoure.co.za · Pass: Shazia</div>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={handleQuickFillMaster}
-            className="px-2.5 py-1 text-[11px] font-medium rounded-md bg-[#C98A5B]/20 hover:bg-[#C98A5B]/30 text-[#DE9E74] border border-[#C98A5B]/40 transition-colors shrink-0"
-          >
-            Auto-Fill
-          </button>
         </div>
 
         {error && (
@@ -126,15 +100,16 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({ isOpen, onClose 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
             <label className="block text-xs font-medium text-[#EDE6DE] mb-1">
-              Email Address
+              Username
             </label>
             <div className="relative">
               <input
-                type="email"
+                type="text"
                 required
+                autoFocus
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@savoure.co.za"
+                placeholder="Enter username"
                 className="w-full px-3.5 py-2.5 text-xs bg-[#120F0D] border border-[#2C211B] rounded-lg text-white placeholder-[#6E5B4F] focus:outline-hidden focus:border-[#C98A5B]"
               />
             </div>
@@ -150,7 +125,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({ isOpen, onClose 
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder="Enter password"
                 className="w-full px-3.5 py-2.5 text-xs bg-[#120F0D] border border-[#2C211B] rounded-lg text-white placeholder-[#6E5B4F] focus:outline-hidden focus:border-[#C98A5B]"
               />
             </div>

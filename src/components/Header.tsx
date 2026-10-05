@@ -35,11 +35,23 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, onOpenLoginModal }) 
     switch (tab) {
       case 'dashboard': return 'Financial Overview & KPIs';
       case 'invoices': return 'Tax Invoices & Credit Control';
+      case 'invoice-studio': return 'Luxury Invoice Studio & Document Design';
       case 'delivery-notes': return 'Delivery Notes & Proof of Delivery (POD)';
       case 'quotations': return 'Quotations & Cost Estimations';
       case 'payments': return 'Accounts Receivable Ledger';
       case 'customers': return 'Customer & Multi-Branch Directory';
       case 'catalog': return 'Bakery & Merchandise Catalog';
+      case 'stock':
+      case 'stock-capturing':
+      case 'inventory': return 'Stock Capturing, Purchase Slips & Finished Goods';
+      case 'payroll':
+      case 'staff':
+      case 'staff-payroll': return 'Staff Directory, Monthly Payroll & Overtime';
+      case 'accounting':
+      case 'ledger':
+      case 'ledgers': return 'General Ledger, Balance Sheet & SARS VAT 201';
+      case 'taskeen':
+      case 'ai': return 'Taskeen Executive AI Business & Bakery Advisor';
       case 'reports': return 'Consolidated Reports & 52-Week Analytics';
       case 'crm': return 'Sales Pipeline & CRM Hub';
       case 'users': return 'User Management & Permissions (Super Admin)';

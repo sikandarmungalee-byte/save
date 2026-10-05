@@ -35,7 +35,7 @@ export const ProductsView: React.FC = () => {
   const [categoryInput, setCategoryInput] = useState('');
   const [categoryMsg, setCategoryMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Product Form State
+  // Product Form State (stored as strings so inputs never start with an annoying 0)
   const [form, setForm] = useState({
     sku: '',
     name: '',
@@ -43,10 +43,10 @@ export const ProductsView: React.FC = () => {
     customCategoryInput: '',
     packSize: 'Single / Each',
     physicalSize: 'Standard',
-    unitPrice: 0,
-    costPrice: 0,
+    unitPrice: '',
+    costPrice: '',
     vatApplicable: true,
-    stockOnHand: 0,
+    stockOnHand: '',
   });
 
   const openCreateModal = (defaultCategory?: string) => {
@@ -59,10 +59,10 @@ export const ProductsView: React.FC = () => {
       customCategoryInput: '',
       packSize: 'Single / Each',
       physicalSize: 'Standard',
-      unitPrice: 0,
-      costPrice: 0,
+      unitPrice: '',
+      costPrice: '',
       vatApplicable: true,
-      stockOnHand: 0,
+      stockOnHand: '',
     });
     setIsModalOpen(true);
   };
@@ -76,10 +76,10 @@ export const ProductsView: React.FC = () => {
       customCategoryInput: '',
       packSize: p.packSize,
       physicalSize: p.physicalSize,
-      unitPrice: p.unitPrice,
-      costPrice: p.costPrice,
+      unitPrice: p.unitPrice ? String(p.unitPrice) : '',
+      costPrice: p.costPrice ? String(p.costPrice) : '',
       vatApplicable: p.vatApplicable,
-      stockOnHand: p.stockOnHand,
+      stockOnHand: p.stockOnHand ? String(p.stockOnHand) : '',
     });
     setIsModalOpen(true);
   };
@@ -825,9 +825,10 @@ export const ProductsView: React.FC = () => {
                     type="number"
                     step="0.01"
                     required
+                    placeholder="e.g. 85.00"
                     value={form.unitPrice}
-                    onChange={(e) => setForm({ ...form, unitPrice: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 text-xs bg-[#120F0D] border border-[#2C211B] rounded-lg text-white font-mono focus:outline-hidden focus:border-[#C98A5B]"
+                    onChange={(e) => setForm({ ...form, unitPrice: e.target.value })}
+                    className="w-full px-3 py-2 text-xs bg-[#120F0D] border border-[#2C211B] rounded-lg text-white font-mono placeholder-[#6E5B4F] focus:outline-hidden focus:border-[#C98A5B]"
                   />
                 </div>
 
@@ -838,9 +839,10 @@ export const ProductsView: React.FC = () => {
                   <input
                     type="number"
                     step="0.01"
+                    placeholder="e.g. 42.50"
                     value={form.costPrice}
-                    onChange={(e) => setForm({ ...form, costPrice: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 text-xs bg-[#120F0D] border border-[#2C211B] rounded-lg text-white font-mono focus:outline-hidden focus:border-[#C98A5B]"
+                    onChange={(e) => setForm({ ...form, costPrice: e.target.value })}
+                    className="w-full px-3 py-2 text-xs bg-[#120F0D] border border-[#2C211B] rounded-lg text-white font-mono placeholder-[#6E5B4F] focus:outline-hidden focus:border-[#C98A5B]"
                   />
                 </div>
 
@@ -848,9 +850,10 @@ export const ProductsView: React.FC = () => {
                   <label className="block text-xs font-medium text-[#EDE6DE] mb-1">Stock On Hand</label>
                   <input
                     type="number"
+                    placeholder="e.g. 50"
                     value={form.stockOnHand}
-                    onChange={(e) => setForm({ ...form, stockOnHand: parseInt(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 text-xs bg-[#120F0D] border border-[#2C211B] rounded-lg text-white font-mono focus:outline-hidden focus:border-[#C98A5B]"
+                    onChange={(e) => setForm({ ...form, stockOnHand: e.target.value })}
+                    className="w-full px-3 py-2 text-xs bg-[#120F0D] border border-[#2C211B] rounded-lg text-white font-mono placeholder-[#6E5B4F] focus:outline-hidden focus:border-[#C98A5B]"
                   />
                 </div>
               </div>

@@ -130,9 +130,9 @@ export const CRMLeadsView: React.FC = () => {
               onClick={() => {
                 setCommForm({
                   type: 'Email',
-                  targetName: 'Spar Group / Procurement',
-                  subject: 'Artisanal Supply Contract Quotation Review',
-                  content: 'Good day team, following up on our recent volume proposal for weekly sourdough and confectionery deliveries.',
+                  targetName: '',
+                  subject: '',
+                  content: '',
                   direction: 'Outbound',
                 });
                 setIsCommModalOpen(true);
