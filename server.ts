@@ -215,7 +215,7 @@ app.get('/api/users', (_req: Request, res: Response) => {
 });
 
 app.post('/api/users', (req: Request, res: Response) => {
-  const { name, email, password, role, permissions, status } = req.body;
+  const { name, email, username, password, role, permissions, status, branch, merchantStoreName, merchantPhone } = req.body;
   if (!name || !email) {
     return res.status(400).json({ error: 'Name and email are required.' });
   }
@@ -234,10 +234,32 @@ app.post('/api/users', (req: Request, res: Response) => {
     payments: true,
     customers: true,
     catalog: true,
+    stock: true,
+    payroll: true,
+    accounting: true,
+    taskeenAI: true,
+    merchants: true,
     reports: true,
     crmLeads: true,
     databaseExplorer: true,
     companySettings: true,
+  } : role === 'merchant' ? {
+    manageUsers: false,
+    invoices: true,
+    deliveryNotes: false,
+    quotations: false,
+    payments: false,
+    customers: false,
+    catalog: true,
+    stock: false,
+    payroll: false,
+    accounting: false,
+    taskeenAI: false,
+    merchants: false,
+    reports: false,
+    crmLeads: false,
+    databaseExplorer: false,
+    companySettings: false,
   } : {
     manageUsers: false,
     invoices: true,
@@ -256,10 +278,14 @@ app.post('/api/users', (req: Request, res: Response) => {
     id: 'usr_' + Date.now(),
     name,
     email: email.trim().toLowerCase(),
+    username: username ? username.trim().toLowerCase() : undefined,
     password: password || 'password123',
     role: role || 'sales',
     permissions: permissions || defaultPerms,
     status: status || 'active',
+    branch: branch || undefined,
+    merchantStoreName: merchantStoreName || undefined,
+    merchantPhone: merchantPhone || undefined,
     createdAt: new Date().toISOString(),
   };
 
@@ -280,16 +306,20 @@ app.put('/api/users/:id', (req: Request, res: Response) => {
   }
 
   const current = db.users[index];
-  const { name, email, password, role, permissions, status } = req.body;
+  const { name, email, username, password, role, permissions, status, branch, merchantStoreName, merchantPhone } = req.body;
 
   db.users[index] = {
     ...current,
     name: name !== undefined ? name : current.name,
     email: email !== undefined ? email.trim().toLowerCase() : current.email,
+    username: username !== undefined ? (username ? username.trim().toLowerCase() : undefined) : current.username,
     password: password ? password : current.password,
     role: role !== undefined ? role : current.role,
     permissions: permissions !== undefined ? permissions : current.permissions,
     status: status !== undefined ? status : current.status,
+    branch: branch !== undefined ? branch : current.branch,
+    merchantStoreName: merchantStoreName !== undefined ? merchantStoreName : current.merchantStoreName,
+    merchantPhone: merchantPhone !== undefined ? merchantPhone : current.merchantPhone,
   };
 
   saveDatabase(db);

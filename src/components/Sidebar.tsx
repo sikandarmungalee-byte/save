@@ -21,6 +21,8 @@ import {
   Wallet,
   ShoppingBag,
   Landmark,
+  Store,
+  Globe,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -28,6 +30,7 @@ interface SidebarProps {
   setCurrentTab: (tab: string) => void;
   mobileOpen: boolean;
   setMobileOpen: (open: boolean) => void;
+  onGoToWebsite?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -35,6 +38,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setCurrentTab,
   mobileOpen,
   setMobileOpen,
+  onGoToWebsite,
 }) => {
   const {
     currentUser,
@@ -167,6 +171,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badge: `${users.length} users`,
     },
     {
+      id: 'merchants',
+      label: 'Merchants & Branches',
+      icon: Store,
+      allowed: perms?.manageUsers ?? isSuperAdmin,
+      highlight: true,
+      badge: `${users.filter((u) => u.role === 'merchant').length} hubs`,
+    },
+    {
       id: 'database',
       label: 'Database Explorer',
       icon: Database,
@@ -287,6 +299,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
               User: <span className="text-[#DE9E74] font-medium">{currentUser?.name || 'Administrator'}</span>
             </div>
           </div>
+
+          {onGoToWebsite && (
+            <button
+              type="button"
+              onClick={() => {
+                setMobileOpen(false);
+                onGoToWebsite();
+              }}
+              className="w-full py-1.5 px-3 rounded-lg bg-[#2C211B] hover:bg-[#3A2D25] text-[#DE9E74] hover:text-[#F3D2BF] border border-[#C98A5B]/30 text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span>Back to Showcase Website</span>
+            </button>
+          )}
 
           <button
             type="button"

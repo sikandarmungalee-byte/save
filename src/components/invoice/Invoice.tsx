@@ -38,11 +38,14 @@ export const Invoice: React.FC<InvoiceProps> = ({
 
   const discountTotal = invoice.discountTotal || 0;
   const discountPercent = invoice.discount || 0;
-  const vatRate = invoice.vatRate !== undefined ? invoice.vatRate : (business.vatRate || 15);
+  const isVatRegistered = Boolean(business.vatNumber && business.vatNumber.trim() !== '');
+  const vatRate = isVatRegistered ? (invoice.vatRate !== undefined ? invoice.vatRate : (business.vatRate || 0)) : 0;
   const vatTotal =
-    invoice.vatTotal !== undefined
-      ? invoice.vatTotal
-      : (subtotal - discountTotal) * (vatRate / 100);
+    isVatRegistered && vatRate > 0
+      ? (invoice.vatTotal !== undefined
+          ? invoice.vatTotal
+          : (subtotal - discountTotal) * (vatRate / 100))
+      : 0;
   const grandTotal =
     invoice.grandTotal !== undefined ? invoice.grandTotal : subtotal - discountTotal + vatTotal;
 

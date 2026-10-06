@@ -67,25 +67,12 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
     address: initialInvoice?.customer?.address || initialInvoice?.deliveryAddress || '',
   });
 
+  const isVatRegistered = Boolean(businessSettings.vatNumber && businessSettings.vatNumber.trim() !== '');
+  const defaultVatRate = isVatRegistered ? (businessSettings.vatRate ?? 15) : 0;
+
   // Line items
   const [items, setItems] = useState<LineItem[]>(
-    initialInvoice?.items?.length
-      ? initialInvoice.items
-      : [
-          {
-            id: 'it_' + Date.now(),
-            sku: 'BRD-001',
-            description: 'Artisanal Sourdough Loaf (750g)',
-            packSize: 'Single',
-            quantity: 10,
-            unitPrice: 45.0,
-            vatRate: 15,
-            discountPercent: 0,
-            subtotal: 450.0,
-            vatAmount: 67.5,
-            total: 450.0,
-          },
-        ]
+    initialInvoice?.items?.length ? initialInvoice.items : []
   );
 
   // Discount & VAT
@@ -93,7 +80,7 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
     initialInvoice?.discount || 0
   );
   const [vatRate, setVatRate] = useState<number>(
-    initialInvoice?.vatRate !== undefined ? initialInvoice.vatRate : (businessSettings.vatRate ?? 15)
+    initialInvoice?.vatRate !== undefined ? initialInvoice.vatRate : defaultVatRate
   );
   const [notes, setNotes] = useState<string>(
     initialInvoice?.notes ||
@@ -117,11 +104,13 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
   const subtotal = items.reduce((acc, it) => acc + (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0), 0);
   const discountTotal = Math.round(subtotal * (discountPercent / 100) * 100) / 100;
   const taxableAmount = Math.max(0, subtotal - discountTotal);
-  const vatTotal = Math.round(taxableAmount * (vatRate / 100) * 100) / 100;
+  const hasVat = isVatRegistered && vatRate > 0;
+  const vatTotal = hasVat ? Math.round(taxableAmount * (vatRate / 100) * 100) / 100 : 0;
   const grandTotal = Math.round((taxableAmount + vatTotal) * 100) / 100;
 
   // Add Item
   const handleAddItem = (product?: (typeof products)[0]) => {
+    const effectiveVatRate = hasVat ? vatRate : 0;
     const newItem: LineItem = product
       ? {
           id: 'it_' + Date.now() + Math.random().toString(36).substr(2, 4),
@@ -131,10 +120,10 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
           packSize: product.packSize || 'Single',
           quantity: 1,
           unitPrice: Number(product.unitPrice) || 0,
-          vatRate: vatRate,
+          vatRate: effectiveVatRate,
           discountPercent: 0,
           subtotal: Number(product.unitPrice) || 0,
-          vatAmount: (Number(product.unitPrice) || 0) * (vatRate / 100),
+          vatAmount: hasVat ? (Number(product.unitPrice) || 0) * (effectiveVatRate / 100) : 0,
           total: Number(product.unitPrice) || 0,
         }
       : {
@@ -144,7 +133,7 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
           packSize: 'Single',
           quantity: 1,
           unitPrice: 0,
-          vatRate: vatRate,
+          vatRate: effectiveVatRate,
           discountPercent: 0,
           subtotal: 0,
           vatAmount: 0,
@@ -162,11 +151,13 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
           const qty = Number(mod.quantity) || 0;
           const price = Number(mod.unitPrice) || 0;
           const lineTotal = Math.round(qty * price * 100) / 100;
+          const effectiveVatRate = hasVat ? vatRate : 0;
           return {
             ...mod,
             subtotal: lineTotal,
             total: lineTotal,
-            vatAmount: Math.round(lineTotal * (vatRate / 100) * 100) / 100,
+            vatRate: effectiveVatRate,
+            vatAmount: hasVat ? Math.round(lineTotal * (effectiveVatRate / 100) * 100) / 100 : 0,
           };
         }
         return it;
@@ -203,8 +194,8 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
     subtotal,
     discount: discountPercent,
     discountTotal,
-    vatRate,
-    vatTotal,
+    vatRate: hasVat ? vatRate : 0,
+    vatTotal: hasVat ? vatTotal : 0,
     grandTotal,
     amountPaid: initialInvoice?.amountPaid || 0,
     balanceDue: grandTotal - (initialInvoice?.amountPaid || 0),
@@ -690,28 +681,37 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
                   </div>
                 )}
 
-                {/* VAT Rate Control */}
-                <div className="flex items-center justify-between text-[#EDE6DE] pt-1 border-t border-[#2C211B]">
-                  <span>VAT Rate (%):</span>
-                  <div className="w-20">
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.5"
-                      value={vatRate}
-                      onChange={(e) => setVatRate(parseFloat(e.target.value) || 0)}
-                      className="w-full text-right px-2 py-1 bg-[#120F0D] border border-[#2C211B] rounded text-white font-mono text-xs focus:outline-hidden focus:border-[#C98A5B]"
-                    />
-                  </div>
-                </div>
+                {/* VAT Rate Control (Only if business is VAT registered) */}
+                {isVatRegistered ? (
+                  <>
+                    <div className="flex items-center justify-between text-[#EDE6DE] pt-1 border-t border-[#2C211B]">
+                      <span>VAT Rate (%):</span>
+                      <div className="w-20">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.5"
+                          value={vatRate}
+                          onChange={(e) => setVatRate(parseFloat(e.target.value) || 0)}
+                          className="w-full text-right px-2 py-1 bg-[#120F0D] border border-[#2C211B] rounded text-white font-mono text-xs focus:outline-hidden focus:border-[#C98A5B]"
+                        />
+                      </div>
+                    </div>
 
-                <div className="flex items-center justify-between text-[#A69385] text-[11px]">
-                  <span>VAT Calculated ({vatRate}%):</span>
-                  <span className="font-mono tabular-nums">
-                    {businessSettings.currency} {vatTotal.toFixed(2)}
-                  </span>
-                </div>
+                    <div className="flex items-center justify-between text-[#A69385] text-[11px]">
+                      <span>VAT Calculated ({vatRate}%):</span>
+                      <span className="font-mono tabular-nums">
+                        {businessSettings.currency} {vatTotal.toFixed(2)}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="pt-1 border-t border-[#2C211B] flex items-center justify-between text-[11px] text-[#8A776B]">
+                    <span>VAT:</span>
+                    <span className="italic">Not Applicable (No VAT Number)</span>
+                  </div>
+                )}
 
                 {/* Grand Total Preview Box */}
                 <div className="mt-4 p-3.5 rounded-xl bg-[#221B17] border border-[#3A2D25] flex items-center justify-between">

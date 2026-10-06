@@ -22,6 +22,8 @@ export const InvoiceTotals: React.FC<InvoiceTotalsProps> = ({
 }) => {
   const currency = business.currency || 'R';
 
+  const hasVat = Boolean(business.vatNumber && business.vatNumber.trim() !== '' && vatRate > 0 && vatTotal > 0);
+
   return (
     <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-6 my-6 pt-2">
       {/* Left side: Luxury botanical decorative watermark or seal */}
@@ -67,15 +69,17 @@ export const InvoiceTotals: React.FC<InvoiceTotalsProps> = ({
           </div>
         )}
 
-        {/* VAT */}
-        <div className="flex items-center justify-between py-1 px-3 text-[#3E2C22] border-b border-[#C98A5B]/20">
-          <span className="font-serif uppercase tracking-wider text-[11px] text-[#8C5329]">
-            VAT ({vatRate}%):
-          </span>
-          <span className="font-mono text-sm text-[#23170F] tabular-nums">
-            {currency} {vatTotal.toFixed(2)}
-          </span>
-        </div>
+        {/* VAT (Only displayed if business is strictly VAT registered with a VAT number) */}
+        {hasVat && (
+          <div className="flex items-center justify-between py-1 px-3 text-[#3E2C22] border-b border-[#C98A5B]/20">
+            <span className="font-serif uppercase tracking-wider text-[11px] text-[#8C5329]">
+              VAT ({vatRate}%):
+            </span>
+            <span className="font-mono text-sm text-[#23170F] tabular-nums">
+              {currency} {vatTotal.toFixed(2)}
+            </span>
+          </div>
+        )}
 
         {/* Grand Total: Prominent Luxury Espresso & Copper Styling */}
         <div className="mt-3 p-3.5 sm:p-4 rounded-xl bg-gradient-to-r from-[#23170F] via-[#2C1E16] to-[#1E140E] text-[#FAF6F0] border-2 border-[#C98A5B] shadow-md flex items-center justify-between gap-4">
@@ -84,7 +88,7 @@ export const InvoiceTotals: React.FC<InvoiceTotalsProps> = ({
               Grand Total
             </div>
             <div className="text-[10px] text-[#A69385] font-sans">
-              All taxes inclusive
+              {hasVat ? 'VAT Inclusive' : 'Total Amount Due'}
             </div>
           </div>
           <div className="font-mono font-bold text-xl sm:text-2xl text-white tabular-nums tracking-tight">

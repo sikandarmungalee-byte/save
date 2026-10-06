@@ -9,15 +9,18 @@ import {
   CheckCircle2,
   AlertCircle,
   LogOut,
-  ChevronDown
+  ChevronDown,
+  Globe,
+  Store,
 } from 'lucide-react';
 
 interface HeaderProps {
   currentTab: string;
   onOpenLoginModal: () => void;
+  onGoToWebsite?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ currentTab, onOpenLoginModal }) => {
+export const Header: React.FC<HeaderProps> = ({ currentTab, onOpenLoginModal, onGoToWebsite }) => {
   const {
     currentUser,
     logout,
@@ -127,6 +130,18 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, onOpenLoginModal }) 
             </>
           )}
         </div>
+
+        {/* Back to Public Showcase Website */}
+        {onGoToWebsite && (
+          <button
+            onClick={onGoToWebsite}
+            title="Switch to Public Savouré Showcase Website"
+            className="flex p-1.5 sm:px-3 sm:py-1 rounded-lg bg-[#221B17] hover:bg-[#2C211B] border border-[#C98A5B]/40 text-[#DE9E74] text-xs font-semibold items-center gap-1.5 transition-colors"
+          >
+            <Globe className="w-3.5 h-3.5 text-[#C98A5B]" />
+            <span className="hidden sm:inline">Website</span>
+          </button>
+        )}
 
         {/* Security PIN Lock button (Desktop/Confirmed only to prevent mobile accidental tap) */}
         <button

@@ -31,8 +31,10 @@ import {
   CheckCircle2,
   Filter,
   Eye,
-  EyeOff
+  EyeOff,
+  Store,
 } from 'lucide-react';
+import { MerchantsManagementView } from './MerchantsManagementView';
 
 export const UserManagementView: React.FC = () => {
   const {
@@ -45,7 +47,7 @@ export const UserManagementView: React.FC = () => {
     resetUserPassword
   } = useERP();
 
-  const [activeMainTab, setActiveMainTab] = useState<'users' | 'logs'>('users');
+  const [activeMainTab, setActiveMainTab] = useState<'users' | 'logs' | 'merchants'>('users');
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('ALL');
   const [logFilter, setLogFilter] = useState('ALL');
@@ -449,6 +451,18 @@ export const UserManagementView: React.FC = () => {
             <History className="w-4 h-4" />
             <span>Login History & Security Audit Logs ({(loginLogs || []).length})</span>
           </button>
+
+          <button
+            onClick={() => setActiveMainTab('merchants')}
+            className={`px-4 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-2 ${
+              activeMainTab === 'merchants'
+                ? 'bg-[#C98A5B] text-[#120F0D] font-bold shadow-sm'
+                : 'text-[#A69385] hover:text-white hover:bg-[#221B17]'
+            }`}
+          >
+            <Store className="w-4 h-4" />
+            <span>Branch Merchants ({users.filter((u) => u.role === 'merchant').length})</span>
+          </button>
         </div>
       </div>
 
@@ -743,6 +757,13 @@ export const UserManagementView: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ---------------------------------------------------- */}
+      {/* SECTION 3: MERCHANTS & BRANCHES MANAGEMENT           */}
+      {/* ---------------------------------------------------- */}
+      {activeMainTab === 'merchants' && (
+        <MerchantsManagementView />
       )}
 
       {/* ---------------------------------------------------- */}

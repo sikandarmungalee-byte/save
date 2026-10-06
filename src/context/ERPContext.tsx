@@ -89,14 +89,14 @@ export const MASTER_ADMIN_USER: User = {
 export const INITIAL_COMPANY: CompanySettings = {
   companyName: 'Savouré (Pty) Ltd',
   tradingName: 'Savouré - A Taste of Tradition',
-  registrationNumber: '2024/782194/07',
-  vatNumber: '4980291847',
-  address: 'Johannesburg, South Africa',
-  phone: '+27 (0)11 555 4920',
-  email: 'admin@savoure.co.za',
+  registrationNumber: '',
+  vatNumber: '',
+  address: 'Unit 4, Tradition Square, 18 Artisanal Way, Sandton, Johannesburg, 2196',
+  phone: '061 364 5712',
+  email: 'info@savoure.co.za',
   website: 'https://savoure.co.za',
   currency: 'R',
-  vatRate: 15,
+  vatRate: 0,
   bankName: 'First National Bank (FNB)',
   accountHolder: 'Savouré (Pty) Ltd',
   accountNumber: '62983104821',
@@ -104,9 +104,9 @@ export const INITIAL_COMPANY: CompanySettings = {
   swiftCode: 'FIRNZAJJ',
   defaultPaymentTerms: 'Strictly 30 days from invoice date. Please use your invoice number as EFT payment reference.',
   invoicePrefix: 'INV-',
-  footerText: 'Thank you for choosing Savouré. Premium artisanal bakery & confectionery.',
+  footerText: 'Thank you for choosing Savouré. Premium flatbreads & artisanal pastries.',
   pinCode: '1234',
-  logoUrl: '/src/assets/images/savoure_master_logo_1790775722136.jpg',
+  logoUrl: '/images/savoure/savoure-logo.png',
 };
 
 interface ERPContextType {
@@ -652,9 +652,30 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: 'usr_' + Date.now(),
       name: data.name || 'Team Member',
       email: cleanEmail,
+      username: data.username ? data.username.trim().toLowerCase() : undefined,
       password: data.password || 'password123',
       role: data.role || 'sales',
-      permissions: data.permissions || {
+      branch: data.branch || undefined,
+      merchantStoreName: data.merchantStoreName || undefined,
+      merchantPhone: data.merchantPhone || undefined,
+      permissions: data.permissions || (data.role === 'merchant' ? {
+        manageUsers: false,
+        invoices: true,
+        deliveryNotes: false,
+        quotations: false,
+        payments: false,
+        customers: false,
+        catalog: true,
+        stock: false,
+        payroll: false,
+        accounting: false,
+        taskeenAI: false,
+        merchants: false,
+        reports: false,
+        crmLeads: false,
+        databaseExplorer: false,
+        companySettings: false,
+      } : {
         manageUsers: data.role === 'super_admin',
         invoices: true,
         deliveryNotes: true,
@@ -662,11 +683,16 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         payments: true,
         customers: true,
         catalog: true,
+        stock: true,
+        payroll: data.role === 'super_admin',
+        accounting: data.role === 'super_admin' || data.role === 'accountant',
+        taskeenAI: true,
+        merchants: data.role === 'super_admin',
         reports: data.role === 'super_admin' || data.role === 'accountant',
         crmLeads: true,
         databaseExplorer: data.role === 'super_admin',
         companySettings: data.role === 'super_admin',
-      },
+      }),
       status: data.status || 'active',
       createdAt: new Date().toISOString(),
     };
@@ -727,13 +753,13 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const businessSettings: BusinessSettings = {
     businessName: company.companyName || 'Savouré (Pty) Ltd',
     tagline: company.tradingName || 'A Taste of Tradition',
-    logo: company.logoUrl || '/src/assets/images/savoure_master_logo_1790775722136.jpg',
-    phone: company.phone || '+27 (0)11 555 4920',
-    email: company.email || 'admin@savoure.co.za',
+    logo: company.logoUrl || '/images/savoure/savoure-logo.png',
+    phone: company.phone || '061 364 5712',
+    email: company.email || 'info@savoure.co.za',
     website: company.website || 'https://savoure.co.za',
-    address: company.address || 'Johannesburg, South Africa',
-    vatNumber: company.vatNumber || '4980291847',
-    registrationNumber: company.registrationNumber || '2024/782194/07',
+    address: company.address || 'Unit 4, Tradition Square, 18 Artisanal Way, Sandton, Johannesburg, 2196',
+    vatNumber: company.vatNumber || '',
+    registrationNumber: company.registrationNumber || '',
     bankName: company.bankName || 'First National Bank (FNB)',
     accountHolder: company.accountHolder || 'Savouré (Pty) Ltd',
     accountNumber: company.accountNumber || '62983104821',
@@ -741,9 +767,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     currency: company.currency || 'R',
     paymentTerms: company.defaultPaymentTerms || 'Strictly 30 days from invoice date. Please use your invoice number as EFT payment reference.',
     invoicePrefix: company.invoicePrefix || 'INV-',
-    footerText: company.footerText || 'Thank you for choosing Savouré. Premium artisanal bakery & confectionery.',
+    footerText: company.footerText || 'Thank you for choosing Savouré. Premium flatbreads & artisanal pastries.',
     swiftCode: company.swiftCode || 'FIRNZAJJ',
-    vatRate: company.vatRate !== undefined ? company.vatRate : 15,
+    vatRate: (company.vatNumber && company.vatNumber.trim() !== '') ? (company.vatRate ?? 15) : 0,
     pinCode: company.pinCode || '1234',
   };
 
@@ -916,9 +942,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Invoices
   const createInvoice = async (data: any): Promise<Invoice> => {
+    const isVatReg = Boolean(company.vatNumber && company.vatNumber.trim() !== '');
     const items = data.items || [];
-    const subtotal = items.reduce((acc: number, item: any) => acc + (Number(item.subtotal) || 0), 0);
-    const vatTotal = items.reduce((acc: number, item: any) => acc + (Number(item.vatAmount) || 0), 0);
+    const subtotal = items.reduce((acc: number, item: any) => acc + (Number(item.subtotal) || (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)), 0);
+    const vatTotal = isVatReg ? items.reduce((acc: number, item: any) => acc + (Number(item.vatAmount) || 0), 0) : 0;
     const discountTotal = items.reduce((acc: number, item: any) => {
       const raw = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
       const disc = raw * ((Number(item.discountPercent) || 0) / 100);
@@ -932,14 +959,24 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (amountPaid >= grandTotal && grandTotal > 0) status = 'Paid';
     else if (amountPaid > 0 && amountPaid < grandTotal) status = 'Partial';
 
+    const branchName = data.branchName || data.branch || (currentUser?.role === 'merchant' ? currentUser.branch : undefined);
+    const branchId = data.branchId || branchName;
+    const merchantId = data.merchantId || (currentUser?.role === 'merchant' ? currentUser.id : undefined);
+    const merchantName = data.merchantName || (currentUser?.role === 'merchant' ? currentUser.name : undefined);
+    const merchantEmail = data.merchantEmail || (currentUser?.role === 'merchant' ? currentUser.email : undefined);
+
     const newInv: Invoice = {
       id: 'inv_' + Date.now(),
       invoiceNumber: data.invoiceNumber || `INV-${new Date().getFullYear()}-${String(invoices.length + 1).padStart(4, '0')}`,
-      customerId: data.customerId,
-      customerName: data.customerName,
-      customerTradingName: data.customerTradingName || data.customerName,
-      branchId: data.branchId,
-      branchName: data.branchName,
+      customerId: data.customerId || (currentUser?.role === 'merchant' ? currentUser.id : 'cust_direct'),
+      customerName: data.customerName || (currentUser?.role === 'merchant' ? (currentUser.merchantStoreName || currentUser.name) : 'Direct Client'),
+      customerTradingName: data.customerTradingName || data.customerName || (currentUser?.role === 'merchant' ? currentUser.name : 'Direct Client'),
+      branchId,
+      branchName,
+      branch: branchName,
+      merchantId,
+      merchantName,
+      merchantEmail,
       deliveryAddress: data.deliveryAddress || '',
       customerVat: data.customerVat || '',
       issueDate: data.issueDate || new Date().toISOString().split('T')[0],
@@ -953,6 +990,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       balanceDue: Math.round(balanceDue * 100) / 100,
       status,
       notes: data.notes || '',
+      paymentReference: data.paymentReference,
       createdAt: new Date().toISOString(),
       createdBy: currentUser?.name || 'Administrator',
     };

@@ -9,13 +9,13 @@ const DB_FILE = path.resolve(DATA_DIR, 'erp-database.json');
 export const CLEAN_COMPANY: CompanySettings = {
   companyName: 'Savouré (Pty) Ltd',
   tradingName: 'Savouré - A Taste of Tradition',
-  registrationNumber: '2023/481920/07',
-  vatNumber: '4120938471',
-  address: 'Johannesburg, Gauteng, South Africa',
-  phone: '+27 (0)11 789 2200',
-  email: 'admin@savoure.co.za',
+  registrationNumber: '',
+  vatNumber: '',
+  address: 'Unit 4, Tradition Square, 18 Artisanal Way, Sandton, Johannesburg, 2196',
+  phone: '061 364 5712',
+  email: 'info@savoure.co.za',
   currency: 'R',
-  vatRate: 15,
+  vatRate: 0,
   bankName: 'First National Bank (FNB)',
   accountHolder: 'Savouré (Pty) Ltd',
   accountNumber: '62983104821',
@@ -23,7 +23,7 @@ export const CLEAN_COMPANY: CompanySettings = {
   swiftCode: 'FIRNZAJJ',
   defaultPaymentTerms: 'Strictly 30 days from invoice date. Please use your invoice number as EFT payment reference.',
   pinCode: '1234',
-  logoUrl: '/src/assets/images/savoure_master_logo_1790775722136.jpg',
+  logoUrl: '/images/savoure/savoure-logo.png',
 };
 
 export const MASTER_ADMIN_USER: User = {

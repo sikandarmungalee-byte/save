@@ -21,11 +21,17 @@ import { StaffPayrollView } from './components/StaffPayrollView';
 import { StockCapturingView } from './components/StockCapturingView';
 import { AccountingView } from './components/AccountingView';
 import { TaskeenAIAdvisor } from './components/TaskeenAIAdvisor';
+import { MerchantsManagementView } from './components/MerchantsManagementView';
+import { ShowcaseApp } from './components/showcase/ShowcaseApp';
 import { News24Ticker } from './components/News24Ticker';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Menu, Sparkles } from 'lucide-react';
 
-const MainLayout: React.FC = () => {
+interface MainLayoutProps {
+  onGoToWebsite?: () => void;
+}
+
+const MainLayout: React.FC<MainLayoutProps> = ({ onGoToWebsite }) => {
   const { currentUser } = useERP();
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
@@ -83,6 +89,9 @@ const MainLayout: React.FC = () => {
         return <CRMLeadsView />;
       case 'users':
         return <UserManagementView />;
+      case 'merchants':
+      case 'merchant':
+        return <MerchantsManagementView />;
       case 'database':
         return <DatabaseExplorerView />;
       case 'settings':
@@ -109,6 +118,7 @@ const MainLayout: React.FC = () => {
         setCurrentTab={setCurrentTab}
         mobileOpen={mobileMenuOpen}
         setMobileOpen={setMobileMenuOpen}
+        onGoToWebsite={onGoToWebsite}
       />
 
       {/* Main Content Area */}
@@ -125,6 +135,7 @@ const MainLayout: React.FC = () => {
             <Header
               currentTab={currentTab}
               onOpenLoginModal={() => setIsLoginModalOpen(true)}
+              onGoToWebsite={onGoToWebsite}
             />
           </div>
         </div>
@@ -163,11 +174,27 @@ const MainLayout: React.FC = () => {
   );
 };
 
+const AppContent: React.FC = () => {
+  const { currentUser } = useERP();
+  const [viewMode, setViewMode] = useState<'website' | 'admin'>('website');
+
+  // If logged in as merchant, always direct them to the merchant showcase and portal
+  if (currentUser && currentUser.role === 'merchant') {
+    return <ShowcaseApp onOpenAdmin={() => setViewMode('admin')} />;
+  }
+
+  if (viewMode === 'website') {
+    return <ShowcaseApp onOpenAdmin={() => setViewMode('admin')} />;
+  }
+
+  return <MainLayout onGoToWebsite={() => setViewMode('website')} />;
+};
+
 export default function App() {
   return (
     <ErrorBoundary>
       <ERPProvider>
-        <MainLayout />
+        <AppContent />
       </ERPProvider>
     </ErrorBoundary>
   );

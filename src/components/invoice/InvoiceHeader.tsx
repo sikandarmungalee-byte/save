@@ -72,12 +72,12 @@ export const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({ business }) => {
                 {business.website.replace(/^https?:\/\//, '')}
               </span>
             )}
-            {business.vatNumber && (
+            {business.vatNumber && business.vatNumber.trim() !== '' && (
               <span className="text-[#6E5B4F] sm:ml-2 block sm:inline">
                 VAT: <span className="font-mono font-medium text-[#23170F]">{business.vatNumber}</span>
               </span>
             )}
-            {business.registrationNumber && (
+            {business.registrationNumber && business.registrationNumber.trim() !== '' && (
               <span className="text-[#6E5B4F] sm:ml-2 block sm:inline">
                 Reg: <span className="font-mono text-[#23170F]">{business.registrationNumber}</span>
               </span>

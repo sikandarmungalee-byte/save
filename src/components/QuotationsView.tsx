@@ -53,26 +53,7 @@ export const QuotationsView: React.FC<QuotationsViewProps> = ({ onNavigateToInvo
 
   const openCreateModal = () => {
     const defaultCust = customers[0];
-    const defaultBranch = defaultCust?.branches[0];
-    const sampleItems: LineItem[] = products.slice(0, 2).map((p) => {
-      const qty = 15;
-      const sub = qty * p.unitPrice;
-      const vat = sub * 0.15;
-      return {
-        id: 'qli_' + Math.random().toString(36).substring(2, 7),
-        productId: p.id,
-        sku: p.sku,
-        description: p.name,
-        packSize: p.packSize,
-        quantity: qty,
-        unitPrice: p.unitPrice,
-        vatRate: 15,
-        discountPercent: 5,
-        subtotal: sub * 0.95,
-        vatAmount: sub * 0.95 * 0.15,
-        total: sub * 0.95 * 1.15,
-      };
-    });
+    const defaultBranch = defaultCust?.branches?.[0];
 
     setFormData({
       customerId: defaultCust?.id || '',
@@ -80,7 +61,7 @@ export const QuotationsView: React.FC<QuotationsViewProps> = ({ onNavigateToInvo
       issueDate: new Date().toISOString().split('T')[0],
       expiryDate: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
       terms: 'Pricing valid for 30 calendar days from issue date. Free delivery for orders exceeding R1,500.',
-      items: sampleItems,
+      items: [],
     });
     setFormError(null);
     setIsModalOpen(true);

@@ -1,4 +1,4 @@
-export type UserRole = 'super_admin' | 'accountant' | 'sales' | 'logistics' | 'auditor';
+export type UserRole = 'super_admin' | 'accountant' | 'sales' | 'logistics' | 'auditor' | 'merchant';
 
 export interface UserPermissions {
   manageUsers: boolean;
@@ -12,6 +12,7 @@ export interface UserPermissions {
   payroll?: boolean;
   accounting?: boolean;
   taskeenAI?: boolean;
+  merchants?: boolean;
   reports: boolean;
   crmLeads: boolean;
   databaseExplorer: boolean;
@@ -40,6 +41,9 @@ export interface User {
   role: UserRole;
   permissions: UserPermissions;
   status: 'active' | 'inactive';
+  branch?: string;
+  merchantStoreName?: string;
+  merchantPhone?: string;
   avatar?: string;
   createdAt: string;
   lastLogin?: string;
@@ -187,6 +191,10 @@ export interface Invoice {
   customerEmail?: string;
   branchId?: string;
   branchName?: string;
+  branch?: string;
+  merchantId?: string;
+  merchantName?: string;
+  merchantEmail?: string;
   deliveryAddress: string;
   customerVat: string;
   items: LineItem[];
