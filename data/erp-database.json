@@ -22,32 +22,6 @@
       "status": "active",
       "createdAt": "2026-10-02T05:00:00.000Z",
       "lastLogin": "2026-10-02T12:17:48.370Z"
-    },
-    {
-      "id": "usr_merchant_durban",
-      "name": "Durban Central Merchant",
-      "email": "merchant@savoure.co.za",
-      "username": "merchant",
-      "password": "password123",
-      "role": "merchant",
-      "branch": "Durban Central",
-      "merchantStoreName": "Savour\u00e9 Durban Wholesale",
-      "merchantPhone": "061 364 5712",
-      "permissions": {
-        "manageUsers": false,
-        "invoices": true,
-        "deliveryNotes": false,
-        "quotations": false,
-        "payments": false,
-        "customers": false,
-        "catalog": true,
-        "reports": false,
-        "crmLeads": false,
-        "databaseExplorer": false,
-        "companySettings": false
-      },
-      "status": "active",
-      "createdAt": "2026-10-06T10:00:00Z"
     }
   ],
   "company": {
@@ -55,7 +29,7 @@
     "tradingName": "Savour\u00e9 Artisanal Bakers",
     "registrationNumber": "",
     "vatNumber": "",
-    "address": "Unit 4, Tradition Square, 18 Artisanal Way, Sandton, Johannesburg, 2196",
+    "address": "",
     "phone": "061 364 5712",
     "email": "info@savoure.co.za",
     "currency": "R",

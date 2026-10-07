@@ -39,12 +39,15 @@ export const ShowcaseMerchantLoginPage: React.FC<ShowcaseMerchantLoginPageProps>
 
   return (
     <section className="bg-[#EEE6DC] py-16 md:py-24">
-      <div className="mx-auto w-[min(100%-2rem,31rem)] border border-[#D5C8B9] bg-[#F9F6F0] p-7 shadow-md md:p-11 rounded-xl">
-        <img
-          src="/images/savoure/savoure-logo.png"
-          alt="Savouré"
-          className="mx-auto h-20 w-44 object-contain"
-        />
+      <div className="mx-auto w-[min(100%-2rem,31rem)] border border-[#D5C8B9] bg-[#F9F6F0] p-7 shadow-md md:p-11 rounded-2xl">
+        <div className="text-center">
+          <span className="font-serif text-3xl font-extrabold tracking-[0.24em] text-[#261C14] uppercase block">
+            Savouré
+          </span>
+          <span className="text-[10px] uppercase tracking-[0.28em] text-[#9E582E] font-semibold block mt-0.5">
+            A Taste of Tradition
+          </span>
+        </div>
 
         <div className="mt-8 text-center">
           <div className="mx-auto w-12 h-12 rounded-full bg-[#9E582E]/10 flex items-center justify-center">

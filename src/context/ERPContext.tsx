@@ -91,7 +91,7 @@ export const INITIAL_COMPANY: CompanySettings = {
   tradingName: 'Savouré - A Taste of Tradition',
   registrationNumber: '',
   vatNumber: '',
-  address: 'Unit 4, Tradition Square, 18 Artisanal Way, Sandton, Johannesburg, 2196',
+  address: '',
   phone: '061 364 5712',
   email: 'info@savoure.co.za',
   website: 'https://savoure.co.za',
@@ -757,7 +757,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     phone: company.phone || '061 364 5712',
     email: company.email || 'info@savoure.co.za',
     website: company.website || 'https://savoure.co.za',
-    address: company.address || 'Unit 4, Tradition Square, 18 Artisanal Way, Sandton, Johannesburg, 2196',
+    address: company.address || '',
     vatNumber: company.vatNumber || '',
     registrationNumber: company.registrationNumber || '',
     bankName: company.bankName || 'First National Bank (FNB)',
@@ -959,11 +959,21 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (amountPaid >= grandTotal && grandTotal > 0) status = 'Paid';
     else if (amountPaid > 0 && amountPaid < grandTotal) status = 'Partial';
 
-    const branchName = data.branchName || data.branch || (currentUser?.role === 'merchant' ? currentUser.branch : undefined);
+    // Auto-detect linked merchant user for this customer
+    const targetCustId = data.customerId;
+    const targetCustName = data.customerName;
+    const linkedMerchant = users.find((u) =>
+      u.role === 'merchant' &&
+      ((targetCustId && u.customerId === targetCustId) ||
+       (targetCustName && u.customerName && u.customerName.toLowerCase() === targetCustName.toLowerCase()) ||
+       (targetCustName && u.merchantStoreName && u.merchantStoreName.toLowerCase() === targetCustName.toLowerCase()))
+    );
+
+    const branchName = data.branchName || data.branch || linkedMerchant?.branch || (currentUser?.role === 'merchant' ? currentUser.branch : undefined);
     const branchId = data.branchId || branchName;
-    const merchantId = data.merchantId || (currentUser?.role === 'merchant' ? currentUser.id : undefined);
-    const merchantName = data.merchantName || (currentUser?.role === 'merchant' ? currentUser.name : undefined);
-    const merchantEmail = data.merchantEmail || (currentUser?.role === 'merchant' ? currentUser.email : undefined);
+    const merchantId = data.merchantId || linkedMerchant?.id || (currentUser?.role === 'merchant' ? currentUser.id : undefined);
+    const merchantName = data.merchantName || linkedMerchant?.name || (currentUser?.role === 'merchant' ? currentUser.name : undefined);
+    const merchantEmail = data.merchantEmail || linkedMerchant?.email || (currentUser?.role === 'merchant' ? currentUser.email : undefined);
 
     const newInv: Invoice = {
       id: 'inv_' + Date.now(),
@@ -1472,6 +1482,11 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPayments([]);
     setLeads([]);
     setCommunications([]);
+    setStaff([]);
+    setPayrollPayouts([]);
+    setStockPurchases([]);
+    setStockItemStatuses([]);
+    setJournalEntries([]);
     const purgedData = {
       customers: [],
       products: [],
@@ -1481,6 +1496,11 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       payments: [],
       leads: [],
       communications: [],
+      staff: [],
+      payrollPayouts: [],
+      stockPurchases: [],
+      stockItemStatuses: [],
+      journalEntries: [],
     };
     persistToLocal(purgedData);
     await syncToCloud(purgedData);

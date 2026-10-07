@@ -17,11 +17,12 @@ import {
   Edit2,
   ChevronRight,
   X,
-  FileCheck2
+  FileCheck2,
+  Store
 } from 'lucide-react';
 
 export const CustomersView: React.FC = () => {
-  const { customers, company, createCustomer, updateCustomer, deleteCustomer, invoices } = useERP();
+  const { customers, company, createCustomer, updateCustomer, deleteCustomer, invoices, users, createUser } = useERP();
 
   const [search, setSearch] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -387,6 +388,77 @@ export const CustomersView: React.FC = () => {
                   </button>
                 </div>
               </div>
+
+              {/* Merchant Portal Access Status & Quick Provisioning */}
+              {(() => {
+                const linkedMerchant = users.find(
+                  (u) =>
+                    u.role === 'merchant' &&
+                    (u.customerId === selectedCustomer.id ||
+                      (u.customerName && u.customerName.toLowerCase() === selectedCustomer.registeredName.toLowerCase()) ||
+                      (u.merchantStoreName && u.merchantStoreName.toLowerCase() === selectedCustomer.tradingName.toLowerCase()))
+                );
+
+                return (
+                  <div className="p-3.5 rounded-xl bg-[#221B17] border border-[#3A2D25] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2.5">
+                      <Store className="w-4 h-4 text-[#C98A5B] shrink-0" />
+                      <div>
+                        <span className="font-semibold text-white">Merchant Portal Login: </span>
+                        {linkedMerchant ? (
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 font-mono text-[11px] border border-emerald-800">
+                            <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                            <span>
+                              Active ({linkedMerchant.username || linkedMerchant.email}) · Branch: {linkedMerchant.branch || 'Main'}
+                            </span>
+                          </span>
+                        ) : (
+                          <span className="text-neutral-400 italic">No merchant login assigned</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {!linkedMerchant && (
+                      <button
+                        onClick={async () => {
+                          const username = (selectedCustomer.accountCode || selectedCustomer.registeredName).toLowerCase().replace(/[^a-z0-9]/g, '');
+                          const email = selectedCustomer.primaryEmail || `${username}@savoure.co.za`;
+                          await createUser({
+                            name: selectedCustomer.primaryContact || selectedCustomer.registeredName,
+                            email: email.toLowerCase(),
+                            username,
+                            password: 'password123',
+                            role: 'merchant',
+                            customerId: selectedCustomer.id,
+                            customerName: selectedCustomer.registeredName,
+                            merchantStoreName: selectedCustomer.tradingName || selectedCustomer.registeredName,
+                            branch: selectedCustomer.branches?.[0]?.branchName || 'Durban Central',
+                            status: 'active',
+                            permissions: {
+                              manageUsers: false,
+                              invoices: true,
+                              deliveryNotes: false,
+                              quotations: false,
+                              payments: false,
+                              customers: false,
+                              catalog: true,
+                              reports: false,
+                              crmLeads: false,
+                              databaseExplorer: false,
+                              companySettings: false,
+                            },
+                          });
+                          alert(`Merchant portal login successfully enabled for ${selectedCustomer.registeredName}!\nUsername: ${username}\nDefault Password: password123`);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#C98A5B] hover:bg-[#B87A4D] text-[#120F0D] font-bold text-xs shadow-xs transition-colors"
+                      >
+                        <Store className="w-3.5 h-3.5" />
+                        <span>Enable Merchant Portal Access</span>
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Contact & Credit Terms Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 bg-neutral-950/50 rounded-lg border border-neutral-800 text-xs">

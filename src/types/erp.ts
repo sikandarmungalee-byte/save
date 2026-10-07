@@ -44,6 +44,8 @@ export interface User {
   branch?: string;
   merchantStoreName?: string;
   merchantPhone?: string;
+  customerId?: string; // Linked Customer ID from Customers directory
+  customerName?: string; // Linked Customer Registered Name
   avatar?: string;
   createdAt: string;
   lastLogin?: string;

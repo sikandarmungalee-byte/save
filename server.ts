@@ -1270,17 +1270,15 @@ Stock Items Currently Marked FINISHED/DEPLETED: ${finishedStock.length > 0 ? fin
 ${erpContext ? `Live Client Session Context: ${JSON.stringify(erpContext)}` : ''}
 `;
 
-    const systemInstruction = `You are Taskeen, the dedicated Executive AI Advisor and Chief Operational Strategist for Savouré (Pty) Ltd — a premium artisanal bakery and luxury food enterprise in South Africa.
-Your personality is professional, proactive, warm, discerning, and razor-sharp on business figures.
-You assist the owner, executives, and department heads with:
-- Daily operations, bakery production scheduling, order prioritization, and inventory replenishment.
-- Financial analysis, gross and net margin optimization, accounts receivable collections, and pricing strategies.
-- South African tax standards (SARS 15% VAT, VAT 201 returns, CIPC regulations).
-- Staff overtime calculation, payroll management, and team allocation.
-- Drafting client correspondence, quotation proposals, and courteous collection notices.
-Always ground your answers in the live enterprise data provided. Keep your answers concise, practical, and formatted with clean bullet points and bold financial metrics where applicable.`;
+    const systemInstruction = `You are Taskeen, an intelligent, helpful executive AI assistant and business advisor powered by Google Gemini.
+You function as a normal, full-capability AI: you can converse naturally, answer general knowledge questions, solve problems, write text, explain any concept, brainstorm, code, and assist with any topic just like a normal standard AI.
+Additionally, you have real-time visibility into the user's business administration and enterprise data:
+${businessSnapshot}
+Guidelines:
+1. If the user asks general, conversational, creative, or non-business questions, answer directly, intelligently, and helpfully like a normal AI without forcing unnecessary business figures into the response.
+2. If the user asks about their business, invoices, customers, stock, accounting, payroll, or operational strategy, ground your answers in their enterprise snapshot and provide crisp, practical insights.`;
 
-    // Attempt Gemini call using @google/genai
+    // Call Gemini using modern @google/genai SDK
     try {
       const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
       const ai = new GoogleGenAI({
@@ -1291,68 +1289,37 @@ Always ground your answers in the live enterprise data provided. Keep your answe
           },
         },
       });
+
       const response = await ai.models.generateContent({
         model: 'gemini-3.8-flash',
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              {
-                text: `${systemInstruction}\n\n[LIVE ENTERPRISE BUSINESS SNAPSHOT]\n${businessSnapshot}\n\n[USER QUERY]\n${prompt}`,
-              },
-            ],
-          },
-        ],
+        contents: prompt,
+        config: {
+          systemInstruction,
+        },
       });
 
-      const reply = response.text || 'I have analyzed your business operations. How else may I assist you today?';
-      return res.json({ reply, model: 'Taskeen (Gemini 3.8 Flash)' });
+      const reply = response.text || 'I am here to assist you. What would you like to know?';
+      return res.json({ reply, model: 'Gemini 3.8 Flash' });
     } catch (aiErr: any) {
-      console.warn('Gemini API call warning, running Taskeen Executive Engine fallback:', aiErr?.message);
-      // Smart Contextual Business Engine Fallback
+      console.warn('Gemini API notice:', aiErr?.message);
+      // Helpful fallback response
       let fallbackReply = '';
       const lower = prompt.toLowerCase();
 
       if (lower.includes('stock') || lower.includes('finish') || lower.includes('depleted') || lower.includes('inventory')) {
         if (finishedStock.length > 0) {
-          fallbackReply = `**Taskeen Operational Alert: Out-of-Stock Items Detected**\n\nThere are currently **${finishedStock.length} items** marked as depleted across your branches:\n` +
-            finishedStock.map((s) => `• **${s.name}** at *${s.branchName}* (Depleted on ${s.lastFinishedAt || 'today'})`).join('\n') +
-            `\n\n**Action Recommended:** Capture a new stock purchase slip under **Stock Capturing & Slips** to restock these key ingredients immediately and prevent bakery kitchen downtime.`;
+          fallbackReply = `**Out-of-Stock Alert:** There are currently **${finishedStock.length} items** marked as depleted across branches:\n` +
+            finishedStock.map((s) => `• **${s.name}** at *${s.branchName}*`).join('\n');
         } else {
-          fallbackReply = `**Taskeen Inventory Report:** All tracked raw materials and ingredients across your branches are currently **In Stock** with zero depleted items flagged today. Total stock purchases recorded to date stand at **${company?.currency || 'R'} ${(db.stockPurchases || []).reduce((a, p) => a + (Number(p.totalAmount) || 0), 0).toLocaleString()}**.`;
+          fallbackReply = `All tracked stock items are currently in stock with zero depleted items flagged.`;
         }
-      } else if (lower.includes('sales') || lower.includes('revenue') || lower.includes('money') || lower.includes('profit') || lower.includes('invoice')) {
-        fallbackReply = `**Taskeen Financial Briefing:**\n\n` +
-          `• **Total Gross Revenue Issued:** ${company?.currency || 'R'} ${totalRev.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}\n` +
-          `• **Total Tax Invoices:** ${invCount} invoices issued\n` +
-          `• **Outstanding Accounts Receivable:** ${company?.currency || 'R'} ${unpaidBal.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}\n\n` +
-          `**Executive Recommendation:** ${unpaidBal > 0 ? `Prioritize collections on the outstanding balances to boost liquidity for weekly flour and butter orders.` : 'Your debtor ledger is clean with no overdue balances.'}`;
-      } else if (lower.includes('payroll') || lower.includes('staff') || lower.includes('salary') || lower.includes('overtime')) {
-        const totalPayouts = (db.payrollPayouts || []).reduce((a, p) => a + (Number(p.netPayout) || 0), 0);
-        fallbackReply = `**Taskeen Human Resources & Payroll Summary:**\n\n` +
-          `• **Active Team Members:** ${staffCount} registered staff\n` +
-          `• **Total Payroll Disbursed:** ${company?.currency || 'R'} ${totalPayouts.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}\n` +
-          `• **Overtime Calculation:** Overtime is computed on an hourly rate basis under the **Staff & Monthly Payroll** module.\n\n` +
-          `Would you like me to help calculate payment distributions for this month or draft staff payslips?`;
-      } else if (lower.includes('vat') || lower.includes('sars') || lower.includes('tax')) {
-        const vatRate = company?.vatRate || 15;
-        fallbackReply = `**Taskeen SARS VAT 201 Guidance:**\n\n` +
-          `• **Standard VAT Rate:** ${vatRate}%\n` +
-          `• **SARS Registration:** ${company?.vatNumber || 'Not specified'}\n` +
-          `• **Output Tax on Sales:** Automatically itemized on all issued Tax Invoices.\n` +
-          `• **Input Tax on Stock:** Claimable on all raw materials with supplier slips attached.\n\n` +
-          `You can view your complete net VAT position and print the eFiling schedule directly under the **Accounting & General Ledgers** section.`;
+      } else if (lower.includes('sales') || lower.includes('revenue') || lower.includes('invoice')) {
+        fallbackReply = `**Financial Summary:**\n• **Total Invoices:** ${invCount}\n• **Total Revenue Issued:** ${company?.currency || 'R'} ${totalRev.toLocaleString()}\n• **Accounts Receivable:** ${company?.currency || 'R'} ${unpaidBal.toLocaleString()}`;
       } else {
-        fallbackReply = `**Greetings! I am Taskeen, your Executive AI Advisor.**\n\n` +
-          `I am monitoring your Savouré operations in real time. Today's enterprise status:\n\n` +
-          `• **Revenue Issued:** ${company?.currency || 'R'} ${totalRev.toLocaleString()}\n` +
-          `• **Unsettled Debtors:** ${company?.currency || 'R'} ${unpaidBal.toLocaleString()}\n` +
-          `• **Depleted Stock Items:** ${finishedStock.length} flagged at branches\n` +
-          `• **Active Staff:** ${staffCount} members\n\n` +
-          `How can I assist you with your operations, cost calculations, customer agreements, or bakery planning today?`;
+        fallbackReply = `I am Taskeen, your AI assistant powered by Gemini. I am here to help you with any questions, writing, or analysis. How can I help you today?`;
       }
 
-      return res.json({ reply: fallbackReply, model: 'Taskeen Enterprise AI' });
+      return res.json({ reply: fallbackReply, model: 'Gemini AI Assistant' });
     }
   } catch (err: any) {
     res.status(500).json({ error: err?.message || 'Taskeen advisor error' });

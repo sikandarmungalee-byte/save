@@ -87,7 +87,7 @@ export const AccountingView: React.FC = () => {
     [invoices]
   );
   const totalOutputVat = useMemo(
-    () => invoices.reduce((acc, i) => acc + (Number(i.vatAmount) || 0), 0),
+    () => invoices.reduce((acc, i) => acc + (Number((i as any).vatAmount ?? i.vatTotal) || 0), 0),
     [invoices]
   );
   const totalPaymentsReceived = useMemo(
@@ -105,7 +105,7 @@ export const AccountingView: React.FC = () => {
     [stockPurchases]
   );
   const totalInputVatOnStock = useMemo(
-    () => stockPurchases.reduce((acc, s) => acc + (Number(s.vatAmount) || 0), 0),
+    () => stockPurchases.reduce((acc, s) => acc + (Number((s as any).vatAmount) || 0), 0),
     [stockPurchases]
   );
   const netCogs = Math.max(0, totalStockPurchased - totalInputVatOnStock);
@@ -133,8 +133,8 @@ export const AccountingView: React.FC = () => {
     [payrollPayouts]
   );
 
-  // Operating Overheads
-  const estimatedUtilitiesAndFuel = 12500; // Standard monthly bakery utility & delivery logistics baseline
+  // Operating Overheads (Derived strictly from real captured expenses)
+  const estimatedUtilitiesAndFuel = 0;
 
   // Profit Metrics
   const grossProfit = totalNetSalesRevenue - netCogs;
@@ -159,8 +159,8 @@ export const AccountingView: React.FC = () => {
         type: 'Asset',
         category: 'Current Asset',
         normalBalance: 'Debit',
-        balance: Math.max(150000, totalPaymentsReceived - totalStockPurchased - totalStaffPayrollDisbursed),
-        description: 'Primary corporate business checking account (62983104821)',
+        balance: Math.max(0, totalPaymentsReceived - totalStockPurchased - totalStaffPayrollDisbursed),
+        description: 'Primary corporate business checking account',
       },
       {
         code: '1020',
@@ -168,8 +168,8 @@ export const AccountingView: React.FC = () => {
         type: 'Asset',
         category: 'Current Asset',
         normalBalance: 'Debit',
-        balance: 5000,
-        description: 'Cash float for day-to-day bakery kitchen disbursements',
+        balance: 0,
+        description: 'Cash float for day-to-day disbursements',
       },
       {
         code: '1030',
@@ -178,7 +178,7 @@ export const AccountingView: React.FC = () => {
         category: 'Current Asset',
         normalBalance: 'Debit',
         balance: totalAccountsReceivable,
-        description: 'Outstanding invoice balances owed by corporate & supermarket customers',
+        description: 'Outstanding invoice balances owed by customers',
       },
       {
         code: '1040',
@@ -187,7 +187,7 @@ export const AccountingView: React.FC = () => {
         category: 'Current Asset',
         normalBalance: 'Debit',
         balance: estimatedStockValuation * 0.4,
-        description: 'Completed artisanal baked goods ready for dispatch and catering delivery',
+        description: 'Completed goods ready for dispatch and delivery',
       },
       {
         code: '1050',
@@ -195,8 +195,8 @@ export const AccountingView: React.FC = () => {
         type: 'Asset',
         category: 'Current Asset',
         normalBalance: 'Debit',
-        balance: Math.max(45000, totalStockPurchased * 0.35),
-        description: 'Flour, yeast, premium butter, eggs, chocolate, and packaging boxes on hand',
+        balance: totalStockPurchased * 0.35,
+        description: 'Raw materials and packaging boxes on hand',
       },
       {
         code: '1510',
@@ -204,8 +204,8 @@ export const AccountingView: React.FC = () => {
         type: 'Asset',
         category: 'Non-Current Asset',
         normalBalance: 'Debit',
-        balance: 385000,
-        description: 'Commercial multi-deck stone ovens, spiral dough mixers, and proofers',
+        balance: 0,
+        description: 'Commercial bakery equipment and machinery',
       },
       {
         code: '1520',
@@ -213,8 +213,8 @@ export const AccountingView: React.FC = () => {
         type: 'Asset',
         category: 'Non-Current Asset',
         normalBalance: 'Debit',
-        balance: 240000,
-        description: 'Temperature-controlled logistics vans for regional distribution',
+        balance: 0,
+        description: 'Logistics delivery vehicles',
       },
 
       // 2000 - LIABILITIES
@@ -234,7 +234,7 @@ export const AccountingView: React.FC = () => {
         category: 'Current Liability',
         normalBalance: 'Credit',
         balance: Math.max(0, netVatPayableToSars),
-        description: 'Net 15% South African VAT collected on invoices payable to SARS',
+        description: 'Net South African VAT collected on invoices payable to SARS',
       },
       {
         code: '2030',
@@ -253,8 +253,8 @@ export const AccountingView: React.FC = () => {
         type: 'Equity',
         category: 'Equity',
         normalBalance: 'Credit',
-        balance: 500000,
-        description: 'Initial seed and foundational capital investment in Savouré (Pty) Ltd',
+        balance: 0,
+        description: 'Contributed foundational capital investment',
       },
       {
         code: '3020',
@@ -262,8 +262,8 @@ export const AccountingView: React.FC = () => {
         type: 'Equity',
         category: 'Equity',
         normalBalance: 'Credit',
-        balance: 220000,
-        description: 'Accumulated historical net profits reinvested in company growth',
+        balance: 0,
+        description: 'Accumulated historical net profits reinvested in company',
       },
 
       // 4000 - REVENUE
@@ -274,7 +274,7 @@ export const AccountingView: React.FC = () => {
         category: 'Operating Revenue',
         normalBalance: 'Credit',
         balance: totalNetSalesRevenue * 0.85,
-        description: 'B2B and B2C sales of sourdough, baguettes, rotis, brioche, and pastries',
+        description: 'Sales of flatbreads, rotis, tortilla wraps, and pastries',
       },
       {
         code: '4020',
@@ -283,7 +283,7 @@ export const AccountingView: React.FC = () => {
         category: 'Operating Revenue',
         normalBalance: 'Credit',
         balance: totalNetSalesRevenue * 0.15,
-        description: 'Custom corporate event catering and specialty confectionaries',
+        description: 'Custom corporate wholesale orders and specialty lines',
       },
 
       // 5000 - COST OF GOODS SOLD (COGS)
@@ -294,7 +294,7 @@ export const AccountingView: React.FC = () => {
         category: 'Direct Costs',
         normalBalance: 'Debit',
         balance: netCogs * 0.65,
-        description: 'Bulk stoneground unbleached flour, specialty yeasts, seeds, and grains',
+        description: 'Flour, yeasts, seeds, and raw ingredients',
       },
       {
         code: '5020',
@@ -303,7 +303,7 @@ export const AccountingView: React.FC = () => {
         category: 'Direct Costs',
         normalBalance: 'Debit',
         balance: netCogs * 0.25,
-        description: 'Pure salted/unsalted farm butter, fresh milk, heavy cream, and free-range eggs',
+        description: 'Butter, milk, oil, and egg supplies',
       },
       {
         code: '5030',
@@ -312,7 +312,7 @@ export const AccountingView: React.FC = () => {
         category: 'Direct Costs',
         normalBalance: 'Debit',
         balance: netCogs * 0.10,
-        description: 'Embossed bread wraps, branded luxury pastry boxes, and thermal tape',
+        description: 'Packaging bags, wraps, and boxes',
       },
 
       // 6000 - OPERATING EXPENSES
@@ -323,7 +323,7 @@ export const AccountingView: React.FC = () => {
         category: 'Operating Expense',
         normalBalance: 'Debit',
         balance: totalBasicSalaries,
-        description: 'Monthly compensation for head bakers, pastry chefs, and assistants',
+        description: 'Monthly compensation for staff',
       },
       {
         code: '6020',
@@ -332,7 +332,7 @@ export const AccountingView: React.FC = () => {
         category: 'Operating Expense',
         normalBalance: 'Debit',
         balance: totalOvertimePaid,
-        description: 'Overtime pay calculated at 1.5x / 2.0x hourly rates for early morning bakes',
+        description: 'Overtime pay calculated on hourly rates',
       },
       {
         code: '6030',
@@ -340,8 +340,8 @@ export const AccountingView: React.FC = () => {
         type: 'Expense',
         category: 'Operating Expense',
         normalBalance: 'Debit',
-        balance: 7800,
-        description: 'LPG gas for deck ovens, municipal 3-phase power, and water purification',
+        balance: 0,
+        description: 'Municipal utilities and gas captured',
       },
       {
         code: '6040',
@@ -349,8 +349,8 @@ export const AccountingView: React.FC = () => {
         type: 'Expense',
         category: 'Operating Expense',
         normalBalance: 'Debit',
-        balance: 4700,
-        description: 'Diesel fuel and servicing for refrigerated delivery vans',
+        balance: 0,
+        description: 'Vehicle fuel and maintenance captured',
       },
     ];
   }, [
@@ -471,7 +471,7 @@ export const AccountingView: React.FC = () => {
             accountCode: '2020',
             accountName: 'SARS VAT 201 Output Tax Control',
             debit: 0,
-            credit: inv.vatAmount,
+            credit: (inv as any).vatAmount ?? inv.vatTotal ?? 0,
           },
         ],
         totalDebit: inv.grandTotal,

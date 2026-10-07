@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 
 export const MerchantsManagementView: React.FC = () => {
-  const { users, createUser, updateUser, deleteUser, invoices, currentUser } = useERP();
+  const { users, createUser, updateUser, deleteUser, invoices, customers, currentUser } = useERP();
 
   const [search, setSearch] = useState('');
   const [selectedBranchFilter, setSelectedBranchFilter] = useState('ALL');
@@ -31,6 +31,7 @@ export const MerchantsManagementView: React.FC = () => {
   const [editingMerchant, setEditingMerchant] = useState<User | null>(null);
 
   // Form State
+  const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
@@ -103,8 +104,32 @@ export const MerchantsManagementView: React.FC = () => {
     });
   }, [merchantUsers, search, selectedBranchFilter]);
 
+  const handleCustomerSelect = (custId: string) => {
+    setSelectedCustomerId(custId);
+    if (!custId) return;
+    const c = customers.find((cust) => cust.id === custId);
+    if (c) {
+      setName(c.primaryContact || c.registeredName);
+      if (c.primaryEmail) setEmail(c.primaryEmail.toLowerCase());
+      if (c.accountCode) setUsername(c.accountCode.toLowerCase());
+      setMerchantStoreName(c.tradingName || c.registeredName);
+      if (c.primaryPhone) setMerchantPhone(c.primaryPhone);
+      const branchName = c.branches?.[0]?.branchName;
+      if (branchName) {
+        if (PRESET_BRANCHES.includes(branchName)) {
+          setBranch(branchName);
+          setCustomBranch('');
+        } else {
+          setBranch('CUSTOM');
+          setCustomBranch(branchName);
+        }
+      }
+    }
+  };
+
   const openAddModal = () => {
     setEditingMerchant(null);
+    setSelectedCustomerId('');
     setName('');
     setEmail('');
     setUsername('');
@@ -120,6 +145,7 @@ export const MerchantsManagementView: React.FC = () => {
 
   const openEditModal = (m: User) => {
     setEditingMerchant(m);
+    setSelectedCustomerId(m.customerId || '');
     setName(m.name || '');
     setEmail(m.email || '');
     setUsername(m.username || '');
@@ -152,6 +178,8 @@ export const MerchantsManagementView: React.FC = () => {
       return;
     }
 
+    const linkedCust = customers.find((c) => c.id === selectedCustomerId);
+
     setFormLoading(true);
     setFormError(null);
 
@@ -161,8 +189,10 @@ export const MerchantsManagementView: React.FC = () => {
           name: name.trim(),
           email: email.trim().toLowerCase(),
           username: username.trim().toLowerCase() || undefined,
+          customerId: selectedCustomerId || undefined,
+          customerName: linkedCust?.registeredName || undefined,
           branch: assignedBranch,
-          merchantStoreName: merchantStoreName.trim() || undefined,
+          merchantStoreName: merchantStoreName.trim() || linkedCust?.tradingName || undefined,
           merchantPhone: merchantPhone.trim() || undefined,
           status,
           ...(password.trim() ? { password: password.trim() } : {}),
@@ -174,8 +204,10 @@ export const MerchantsManagementView: React.FC = () => {
           username: username.trim().toLowerCase() || undefined,
           password: password.trim() || 'password123',
           role: 'merchant',
+          customerId: selectedCustomerId || undefined,
+          customerName: linkedCust?.registeredName || undefined,
           branch: assignedBranch,
-          merchantStoreName: merchantStoreName.trim() || `${assignedBranch} Wholesale Depot`,
+          merchantStoreName: merchantStoreName.trim() || linkedCust?.tradingName || `${assignedBranch} Wholesale Depot`,
           merchantPhone: merchantPhone.trim() || undefined,
           status,
           permissions: {
@@ -350,6 +382,7 @@ export const MerchantsManagementView: React.FC = () => {
               <thead className="bg-[#221B17] text-[#A69385] uppercase text-[10px] font-serif tracking-wider border-b border-[#2C211B]">
                 <tr>
                   <th className="py-3 px-4">Merchant Name</th>
+                  <th className="py-3 px-4">Linked Customer Account</th>
                   <th className="py-3 px-4">Branch Location</th>
                   <th className="py-3 px-4">Username / Email</th>
                   <th className="py-3 px-4">Store Name</th>
@@ -371,6 +404,22 @@ export const MerchantsManagementView: React.FC = () => {
                           <span className="block text-[10px] text-[#8A776B]">Merchant User</span>
                         </div>
                       </div>
+                    </td>
+
+                    <td className="py-3.5 px-4">
+                      {m.customerId || m.customerName ? (
+                        <div className="space-y-0.5">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-950/70 text-emerald-300 border border-emerald-800/60">
+                            <Building2 className="w-3 h-3 text-emerald-400" />
+                            <span>{m.customerName || customers.find((c) => c.id === m.customerId)?.registeredName || 'Linked Customer'}</span>
+                          </span>
+                          <div className="text-[10px] text-[#8A776B] font-mono">
+                            {invoices.filter((i) => (m.customerId && i.customerId === m.customerId) || (i.merchantId && i.merchantId === m.id)).length} invoices live
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-[#8A776B] italic">No customer linked</span>
+                      )}
                     </td>
 
                     <td className="py-3.5 px-4">
@@ -475,6 +524,32 @@ export const MerchantsManagementView: React.FC = () => {
             )}
 
             <form onSubmit={handleSaveMerchant} className="space-y-4">
+              {/* Link Customer Account */}
+              <div className="p-4 rounded-xl bg-[#221B17] border border-[#C98A5B]/40 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-serif font-bold uppercase tracking-wider text-[#DE9E74] flex items-center gap-1.5">
+                    <Building2 className="w-4 h-4 text-[#C98A5B]" />
+                    <span>Link to Customer Account</span>
+                  </label>
+                  <span className="text-[10px] text-emerald-400 font-mono">Auto-routes Invoices</span>
+                </div>
+                <p className="text-[11px] text-[#A69385]">
+                  Select the Customer in your directory this merchant represents. Invoices created for this customer by admin will automatically sync to their portal.
+                </p>
+                <select
+                  value={selectedCustomerId}
+                  onChange={(e) => handleCustomerSelect(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-[#120F0D] border border-[#2C211B] rounded-lg text-xs text-white outline-none focus:border-[#C98A5B]"
+                >
+                  <option value="">-- Select Existing Customer (or leave unlinked) --</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.registeredName} {c.tradingName ? `(${c.tradingName})` : ''} · Acc: {c.accountCode || 'N/A'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-[#A69385] mb-1">
@@ -510,7 +585,7 @@ export const MerchantsManagementView: React.FC = () => {
                   Designated Branch Assignment *
                 </label>
                 <p className="text-[11px] text-[#A69385]">
-                  Crucial: The merchant will strictly only have access to view and create invoices for this specific branch.
+                  Crucial: The merchant will strictly have access to view and print official invoices for their linked customer and assigned branch.
                 </p>
 
                 <select

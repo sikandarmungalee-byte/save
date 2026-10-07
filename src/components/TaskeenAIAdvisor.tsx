@@ -49,9 +49,9 @@ export const TaskeenAIAdvisor: React.FC<{ isModal?: boolean; onClose?: () => voi
     {
       id: 'welcome',
       sender: 'taskeen',
-      text: `Good day! I am **Taskeen**, your Executive AI Advisor and Business Strategist for **${company?.tradingName || 'Savouré'}**.\n\nI am synchronized live with your invoices, branch stock levels, staff payroll, and financial accounts. How may I assist you today?`,
+      text: `Good day! I am **Taskeen**, your Executive AI Advisor powered by Google Gemini.\n\nYou can chat with me and ask questions like a normal AI, as well as consult me on your live business operations, invoices, stock levels, payroll, and financials. How may I assist you today?`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      model: 'Taskeen Executive AI',
+      model: 'Gemini 3.8 Flash',
     },
   ]);
   const [loading, setLoading] = useState(false);
@@ -382,7 +382,7 @@ export const TaskeenAIAdvisor: React.FC<{ isModal?: boolean; onClose?: () => voi
             value={inputPrompt}
             onChange={(e) => setInputPrompt(e.target.value)}
             disabled={loading}
-            placeholder="Ask Taskeen about revenue, stock reordering, payroll, or business strategy..."
+            placeholder="Ask Gemini anything, or inquire about business, revenue, invoices, strategy..."
             className="flex-1 px-4 py-3 text-xs bg-[#120F0D] border border-[#2C211B] rounded-xl text-white placeholder-[#6E5B4F] focus:outline-hidden focus:border-[#C98A5B] transition-colors"
           />
           <button
