@@ -36,7 +36,15 @@ import {
 } from 'lucide-react';
 import { MerchantsManagementView } from './MerchantsManagementView';
 
-export const UserManagementView: React.FC = () => {
+interface UserManagementViewProps {
+  initialRoleFilter?: string;
+  initialOpenCreate?: boolean;
+}
+
+export const UserManagementView: React.FC<UserManagementViewProps> = ({
+  initialRoleFilter = 'ALL',
+  initialOpenCreate = false,
+}) => {
   const {
     users,
     currentUser,
@@ -49,12 +57,12 @@ export const UserManagementView: React.FC = () => {
 
   const [activeMainTab, setActiveMainTab] = useState<'users' | 'logs' | 'merchants'>('users');
   const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState('ALL');
+  const [roleFilter, setRoleFilter] = useState(initialRoleFilter);
   const [logFilter, setLogFilter] = useState('ALL');
   const [logSearch, setLogSearch] = useState('');
 
   // Modals state
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(initialOpenCreate);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [passwordTargetUser, setPasswordTargetUser] = useState<User | null>(null);

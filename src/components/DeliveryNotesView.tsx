@@ -16,7 +16,11 @@ import {
   AlertCircle
 } from 'lucide-react';
 
-export const DeliveryNotesView: React.FC = () => {
+interface DeliveryNotesViewProps {
+  initialStatusFilter?: string;
+}
+
+export const DeliveryNotesView: React.FC<DeliveryNotesViewProps> = ({ initialStatusFilter = 'ALL' }) => {
   const {
     deliveryNotes,
     invoices,
@@ -28,7 +32,7 @@ export const DeliveryNotesView: React.FC = () => {
   } = useERP();
 
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState(initialStatusFilter);
 
   // Selected note for Print Modal
   const [printNote, setPrintNote] = useState<DeliveryNote | null>(null);

@@ -15,14 +15,22 @@ import {
   FileText
 } from 'lucide-react';
 
-export const PaymentsView: React.FC = () => {
+interface PaymentsViewProps {
+  initialMethodFilter?: string;
+  initialOpenCreate?: boolean;
+}
+
+export const PaymentsView: React.FC<PaymentsViewProps> = ({
+  initialMethodFilter = 'ALL',
+  initialOpenCreate = false,
+}) => {
   const { payments, invoices, company, recordPayment, deletePayment } = useERP();
 
   const [search, setSearch] = useState('');
-  const [methodFilter, setMethodFilter] = useState('ALL');
+  const [methodFilter, setMethodFilter] = useState(initialMethodFilter);
 
   // Modal
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(initialOpenCreate);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState('');
   const [amount, setAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Bank Transfer / EFT');

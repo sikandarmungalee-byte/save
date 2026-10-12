@@ -20,10 +20,14 @@ import {
   Download
 } from 'lucide-react';
 
-export const InvoiceStudioView: React.FC = () => {
+interface InvoiceStudioViewProps {
+  initialTab?: 'list' | 'create' | 'settings';
+}
+
+export const InvoiceStudioView: React.FC<InvoiceStudioViewProps> = ({ initialTab = 'list' }) => {
   const { invoices, businessSettings, deleteInvoice, cloneInvoice } = useERP();
 
-  const [activeTab, setActiveTab] = useState<'list' | 'create' | 'settings'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'create' | 'settings'>(initialTab);
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceType | null>(null);
   const [editingInvoice, setEditingInvoice] = useState<InvoiceType | null>(null);
   const [previewModalOpen, setPreviewModalOpen] = useState(false);

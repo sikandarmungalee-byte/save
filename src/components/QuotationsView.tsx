@@ -18,9 +18,15 @@ import {
 
 interface QuotationsViewProps {
   onNavigateToInvoices?: () => void;
+  initialStatusFilter?: string;
+  initialOpenCreate?: boolean;
 }
 
-export const QuotationsView: React.FC<QuotationsViewProps> = ({ onNavigateToInvoices }) => {
+export const QuotationsView: React.FC<QuotationsViewProps> = ({
+  onNavigateToInvoices,
+  initialStatusFilter = 'ALL',
+  initialOpenCreate = false,
+}) => {
   const {
     quotations,
     customers,
@@ -33,13 +39,13 @@ export const QuotationsView: React.FC<QuotationsViewProps> = ({ onNavigateToInvo
   } = useERP();
 
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState(initialStatusFilter);
 
   // Print Quote Modal
   const [printQuote, setPrintQuote] = useState<Quotation | null>(null);
 
   // Create Modal
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(initialOpenCreate);
   const [formData, setFormData] = useState({
     customerId: '',
     branchId: '',

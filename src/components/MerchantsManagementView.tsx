@@ -20,14 +20,22 @@ import {
   Lock,
 } from 'lucide-react';
 
-export const MerchantsManagementView: React.FC = () => {
+interface MerchantsManagementViewProps {
+  initialBranchFilter?: string;
+  initialOpenCreate?: boolean;
+}
+
+export const MerchantsManagementView: React.FC<MerchantsManagementViewProps> = ({
+  initialBranchFilter = 'ALL',
+  initialOpenCreate = false,
+}) => {
   const { users, createUser, updateUser, deleteUser, invoices, customers, currentUser } = useERP();
 
   const [search, setSearch] = useState('');
-  const [selectedBranchFilter, setSelectedBranchFilter] = useState('ALL');
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState(initialBranchFilter);
 
   // Modal State for Add / Edit Merchant
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(initialOpenCreate);
   const [editingMerchant, setEditingMerchant] = useState<User | null>(null);
 
   // Form State

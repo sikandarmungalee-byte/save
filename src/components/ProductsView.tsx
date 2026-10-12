@@ -18,17 +18,29 @@ import {
   CheckCircle2
 } from 'lucide-react';
 
-export const ProductsView: React.FC = () => {
+interface ProductsViewProps {
+  initialTab?: 'catalog' | 'categories';
+  initialCategoryFilter?: string;
+  initialSearch?: string;
+  initialOpenCreate?: boolean;
+}
+
+export const ProductsView: React.FC<ProductsViewProps> = ({
+  initialTab = 'catalog',
+  initialCategoryFilter = 'ALL',
+  initialSearch = '',
+  initialOpenCreate = false,
+}) => {
   const { products, categories, createCategory, deleteCategory, company, createProduct, updateProduct, deleteProduct, refreshData } = useERP();
 
   // Active View Tabs: 'catalog' (products table) or 'categories' (dedicated category center)
-  const [activeTab, setActiveTab] = useState<'catalog' | 'categories'>('catalog');
+  const [activeTab, setActiveTab] = useState<'catalog' | 'categories'>(initialTab);
 
-  const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('ALL');
+  const [search, setSearch] = useState(initialSearch);
+  const [categoryFilter, setCategoryFilter] = useState(initialCategoryFilter);
 
   // Product Modal State
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(initialOpenCreate);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
   // Dedicated Category Creator State

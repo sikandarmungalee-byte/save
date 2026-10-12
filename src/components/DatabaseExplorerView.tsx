@@ -15,7 +15,11 @@ import {
   HardDrive
 } from 'lucide-react';
 
-export const DatabaseExplorerView: React.FC = () => {
+interface DatabaseExplorerViewProps {
+  initialCollection?: string;
+}
+
+export const DatabaseExplorerView: React.FC<DatabaseExplorerViewProps> = ({ initialCollection = 'invoices' }) => {
   const {
     invoices,
     deliveryNotes,
@@ -32,7 +36,7 @@ export const DatabaseExplorerView: React.FC = () => {
     refreshData,
   } = useERP();
 
-  const [selectedCollection, setSelectedCollection] = useState<string>('invoices');
+  const [selectedCollection, setSelectedCollection] = useState<string>(initialCollection);
   const [searchTerm, setSearchTerm] = useState('');
   const [inspectDoc, setInspectDoc] = useState<any | null>(null);
   const [isPurging, setIsPurging] = useState(false);

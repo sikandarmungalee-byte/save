@@ -24,11 +24,17 @@ import {
 interface InvoicesViewProps {
   onNavigateToDeliveryNotes?: () => void;
   onNavigateToPayments?: () => void;
+  initialStatusFilter?: string;
+  initialOpenCreate?: boolean;
+  initialTab?: string;
 }
 
 export const InvoicesView: React.FC<InvoicesViewProps> = ({
   onNavigateToDeliveryNotes,
   onNavigateToPayments,
+  initialStatusFilter,
+  initialOpenCreate,
+  initialTab,
 }) => {
   const {
     invoices,
@@ -45,11 +51,11 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   } = useERP();
 
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState(initialStatusFilter || 'ALL');
   const [selectedInvoiceForPrint, setSelectedInvoiceForPrint] = useState<Invoice | null>(null);
 
   // Invoice Create / Edit Modal State
-  const [isFormModalOpen, setIsFormModalOpen] = useState(false);
+  const [isFormModalOpen, setIsFormModalOpen] = useState(Boolean(initialOpenCreate));
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
 
   // Quick Payment Modal State

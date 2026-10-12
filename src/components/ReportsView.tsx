@@ -14,10 +14,14 @@ import {
   AlertCircle
 } from 'lucide-react';
 
-export const ReportsView: React.FC = () => {
+interface ReportsViewProps {
+  initialPeriod?: 'weekly' | 'monthly' | 'quarterly' | 'annual';
+}
+
+export const ReportsView: React.FC<ReportsViewProps> = ({ initialPeriod = 'weekly' }) => {
   const { invoices, payments, customers, company } = useERP();
 
-  const [period, setPeriod] = useState<'weekly' | 'monthly' | 'quarterly' | 'annual'>('weekly');
+  const [period, setPeriod] = useState<'weekly' | 'monthly' | 'quarterly' | 'annual'>(initialPeriod);
   const [currentWeek, setCurrentWeek] = useState<number>(12); // Week 12 of 2026
   const currentYear = 2026;
 

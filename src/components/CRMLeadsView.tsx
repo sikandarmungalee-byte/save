@@ -17,13 +17,21 @@ import {
   ArrowRight
 } from 'lucide-react';
 
-export const CRMLeadsView: React.FC = () => {
+interface CRMLeadsViewProps {
+  initialTab?: 'pipeline' | 'communications';
+  initialOpenCreate?: boolean;
+}
+
+export const CRMLeadsView: React.FC<CRMLeadsViewProps> = ({
+  initialTab = 'pipeline',
+  initialOpenCreate = false,
+}) => {
   const { leads, communications, company, createLead, updateLead, deleteLead, addCommunication, invoices } = useERP();
 
-  const [activeTab, setActiveTab] = useState<'pipeline' | 'communications'>('pipeline');
+  const [activeTab, setActiveTab] = useState<'pipeline' | 'communications'>(initialTab);
 
   // Lead Modal
-  const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
+  const [isLeadModalOpen, setIsLeadModalOpen] = useState(initialOpenCreate);
   const [leadForm, setLeadForm] = useState({
     title: '',
     companyName: '',

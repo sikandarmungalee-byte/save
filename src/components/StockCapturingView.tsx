@@ -27,7 +27,17 @@ import {
   Image as ImageIcon
 } from 'lucide-react';
 
-export const StockCapturingView: React.FC = () => {
+interface StockCapturingViewProps {
+  initialTab?: 'purchases' | 'branch-status';
+  initialStatusFilter?: 'ALL' | 'IN_STOCK' | 'FINISHED';
+  initialOpenCreate?: boolean;
+}
+
+export const StockCapturingView: React.FC<StockCapturingViewProps> = ({
+  initialTab = 'purchases',
+  initialStatusFilter = 'ALL',
+  initialOpenCreate = false,
+}) => {
   const {
     stockPurchases,
     stockItemStatuses,
@@ -42,18 +52,18 @@ export const StockCapturingView: React.FC = () => {
     currentUser,
   } = useERP();
 
-  const [activeTab, setActiveTab] = useState<'purchases' | 'branch-status'>('purchases');
+  const [activeTab, setActiveTab] = useState<'purchases' | 'branch-status'>(initialTab);
 
   // Search & Filter States
   const [purchaseSearch, setPurchaseSearch] = useState('');
   const [branchFilter, setBranchFilter] = useState('ALL');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'IN_STOCK' | 'FINISHED'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'IN_STOCK' | 'FINISHED'>(initialStatusFilter);
 
   // Slip Image Preview Modal
   const [viewingSlipPurchase, setViewingSlipPurchase] = useState<StockPurchase | null>(null);
 
   // New Purchase Modal State
-  const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false);
+  const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(initialOpenCreate);
   const [purchaseForm, setPurchaseForm] = useState({
     supplierName: '',
     supplierInvoiceNumber: '',

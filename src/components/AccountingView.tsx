@@ -38,7 +38,11 @@ type AccountingTab =
   | 'vat-201'
   | 'journal-entries';
 
-export const AccountingView: React.FC = () => {
+interface AccountingViewProps {
+  initialTab?: AccountingTab;
+}
+
+export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'overview' }) => {
   const {
     invoices,
     customers,
@@ -53,7 +57,7 @@ export const AccountingView: React.FC = () => {
     currentUser,
   } = useERP();
 
-  const [activeTab, setActiveTab] = useState<AccountingTab>('overview');
+  const [activeTab, setActiveTab] = useState<AccountingTab>(initialTab);
   const [selectedPeriod, setSelectedPeriod] = useState<'this-month' | 'this-quarter' | 'ytd' | 'all'>('ytd');
   const [searchAccount, setSearchAccount] = useState('');
   const [selectedAccountCode, setSelectedAccountCode] = useState<string | null>(null);

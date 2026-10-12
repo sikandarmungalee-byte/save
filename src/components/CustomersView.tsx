@@ -21,14 +21,18 @@ import {
   Store
 } from 'lucide-react';
 
-export const CustomersView: React.FC = () => {
+interface CustomersViewProps {
+  initialOpenCreate?: boolean;
+}
+
+export const CustomersView: React.FC<CustomersViewProps> = ({ initialOpenCreate = false }) => {
   const { customers, company, createCustomer, updateCustomer, deleteCustomer, invoices, users, createUser } = useERP();
 
   const [search, setSearch] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
   // New Customer Modal
-  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(initialOpenCreate);
   const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null);
   const [customerForm, setCustomerForm] = useState({
     registeredName: '',

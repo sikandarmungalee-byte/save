@@ -29,9 +29,10 @@ interface ChatMessage {
   model?: string;
 }
 
-export const TaskeenAIAdvisor: React.FC<{ isModal?: boolean; onClose?: () => void }> = ({
+export const TaskeenAIAdvisor: React.FC<{ isModal?: boolean; onClose?: () => void; initialPrompt?: string }> = ({
   isModal = false,
   onClose,
+  initialPrompt,
 }) => {
   const {
     invoices,
@@ -44,7 +45,7 @@ export const TaskeenAIAdvisor: React.FC<{ isModal?: boolean; onClose?: () => voi
     currentUser,
   } = useERP();
 
-  const [inputPrompt, setInputPrompt] = useState('');
+  const [inputPrompt, setInputPrompt] = useState(initialPrompt || '');
   const [messages, setMessages] = useState<ChatMessage[]>(() => [
     {
       id: 'welcome',

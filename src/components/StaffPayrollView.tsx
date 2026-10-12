@@ -22,7 +22,19 @@ import {
   ChevronRight
 } from 'lucide-react';
 
-export const StaffPayrollView: React.FC = () => {
+interface StaffPayrollViewProps {
+  initialTab?: 'payouts' | 'staff';
+  initialStatusFilter?: 'ALL' | 'Paid' | 'Pending';
+  initialDepartmentFilter?: string;
+  initialOpenCreate?: boolean;
+}
+
+export const StaffPayrollView: React.FC<StaffPayrollViewProps> = ({
+  initialTab = 'payouts',
+  initialStatusFilter = 'ALL',
+  initialDepartmentFilter = '',
+  initialOpenCreate = false,
+}) => {
   const {
     staff,
     payrollPayouts,
@@ -35,18 +47,18 @@ export const StaffPayrollView: React.FC = () => {
     company,
   } = useERP();
 
-  const [activeTab, setActiveTab] = useState<'payouts' | 'staff'>('payouts');
+  const [activeTab, setActiveTab] = useState<'payouts' | 'staff'>(initialTab);
   const [selectedMonth, setSelectedMonth] = useState<string>(
     new Date().toISOString().slice(0, 7) // "YYYY-MM"
   );
 
   // Search & Filters
-  const [staffSearch, setStaffSearch] = useState('');
+  const [staffSearch, setStaffSearch] = useState(initialDepartmentFilter);
   const [payoutSearch, setPayoutSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'Paid' | 'Pending'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'Paid' | 'Pending'>(initialStatusFilter);
 
   // Staff Modal
-  const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
+  const [isStaffModalOpen, setIsStaffModalOpen] = useState(initialOpenCreate);
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
   const [staffForm, setStaffForm] = useState({
     employeeCode: '',
