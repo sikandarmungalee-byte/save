@@ -42,7 +42,7 @@ export const ShowcaseApp: React.FC<ShowcaseAppProps> = ({ onOpenAdmin }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F9F6F0] text-[#261C14] flex flex-col font-sans selection:bg-[#9E582E] selection:text-white">
+    <div className="min-h-screen bg-white text-[#2B150A] flex flex-col font-sans selection:bg-[#CC8468] selection:text-white">
       {/* Header with Savouré Wordmark, WhatsApp & Merchant Login */}
       <ShowcaseHeader
         currentTab={currentTab}

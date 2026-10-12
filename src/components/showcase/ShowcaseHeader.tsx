@@ -14,7 +14,7 @@ export const ShowcaseHeader: React.FC<ShowcaseHeaderProps> = ({
   onOpenMerchantLogin,
 }) => {
   return (
-    <header className="sticky top-0 z-50 border-b border-[#D5C8B9]/70 bg-[#F9F6F0]/95 backdrop-blur-md">
+    <header className="sticky top-0 z-50 border-b border-stone-200 bg-white/95 backdrop-blur-md">
       <div className="page-shell flex h-20 items-center justify-between gap-4 lg:h-22">
         {/* Brand Wordmark (Clean, luxury typography, zero photos) */}
         <button
@@ -23,10 +23,10 @@ export const ShowcaseHeader: React.FC<ShowcaseHeaderProps> = ({
           className="shrink-0 text-left transition-opacity hover:opacity-90 flex items-center gap-3 group"
         >
           <div className="flex flex-col">
-            <span className="font-serif text-2xl sm:text-3xl font-extrabold tracking-[0.22em] text-[#261C14] uppercase">
+            <span className="font-serif text-2xl sm:text-3xl font-extrabold tracking-[0.22em] text-[#2B150A] uppercase">
               Savouré
             </span>
-            <span className="text-[9px] sm:text-[10px] uppercase tracking-[0.28em] text-[#9E582E] font-semibold -mt-0.5">
+            <span className="text-[9px] sm:text-[10px] uppercase tracking-[0.28em] text-[#CC8468] font-semibold -mt-0.5">
               A Taste of Tradition
             </span>
           </div>
@@ -52,12 +52,12 @@ export const ShowcaseHeader: React.FC<ShowcaseHeaderProps> = ({
             onClick={onOpenMerchantLogin}
             className={`flex items-center gap-2 px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl text-xs font-bold tracking-wide transition-all shadow-xs active:scale-95 ${
               currentTab === 'merchant-login'
-                ? 'bg-[#261C14] text-white shadow-md'
-                : 'text-[#261C14] bg-[#EEE6DC] hover:bg-[#E4D7C8] border border-[#C98A5B]/40'
+                ? 'bg-[#391E0F] text-white shadow-md'
+                : 'text-[#391E0F] bg-white hover:bg-stone-50 border border-stone-200 hover:border-[#CC8468]'
             }`}
             title="Access Authorized Merchant Wholesale Portal"
           >
-            <Lock className="w-3.5 h-3.5 text-[#9E582E]" />
+            <Lock className="w-3.5 h-3.5 text-[#CC8468]" />
             <span>Merchant Login</span>
           </button>
         </div>

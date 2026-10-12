@@ -98,12 +98,12 @@ export const News24Ticker: React.FC = () => {
         <button
           type="button"
           onClick={() => setIsMinimized(false)}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#171311] hover:bg-[#221B17] border border-[#C98A5B]/40 text-xs text-[#DE9E74] shadow-xl transition-all"
+          className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white hover:bg-[#FAF4EF] border border-[#E8DDD5] text-xs text-[#58341D] shadow-md transition-all font-medium"
         >
           <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-          <Newspaper className="w-3.5 h-3.5" />
+          <Newspaper className="w-3.5 h-3.5 text-[#CC8468]" />
           <span className="font-serif font-bold">News24 Live Ticker</span>
-          <ChevronUp className="w-3.5 h-3.5 text-[#A69385]" />
+          <ChevronUp className="w-3.5 h-3.5 text-[#A8988D]" />
         </button>
       </div>
     );
@@ -112,15 +112,15 @@ export const News24Ticker: React.FC = () => {
   return (
     <>
       {/* Running Headline Ticker Bar (Fixed at the bottom of the viewport) */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 bg-[#171311]/95 backdrop-blur-md border-t border-[#2C211B] shadow-2xl no-print text-xs">
+      <div className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-stone-200 shadow-md no-print text-xs">
         <div className="flex items-center h-10 px-2 sm:px-4">
           {/* Badge & Branding */}
-          <div className="flex items-center gap-2 shrink-0 pr-3 border-r border-[#2C211B] bg-[#171311] z-10">
-            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-rose-600/20 border border-rose-500/40 text-rose-400 font-bold font-mono text-[10px] uppercase tracking-wider">
+          <div className="flex items-center gap-2 shrink-0 pr-3 border-r border-stone-200 bg-white z-10">
+            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-rose-50 border border-rose-200 text-rose-600 font-bold font-mono text-[10px] uppercase tracking-wider">
               <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
               News24
             </span>
-            <span className="text-[#DE9E74] font-serif font-semibold hidden md:inline text-[11px]">
+            <span className="text-[#391E0F] font-serif font-semibold hidden md:inline text-[11px]">
               Latest Headlines
             </span>
           </div>
@@ -145,7 +145,7 @@ export const News24Ticker: React.FC = () => {
                 <div
                   key={`${item.id}-${idx}`}
                   onClick={() => setSelectedStory(item)}
-                  className="flex items-center gap-2.5 cursor-pointer text-[#C5B7AC] hover:text-white transition-colors group"
+                  className="flex items-center gap-2.5 cursor-pointer text-[#443832] hover:text-[#2B150A] transition-colors group"
                 >
                   <span
                     className="text-[9px] font-mono font-bold uppercase px-1.5 py-0.5 rounded tracking-wider border shrink-0"
@@ -157,11 +157,11 @@ export const News24Ticker: React.FC = () => {
                   >
                     {item.category}
                   </span>
-                  <span className="text-xs group-hover:underline group-hover:text-[#FAF6F0]">
+                  <span className="text-xs group-hover:underline group-hover:text-[#391E0F] font-medium">
                     {item.title}
                   </span>
-                  <span className="text-[10px] text-[#8A776B] font-mono">{item.timeAgo}</span>
-                  <span className="text-[#C98A5B]/40 ml-2" aria-hidden="true">
+                  <span className="text-[10px] text-stone-400 font-mono">{item.timeAgo}</span>
+                  <span className="text-[#CC8468] ml-2" aria-hidden="true">
                     ✦
                   </span>
                 </div>
@@ -170,29 +170,29 @@ export const News24Ticker: React.FC = () => {
           </div>
 
           {/* Controls: Pause, Refresh, Minimize */}
-          <div className="flex items-center gap-1 shrink-0 pl-2 border-l border-[#2C211B] bg-[#171311] z-10 text-[#8A776B]">
+          <div className="flex items-center gap-1 shrink-0 pl-2 border-l border-stone-200 bg-white z-10 text-stone-500">
             <button
               type="button"
               onClick={() => setIsPaused(!isPaused)}
-              className="p-1.5 rounded-md hover:text-white hover:bg-[#221B17] transition-colors"
+              className="p-1.5 rounded-md hover:text-[#2B150A] hover:bg-stone-50 transition-colors"
               title={isPaused ? 'Resume Ticker' : 'Pause Ticker'}
             >
-              {isPaused ? <Play className="w-3.5 h-3.5 text-[#DE9E74]" /> : <Pause className="w-3.5 h-3.5" />}
+              {isPaused ? <Play className="w-3.5 h-3.5 text-[#391E0F]" /> : <Pause className="w-3.5 h-3.5" />}
             </button>
 
             <button
               type="button"
               onClick={handleRefresh}
-              className="p-1.5 rounded-md hover:text-white hover:bg-[#221B17] transition-colors"
+              className="p-1.5 rounded-md hover:text-[#2B150A] hover:bg-stone-50 transition-colors"
               title={`Updated: ${lastRefreshed} (Click to refresh)`}
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-[#DE9E74]' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-[#CC8468]' : ''}`} />
             </button>
 
             <button
               type="button"
               onClick={() => setIsMinimized(true)}
-              className="p-1.5 rounded-md hover:text-white hover:bg-[#221B17] transition-colors"
+              className="p-1.5 rounded-md hover:text-[#2B150A] hover:bg-stone-50 transition-colors"
               title="Minimize News Ticker"
             >
               <ChevronDown className="w-3.5 h-3.5" />
@@ -203,12 +203,12 @@ export const News24Ticker: React.FC = () => {
 
       {/* Story Detail Modal */}
       {selectedStory && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-lg bg-[#171311] border border-[#2C211B] rounded-2xl p-6 shadow-2xl relative space-y-4">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-lg bg-white border border-[#E8DDD5] rounded-2xl p-6 shadow-2xl relative space-y-4 text-[#2B150A]">
             <button
               type="button"
               onClick={() => setSelectedStory(null)}
-              className="absolute top-4 right-4 p-1.5 rounded-lg text-[#8A776B] hover:text-white hover:bg-[#221B17]"
+              className="absolute top-4 right-4 p-1.5 rounded-lg text-[#7A685D] hover:text-[#2B150A] hover:bg-[#FAF5F0]"
             >
               <X className="w-5 h-5" />
             </button>
@@ -224,24 +224,24 @@ export const News24Ticker: React.FC = () => {
               >
                 {selectedStory.category}
               </span>
-              <span className="text-xs text-[#8A776B]">· {selectedStory.source}</span>
-              <span className="text-xs text-[#8A776B]">· {selectedStory.timeAgo}</span>
+              <span className="text-xs text-[#A8988D]">· {selectedStory.source}</span>
+              <span className="text-xs text-[#A8988D]">· {selectedStory.timeAgo}</span>
             </div>
 
-            <h3 className="font-serif text-lg font-bold text-white leading-snug">
+            <h3 className="font-serif text-lg font-bold text-[#2B150A] leading-snug">
               {selectedStory.title}
             </h3>
 
-            <p className="text-xs text-[#C5B7AC] leading-relaxed">
+            <p className="text-xs text-[#58341D] leading-relaxed">
               {selectedStory.summary}
             </p>
 
-            <div className="pt-3 border-t border-[#2C211B] flex items-center justify-between text-xs">
-              <span className="text-[11px] text-[#8A776B]">News24 Live South African Wire</span>
+            <div className="pt-3 border-t border-[#E8DDD5] flex items-center justify-between text-xs">
+              <span className="text-[11px] text-[#A8988D]">News24 Live South African Wire</span>
               <button
                 type="button"
                 onClick={() => setSelectedStory(null)}
-                className="px-4 py-1.5 rounded-lg bg-[#221B17] hover:bg-[#2C211B] text-white font-medium"
+                className="px-4 py-1.5 rounded-lg bg-[#58341D] hover:bg-[#391E0F] text-white font-medium shadow-xs"
               >
                 Close Story
               </button>

@@ -245,7 +245,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ onGoToWebsite }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#1E0F07] text-[#F3E7DA] flex flex-col font-sans selection:bg-[#CC8468] selection:text-white">
+    <div className="min-h-screen bg-white text-[#2B150A] flex flex-col font-sans selection:bg-[#CC8468] selection:text-white">
       {/* Security PIN Screen Lock Overlay */}
       <PinLockModal />
 
@@ -265,7 +265,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ onGoToWebsite }) => {
         />
       ) : (
         /* SCREEN 2 & 3: MODULE VIEW WITH COMPACT TOP NAV (NO SIDEBAR) */
-        <div className="flex-1 flex flex-col min-h-screen">
+        <div className="flex-1 flex flex-col min-h-screen bg-white">
           {activeModule && (
             <CompactTopNav
               currentModule={activeModule}
@@ -290,7 +290,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ onGoToWebsite }) => {
           )}
 
           {/* Main Content Area */}
-          <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-20 bg-[#1E0F07]">
+          <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-20 bg-white">
             <div className="max-w-[1600px] mx-auto">
               {/* If no subcategory is selected, show the module's square tiles */}
               {currentSubcategoryId === null && activeModule ? (

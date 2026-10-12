@@ -38,23 +38,23 @@ export const ShowcaseMerchantLoginPage: React.FC<ShowcaseMerchantLoginPageProps>
   };
 
   return (
-    <section className="bg-[#EEE6DC] py-16 md:py-24">
-      <div className="mx-auto w-[min(100%-2rem,31rem)] border border-[#D5C8B9] bg-[#F9F6F0] p-7 shadow-md md:p-11 rounded-2xl">
+    <section className="bg-white py-16 md:py-24">
+      <div className="mx-auto w-[min(100%-2rem,31rem)] border border-stone-200 bg-white p-7 shadow-lg md:p-11 rounded-2xl">
         <div className="text-center">
-          <span className="font-serif text-3xl font-extrabold tracking-[0.24em] text-[#261C14] uppercase block">
+          <span className="font-serif text-3xl font-extrabold tracking-[0.24em] text-[#2B150A] uppercase block">
             Savouré
           </span>
-          <span className="text-[10px] uppercase tracking-[0.28em] text-[#9E582E] font-semibold block mt-0.5">
+          <span className="text-[10px] uppercase tracking-[0.28em] text-[#CC8468] font-semibold block mt-0.5">
             A Taste of Tradition
           </span>
         </div>
 
         <div className="mt-8 text-center">
-          <div className="mx-auto w-12 h-12 rounded-full bg-[#9E582E]/10 flex items-center justify-center">
-            <Lock className="size-6 text-[#9E582E]" />
+          <div className="mx-auto w-12 h-12 rounded-full bg-[#CC8468]/10 flex items-center justify-center">
+            <Lock className="size-6 text-[#CC8468]" />
           </div>
-          <h1 className="mt-5 font-display text-4xl text-[#261C14]">Merchant login</h1>
-          <p className="mt-3 text-sm leading-6 text-[#736254]">
+          <h1 className="mt-5 font-display text-4xl text-[#2B150A]">Merchant login</h1>
+          <p className="mt-3 text-sm leading-6 text-stone-500">
             Access for approved Savouré wholesale merchants & branch stores.
           </p>
         </div>
@@ -67,7 +67,7 @@ export const ShowcaseMerchantLoginPage: React.FC<ShowcaseMerchantLoginPageProps>
         )}
 
         <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
-          <label className="block text-sm font-semibold text-[#261C14]">
+          <label className="block text-sm font-semibold text-[#2B150A]">
             Username or Email address
             <input
               type="text"
@@ -75,12 +75,12 @@ export const ShowcaseMerchantLoginPage: React.FC<ShowcaseMerchantLoginPageProps>
               required
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
-              className="mt-2 h-12 w-full border border-[#D5C8B9] bg-white px-4 font-normal text-[#261C14] rounded-md outline-none focus:ring-2 focus:ring-[#9E582E]"
+              className="mt-2 h-12 w-full border border-stone-200 bg-stone-50 focus:bg-white px-4 font-normal text-[#2B150A] rounded-xl outline-none focus:ring-2 focus:ring-[#CC8468]"
               placeholder="e.g. merchant@savoure.co.za or merchant"
             />
           </label>
 
-          <label className="block text-sm font-semibold text-[#261C14]">
+          <label className="block text-sm font-semibold text-[#2B150A]">
             Password
             <input
               type="password"
@@ -88,7 +88,7 @@ export const ShowcaseMerchantLoginPage: React.FC<ShowcaseMerchantLoginPageProps>
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-2 h-12 w-full border border-[#D5C8B9] bg-white px-4 font-normal text-[#261C14] rounded-md outline-none focus:ring-2 focus:ring-[#9E582E]"
+              className="mt-2 h-12 w-full border border-stone-200 bg-stone-50 focus:bg-white px-4 font-normal text-[#2B150A] rounded-xl outline-none focus:ring-2 focus:ring-[#CC8468]"
               placeholder="Enter your merchant password"
             />
           </label>
@@ -96,7 +96,7 @@ export const ShowcaseMerchantLoginPage: React.FC<ShowcaseMerchantLoginPageProps>
           <button
             type="submit"
             disabled={loading}
-            className="w-full flex items-center justify-center gap-2 h-12 rounded-md bg-[#261C14] hover:bg-[#3E2C20] active:bg-[#1A120D] text-white font-semibold text-sm transition-colors shadow-sm disabled:opacity-60"
+            className="w-full flex items-center justify-center gap-2 h-12 rounded-xl bg-[#391E0F] hover:bg-[#2B150A] active:bg-black text-white font-semibold text-sm transition-colors shadow-xs disabled:opacity-60 cursor-pointer"
           >
             {loading ? (
               <>
@@ -109,11 +109,11 @@ export const ShowcaseMerchantLoginPage: React.FC<ShowcaseMerchantLoginPageProps>
           </button>
         </form>
 
-        <p className="mt-6 text-center text-xs leading-5 text-[#736254]">
+        <p className="mt-6 text-center text-xs leading-5 text-stone-500">
           Need merchant account setup or branch credentials?{' '}
           <button
             onClick={() => onNavigate('contact')}
-            className="font-semibold text-[#9E582E] hover:underline"
+            className="font-semibold text-[#391E0F] hover:text-[#CC8468] hover:underline"
           >
             Contact our wholesale desk
           </button>
@@ -122,7 +122,7 @@ export const ShowcaseMerchantLoginPage: React.FC<ShowcaseMerchantLoginPageProps>
 
         <button
           onClick={() => onNavigate('wholesale')}
-          className="mt-6 w-full inline-flex items-center justify-center gap-2 text-xs font-semibold text-[#736254] hover:text-[#261C14] transition-colors"
+          className="mt-6 w-full inline-flex items-center justify-center gap-2 text-xs font-semibold text-stone-500 hover:text-[#2B150A] transition-colors"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Back to wholesale</span>

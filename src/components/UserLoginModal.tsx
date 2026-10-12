@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useERP } from '../context/ERPContext';
-import { LogIn, AlertCircle, CheckCircle2, X, Lock, KeyRound, ShieldCheck, Smartphone } from 'lucide-react';
+import { LogIn, Key, X, Smartphone, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 interface UserLoginModalProps {
   isOpen: boolean;
@@ -9,8 +9,6 @@ interface UserLoginModalProps {
 
 export const UserLoginModal: React.FC<UserLoginModalProps> = ({ isOpen, onClose }) => {
   const { currentUser, login, logout, users } = useERP();
-
-  // Login form state (confidential credentials, not displayed on screen)
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -21,22 +19,17 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({ isOpen, onClose 
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) {
-      setError('Please enter your username.');
-      return;
-    }
-    if (!password) {
-      setError('Please enter your password.');
-      return;
-    }
-
     setError(null);
+    setSuccessMsg(null);
     setLoading(true);
 
     try {
-      const user = await login(email.trim(), password);
-      setSuccessMsg(`Welcome back, ${user.name}!`);
+      const user = await login(email, password);
+      setSuccessMsg(`Welcome, ${user.name}!`);
       setTimeout(() => {
+        setEmail('');
+        setPassword('');
+        setError(null);
         setSuccessMsg(null);
         onClose();
       }, 500);
@@ -48,12 +41,12 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({ isOpen, onClose 
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-[#171311] border border-[#2C211B] rounded-2xl p-6 sm:p-7 shadow-2xl relative">
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-white border border-[#E8DDD5] rounded-2xl p-6 sm:p-7 shadow-2xl relative text-[#2B150A]">
         {currentUser && (
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 p-1.5 rounded-lg text-[#8A776B] hover:text-white hover:bg-[#221B17] transition-colors"
+            className="absolute top-4 right-4 p-1.5 rounded-lg text-[#7A685D] hover:text-[#2B150A] hover:bg-[#FAF5F0] transition-colors"
             title="Close"
           >
             <X className="w-5 h-5" />
@@ -62,19 +55,17 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({ isOpen, onClose 
 
         {/* Brand Header */}
         <div className="flex items-center gap-3.5 mb-5">
-          <img
-            src="/src/assets/images/savoure_master_logo_1790775722136.jpg"
-            alt="Savouré Logo"
-            className="w-12 h-12 rounded-full object-cover border border-[#C98A5B] shadow-md shrink-0"
-          />
+          <div className="w-12 h-12 rounded-xl bg-[#391E0F] border border-[#CC8468]/50 shadow-sm flex items-center justify-center text-[#E0A282] font-serif font-black text-2xl shrink-0">
+            S
+          </div>
           <div>
-            <h2 className="text-lg font-serif font-bold text-white tracking-wide flex items-center gap-2">
+            <h2 className="text-lg font-serif font-bold text-[#2B150A] tracking-wide flex items-center gap-2">
               <span>Savouré ERP</span>
-              <span className="text-[10px] font-sans font-semibold uppercase px-1.5 py-0.5 rounded bg-[#C98A5B]/20 text-[#DE9E74] border border-[#C98A5B]/30">
+              <span className="text-[10px] font-sans font-semibold uppercase px-1.5 py-0.5 rounded bg-stone-100 text-[#391E0F] border border-stone-200">
                 Multi-Device
               </span>
             </h2>
-            <p className="text-xs text-[#A69385]">
+            <p className="text-xs text-stone-500">
               {currentUser
                 ? `Currently signed in as ${currentUser.name}`
                 : 'Sign in with your enterprise credentials to access your business'}
@@ -83,15 +74,15 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({ isOpen, onClose 
         </div>
 
         {error && (
-          <div className="p-3 mb-4 rounded-lg bg-red-950/50 border border-red-800/70 text-xs text-red-200 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+          <div className="p-3 mb-4 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
             <span>{error}</span>
           </div>
         )}
 
         {successMsg && (
-          <div className="p-3 mb-4 rounded-lg bg-emerald-950/50 border border-emerald-800/70 text-xs text-emerald-200 flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+          <div className="p-3 mb-4 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-700 flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
             <span>{successMsg}</span>
           </div>
         )}
@@ -99,7 +90,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({ isOpen, onClose 
         {/* Sign In Form */}
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-[#EDE6DE] mb-1">
+            <label className="block text-xs font-semibold text-[#391E0F] mb-1">
               Username
             </label>
             <div className="relative">
@@ -110,14 +101,14 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({ isOpen, onClose 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Enter username"
-                className="w-full px-3.5 py-2.5 text-xs bg-[#120F0D] border border-[#2C211B] rounded-lg text-white placeholder-[#6E5B4F] focus:outline-hidden focus:border-[#C98A5B]"
+                className="w-full px-3.5 py-2.5 text-xs bg-stone-50 border border-stone-200 rounded-xl text-[#2B150A] placeholder-stone-400 focus:outline-none focus:border-[#CC8468] focus:bg-white shadow-2xs"
               />
             </div>
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-medium text-[#EDE6DE]">Password</label>
+              <label className="block text-xs font-semibold text-[#391E0F]">Password</label>
             </div>
             <div className="relative">
               <input
@@ -126,7 +117,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({ isOpen, onClose 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter password"
-                className="w-full px-3.5 py-2.5 text-xs bg-[#120F0D] border border-[#2C211B] rounded-lg text-white placeholder-[#6E5B4F] focus:outline-hidden focus:border-[#C98A5B]"
+                className="w-full px-3.5 py-2.5 text-xs bg-stone-50 border border-stone-200 rounded-xl text-[#2B150A] placeholder-stone-400 focus:outline-none focus:border-[#CC8468] focus:bg-white shadow-2xs"
               />
             </div>
           </div>
@@ -134,16 +125,16 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({ isOpen, onClose 
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 px-4 rounded-lg bg-[#C98A5B] hover:bg-[#DE9E74] text-[#120F0D] font-bold text-xs transition-colors flex items-center justify-center gap-2 shadow-sm"
+            className="w-full py-2.5 px-4 rounded-xl bg-[#391E0F] hover:bg-[#2B150A] text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 shadow-xs cursor-pointer"
           >
-            <LogIn className="w-4 h-4" />
+            <LogIn className="w-4 h-4 text-[#E0A282]" />
             <span>{loading ? 'Authenticating...' : 'Sign In'}</span>
           </button>
         </form>
 
         {currentUser && (
-          <div className="mt-4 pt-3 border-t border-[#2C211B] flex items-center justify-between">
-            <span className="text-[11px] text-[#8A776B]">Signed in on this device</span>
+          <div className="mt-4 pt-3 border-t border-stone-200 flex items-center justify-between">
+            <span className="text-[11px] text-[#7A685D]">Signed in on this device</span>
             <button
               type="button"
               onClick={() => {
@@ -151,16 +142,16 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({ isOpen, onClose 
                 setError(null);
                 setSuccessMsg('You have been signed out.');
               }}
-              className="text-[11px] text-rose-400 hover:text-rose-300 font-medium"
+              className="text-[11px] text-rose-600 hover:text-rose-700 font-semibold"
             >
               Sign Out of this Device
             </button>
           </div>
         )}
 
-        <div className="mt-4 pt-3 border-t border-[#2C211B] text-[11px] text-[#8A776B] text-center leading-relaxed">
+        <div className="mt-4 pt-3 border-t border-[#E8DDD5] text-[11px] text-[#7A685D] text-center leading-relaxed">
           <span>Enterprise database synchronized across multiple devices in real-time.</span>
-          <div className="mt-0.5 text-[10px] text-[#6E5B4F]">Only signed-in Super Admins can manage and create users.</div>
+          <div className="mt-0.5 text-[10px] text-[#A8988D]">Only signed-in Super Admins can manage and create users.</div>
         </div>
       </div>
     </div>
