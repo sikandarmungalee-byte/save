@@ -47,7 +47,7 @@ export const MerchantsManagementView: React.FC<MerchantsManagementViewProps> = (
   const [branch, setBranch] = useState('Durban Central');
   const [customBranch, setCustomBranch] = useState('');
   const [merchantStoreName, setMerchantStoreName] = useState('');
-  const [merchantPhone, setMerchantPhone] = useState('061 364 5712');
+  const [merchantPhone, setMerchantPhone] = useState('');
   const [status, setStatus] = useState<'active' | 'inactive'>('active');
   const [formError, setFormError] = useState<string | null>(null);
   const [formLoading, setFormLoading] = useState(false);
@@ -145,7 +145,7 @@ export const MerchantsManagementView: React.FC<MerchantsManagementViewProps> = (
     setBranch('Durban Central');
     setCustomBranch('');
     setMerchantStoreName('');
-    setMerchantPhone('061 364 5712');
+    setMerchantPhone('');
     setStatus('active');
     setFormError(null);
     setIsModalOpen(true);
@@ -167,7 +167,7 @@ export const MerchantsManagementView: React.FC<MerchantsManagementViewProps> = (
       setCustomBranch(m.branch || '');
     }
     setMerchantStoreName(m.merchantStoreName || '');
-    setMerchantPhone(m.merchantPhone || '061 364 5712');
+    setMerchantPhone(m.merchantPhone || '');
     setStatus(m.status || 'active');
     setFormError(null);
     setIsModalOpen(true);
@@ -675,7 +675,7 @@ export const MerchantsManagementView: React.FC<MerchantsManagementViewProps> = (
                     value={merchantPhone}
                     onChange={(e) => setMerchantPhone(e.target.value)}
                     className="w-full px-3 py-2 bg-[#120F0D] border border-[#2C211B] rounded-lg text-xs text-white outline-none focus:border-[#C98A5B]"
-                    placeholder="e.g. 061 364 5712"
+                    placeholder="e.g. 011 234 5678"
                   />
                 </div>
               </div>

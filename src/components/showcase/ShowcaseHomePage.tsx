@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   MessageCircle,
   Phone,
@@ -9,6 +9,7 @@ import {
   Building2,
   Lock,
   Check,
+  Clock,
 } from 'lucide-react';
 import { SHOWCASE_CONTACT } from './showcaseData';
 
@@ -21,6 +22,49 @@ export const ShowcaseHomePage: React.FC<ShowcaseHomePageProps> = ({ onNavigate }
   const [enquiryPhone, setEnquiryPhone] = useState('');
   const [enquiryProduct, setEnquiryProduct] = useState('All Products (Wholesale Range)');
   const [enquiryMessage, setEnquiryMessage] = useState('');
+
+  // Fancy 18-Hour Launch Countdown Timer
+  const [timeLeft, setTimeLeft] = useState<{ hours: number; minutes: number; seconds: number }>(() => {
+    try {
+      const stored = localStorage.getItem('savoure_launch_target_ts');
+      let targetTs: number;
+      if (stored) {
+        targetTs = parseInt(stored, 10);
+      } else {
+        targetTs = Date.now() + 18 * 60 * 60 * 1000;
+        localStorage.setItem('savoure_launch_target_ts', targetTs.toString());
+      }
+      const diff = Math.max(0, targetTs - Date.now());
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      return { hours, minutes, seconds };
+    } catch {
+      return { hours: 17, minutes: 59, seconds: 54 };
+    }
+  });
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      try {
+        const stored = localStorage.getItem('savoure_launch_target_ts');
+        const targetTs = stored ? parseInt(stored, 10) : Date.now() + 18 * 60 * 60 * 1000;
+        const diff = Math.max(0, targetTs - Date.now());
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+        setTimeLeft({ hours, minutes, seconds });
+      } catch {
+        setTimeLeft((prev) => {
+          if (prev.seconds > 0) return { ...prev, seconds: prev.seconds - 1 };
+          if (prev.minutes > 0) return { ...prev, minutes: prev.minutes - 1, seconds: 59 };
+          if (prev.hours > 0) return { hours: prev.hours - 1, minutes: 59, seconds: 59 };
+          return { hours: 18, minutes: 0, seconds: 0 };
+        });
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const handleSendWhatsAppEnquiry = (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,8 +99,60 @@ Message: ${enquiryMessage || 'I would like to enquire about wholesale pricing an
             We are curating an exquisite online home for Savouré. While our full digital showcase is being perfected, our bakery kitchens remain in full daily production of our beloved rotis, tortilla wraps, samoosa pastries, and spring roll sheets.
           </p>
 
+          {/* Fancy 18-Hour Launch Countdown Widget */}
+          <div className="pt-2 max-w-lg mx-auto">
+            <div className="p-5 sm:p-6 rounded-3xl bg-stone-50 border border-stone-200 shadow-sm relative overflow-hidden group hover:border-[#CC8468]/50 transition-colors">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-[#CC8468]" />
+                  <span className="text-xs font-serif uppercase tracking-widest text-[#391E0F] font-bold">
+                    Official Digital Launch
+                  </span>
+                </div>
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#CC8468]/15 border border-[#CC8468]/30 text-[#391E0F] text-[10px] font-bold tracking-wider uppercase">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#CC8468] animate-ping" />
+                  <span>18-Hour Countdown</span>
+                </div>
+              </div>
+
+              {/* Countdown Digits */}
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div className="p-3 sm:p-4 rounded-2xl bg-white border border-stone-200 shadow-2xs">
+                  <div className="font-mono text-3xl sm:text-4xl font-extrabold text-[#2B150A]">
+                    {String(timeLeft.hours).padStart(2, '0')}
+                  </div>
+                  <div className="text-[10px] font-serif uppercase tracking-widest text-[#CC8468] font-bold mt-1">
+                    Hours
+                  </div>
+                </div>
+
+                <div className="p-3 sm:p-4 rounded-2xl bg-white border border-stone-200 shadow-2xs">
+                  <div className="font-mono text-3xl sm:text-4xl font-extrabold text-[#2B150A]">
+                    {String(timeLeft.minutes).padStart(2, '0')}
+                  </div>
+                  <div className="text-[10px] font-serif uppercase tracking-widest text-[#CC8468] font-bold mt-1">
+                    Minutes
+                  </div>
+                </div>
+
+                <div className="p-3 sm:p-4 rounded-2xl bg-white border border-stone-200 shadow-2xs">
+                  <div className="font-mono text-3xl sm:text-4xl font-extrabold text-[#2B150A]">
+                    {String(timeLeft.seconds).padStart(2, '0')}
+                  </div>
+                  <div className="text-[10px] font-serif uppercase tracking-widest text-[#CC8468] font-bold mt-1">
+                    Seconds
+                  </div>
+                </div>
+              </div>
+
+              <p className="mt-3.5 text-center text-xs text-stone-500 font-medium">
+                Live countdown to the grand unveiling of Savouré Wholesale
+              </p>
+            </div>
+          </div>
+
           {/* Quick Action Buttons */}
-          <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
             <a
               href={SHOWCASE_CONTACT.whatsappHref}
               target="_blank"
@@ -64,7 +160,15 @@ Message: ${enquiryMessage || 'I would like to enquire about wholesale pricing an
               className="inline-flex items-center gap-2.5 px-6 py-3.5 rounded-xl text-sm font-semibold tracking-wide text-white bg-[#25D366] hover:bg-[#20bd5a] transition-all shadow-md active:scale-95"
             >
               <MessageCircle className="w-4 h-4 fill-white stroke-[#25D366]" />
-              <span>Chat on WhatsApp ({SHOWCASE_CONTACT.phone})</span>
+              <span>Chat on WhatsApp</span>
+            </a>
+
+            <a
+              href={SHOWCASE_CONTACT.phoneHref}
+              className="inline-flex items-center gap-2 px-5 py-3.5 rounded-xl text-sm font-semibold text-[#391E0F] bg-white hover:bg-stone-50 border border-stone-200 hover:border-[#CC8468] transition-colors active:scale-95 shadow-xs"
+            >
+              <Phone className="w-4 h-4 text-[#CC8468]" />
+              <span>Call Wholesale Desk</span>
             </a>
 
             <button
@@ -146,7 +250,7 @@ Message: ${enquiryMessage || 'I would like to enquire about wholesale pricing an
                           WhatsApp Direct
                         </span>
                         <span className="text-sm sm:text-base font-bold text-[#2B150A] group-hover:text-emerald-600 transition-colors">
-                          {SHOWCASE_CONTACT.phone}
+                          Chat on WhatsApp
                         </span>
                       </div>
                     </div>
@@ -166,10 +270,10 @@ Message: ${enquiryMessage || 'I would like to enquire about wholesale pricing an
                       </div>
                       <div>
                         <span className="text-[10px] font-serif uppercase tracking-wider text-[#391E0F] font-bold block">
-                          Telephone Call
+                          Telephone Direct
                         </span>
                         <span className="text-sm sm:text-base font-bold text-[#2B150A] group-hover:text-[#CC8468] transition-colors">
-                          {SHOWCASE_CONTACT.phone}
+                          Call Wholesale Desk
                         </span>
                       </div>
                     </div>
@@ -190,14 +294,14 @@ Message: ${enquiryMessage || 'I would like to enquire about wholesale pricing an
                         </span>
                         <a
                           href={SHOWCASE_CONTACT.emailHref}
-                          className="text-xs sm:text-sm font-semibold text-[#2B150A] hover:text-[#CC8468] transition-colors block"
+                          className="text-xs sm:text-sm font-semibold text-[#2B150A] hover:text-[#CC8468] transition-colors block font-medium"
                         >
                           {SHOWCASE_CONTACT.email}
                         </a>
                       </div>
                     </div>
                     <div className="pl-13 text-[11px] text-stone-500">
-                      Wholesale Desk: <a href={`mailto:${SHOWCASE_CONTACT.alternateEmail}`} className="text-[#391E0F] hover:underline font-medium">{SHOWCASE_CONTACT.alternateEmail}</a>
+                      Wholesale Inquiries: <a href={`mailto:${SHOWCASE_CONTACT.alternateEmail}`} className="text-[#391E0F] hover:underline font-medium">{SHOWCASE_CONTACT.alternateEmail}</a>
                     </div>
                   </div>
                 </div>

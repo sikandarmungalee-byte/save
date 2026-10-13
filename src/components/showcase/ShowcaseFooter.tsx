@@ -37,7 +37,7 @@ export const ShowcaseFooter: React.FC<ShowcaseFooterProps> = ({
               className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold border border-emerald-200 transition-colors shadow-2xs"
             >
               <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
-              <span>WhatsApp Direct: {SHOWCASE_CONTACT.phone}</span>
+              <span>WhatsApp Direct · Chat Online</span>
             </a>
           </div>
         </div>
@@ -50,14 +50,14 @@ export const ShowcaseFooter: React.FC<ShowcaseFooterProps> = ({
           <div className="grid gap-2.5 text-sm text-stone-700">
             <div>
               <span className="text-xs text-[#391E0F] block font-semibold">Telephone Direct:</span>
-              <a href={SHOWCASE_CONTACT.phoneHref} className="hover:text-[#CC8468] font-semibold transition-colors">
-                {SHOWCASE_CONTACT.phone}
+              <a href={SHOWCASE_CONTACT.phoneHref} className="hover:text-[#CC8468] font-semibold transition-colors inline-flex items-center gap-1.5 text-xs text-[#391E0F] underline underline-offset-4">
+                Call Wholesale Desk
               </a>
             </div>
 
             <div>
               <span className="text-xs text-[#391E0F] block font-semibold">Electronic Mail:</span>
-              <a href={SHOWCASE_CONTACT.emailHref} className="hover:text-[#CC8468] transition-colors block">
+              <a href={SHOWCASE_CONTACT.emailHref} className="hover:text-[#CC8468] transition-colors block font-medium">
                 {SHOWCASE_CONTACT.email}
               </a>
               <a href={`mailto:${SHOWCASE_CONTACT.alternateEmail}`} className="text-xs text-stone-500 hover:text-[#391E0F] transition-colors">

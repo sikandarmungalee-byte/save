@@ -124,12 +124,14 @@ export const DeliveryNotesView: React.FC<DeliveryNotesViewProps> = ({ initialSta
   };
 
   const filteredNotes = deliveryNotes.filter((note) => {
-    const term = search.toLowerCase();
+    if (!note) return false;
+    const term = (search || '').toLowerCase().trim();
     const matchesSearch =
-      note.deliveryNoteNumber.toLowerCase().includes(term) ||
-      note.customerName.toLowerCase().includes(term) ||
-      note.branchName.toLowerCase().includes(term) ||
-      note.invoiceNumber.toLowerCase().includes(term);
+      !term ||
+      (note.deliveryNoteNumber || '').toLowerCase().includes(term) ||
+      (note.customerName || '').toLowerCase().includes(term) ||
+      (note.branchName || '').toLowerCase().includes(term) ||
+      (note.invoiceNumber || '').toLowerCase().includes(term);
 
     const matchesStatus = statusFilter === 'ALL' || note.status === statusFilter;
     return matchesSearch && matchesStatus;
@@ -138,20 +140,20 @@ export const DeliveryNotesView: React.FC<DeliveryNotesViewProps> = ({ initialSta
   return (
     <div className="space-y-6">
       {/* Top Banner */}
-      <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
+      <div className="bg-white border border-stone-200 rounded-2xl p-6 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs font-semibold uppercase tracking-wider text-[#DE9E74]">
+              <span className="text-xs font-semibold uppercase tracking-wider text-[#CC8468]">
                 Logistics & Dispatch Bay
               </span>
-              <span className="text-neutral-600">·</span>
-              <span className="text-xs text-neutral-400 font-mono tabular-nums">{deliveryNotes.length} Total Slips</span>
+              <span className="text-stone-300">·</span>
+              <span className="text-xs text-stone-500 font-mono tabular-nums">{deliveryNotes.length} Total Slips</span>
             </div>
-            <h1 className="text-xl font-bold text-white tracking-tight">
+            <h1 className="text-xl font-bold text-[#2B150A] tracking-tight">
               Delivery Notes & Proof of Delivery (POD)
             </h1>
-            <p className="text-xs text-neutral-400 mt-1 max-w-2xl">
+            <p className="text-xs text-stone-500 mt-1 max-w-2xl">
               Linked directly to parent tax invoices and store branches. Capture digital touch-signatures, record driver dispatches, and print clean delivery waybills.
             </p>
           </div>
@@ -161,26 +163,26 @@ export const DeliveryNotesView: React.FC<DeliveryNotesViewProps> = ({ initialSta
       {/* Control Bar: Search and Status Tabs */}
       <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
         <div className="relative flex-1 max-w-md">
-          <Search className="w-4 h-4 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search delivery slip #, invoice #, branch name..."
-            className="w-full pl-9 pr-3 py-2 text-xs bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder-neutral-500 focus:outline-hidden focus:border-[#C98A5B]"
+            className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-stone-200 rounded-xl text-[#2B150A] placeholder-stone-400 focus:outline-hidden focus:border-[#CC8468] shadow-xs"
           />
         </div>
 
         {/* Status Filter */}
-        <div className="flex items-center gap-1 p-1 bg-neutral-900 border border-neutral-800 rounded-lg">
+        <div className="flex items-center gap-1 p-1 bg-stone-100 border border-stone-200 rounded-xl">
           {['ALL', 'Draft', 'In Transit', 'Delivered'].map((status) => (
             <button
               key={status}
               onClick={() => setStatusFilter(status)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md whitespace-nowrap transition-colors ${
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-colors ${
                 statusFilter === status
-                  ? 'bg-[#C98A5B] text-neutral-950 font-semibold shadow-xs'
-                  : 'text-neutral-400 hover:text-white'
+                  ? 'bg-white text-[#2B150A] font-bold shadow-2xs border border-stone-200'
+                  : 'text-stone-600 hover:text-[#2B150A]'
               }`}
             >
               {status}
@@ -190,10 +192,10 @@ export const DeliveryNotesView: React.FC<DeliveryNotesViewProps> = ({ initialSta
       </div>
 
       {/* Delivery Notes Table */}
-      <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden shadow-xs">
+      <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-neutral-950/60 border-b border-neutral-800 text-neutral-400 uppercase text-[10px] tracking-wider">
+            <thead className="bg-stone-50/80 border-b border-stone-200 text-stone-500 uppercase text-[10px] tracking-wider">
               <tr>
                 <th className="py-3 px-4 font-semibold">Slip Reference</th>
                 <th className="py-3 px-4 font-semibold">Parent Invoice</th>
@@ -203,53 +205,53 @@ export const DeliveryNotesView: React.FC<DeliveryNotesViewProps> = ({ initialSta
                 <th className="py-3 px-4 font-semibold text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-800/80">
+            <tbody className="divide-y divide-stone-100">
               {filteredNotes.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-10 text-center text-neutral-500">
+                  <td colSpan={6} className="py-10 text-center text-stone-400">
                     No delivery notes found matching your search.
                   </td>
                 </tr>
               ) : (
                 filteredNotes.map((note) => {
                   return (
-                    <tr key={note.id} className="hover:bg-neutral-800/40 transition-colors">
+                    <tr key={note.id} className="hover:bg-stone-50/60 transition-colors">
                       {/* Slip Reference */}
                       <td className="py-3 px-4">
-                        <div className="font-mono font-bold text-[#DE9E74] text-xs">
+                        <div className="font-mono font-bold text-[#391E0F] text-xs">
                           {note.deliveryNoteNumber}
                         </div>
-                        <div className="text-[10px] text-neutral-500">
+                        <div className="text-[10px] text-stone-500">
                           {note.items.length} items to offload
                         </div>
                       </td>
 
                       {/* Parent Invoice */}
                       <td className="py-3 px-4">
-                        <div className="font-mono text-neutral-300 font-medium">
+                        <div className="font-mono text-[#2B150A] font-medium">
                           {note.invoiceNumber || 'Manual Slip'}
                         </div>
-                        <div className="text-[10px] text-neutral-500">
+                        <div className="text-[10px] text-stone-500">
                           {note.customerName}
                         </div>
                       </td>
 
                       {/* Destination Branch */}
                       <td className="py-3 px-4">
-                        <div className="font-semibold text-white truncate max-w-[200px]">
+                        <div className="font-semibold text-[#2B150A] truncate max-w-[200px]">
                           {note.branchName}
                         </div>
-                        <div className="text-[11px] text-neutral-400 truncate max-w-[220px]">
+                        <div className="text-[11px] text-stone-500 truncate max-w-[220px]">
                           {note.deliveryAddress}
                         </div>
                       </td>
 
                       {/* Driver & Vehicle */}
                       <td className="py-3 px-4">
-                        <div className="text-neutral-200 font-medium">
+                        <div className="text-[#2B150A] font-medium">
                           {note.driverName || 'Dispatch Carrier'}
                         </div>
-                        <div className="text-[10px] text-neutral-400 font-mono">
+                        <div className="text-[10px] text-stone-500 font-mono">
                           {note.vehicleReg || 'Fleet Truck'}
                         </div>
                       </td>
@@ -260,10 +262,10 @@ export const DeliveryNotesView: React.FC<DeliveryNotesViewProps> = ({ initialSta
                           <span
                             className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${
                               note.status === 'Delivered'
-                                ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                                 : note.status === 'In Transit'
-                                ? 'bg-[#C98A5B]/15 text-[#F3D2BF] border border-[#C98A5B]/30'
-                                : 'bg-neutral-800 text-neutral-400 border border-neutral-700'
+                                ? 'bg-[#CC8468]/15 text-[#391E0F] border border-[#CC8468]/30'
+                                : 'bg-stone-100 text-stone-600 border border-stone-200'
                             }`}
                           >
                             {note.status}

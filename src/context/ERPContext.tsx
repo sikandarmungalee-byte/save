@@ -382,38 +382,63 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  // REAL-TIME CLOUD FIRESTORE SYNCHRONIZATION
-  // Connects phone, laptop, tablet and any device via live Cloud Firestore listener
+  // REAL-TIME CLOUD FIRESTORE & SERVER SYNCHRONIZATION
+  // Connects phone, laptop, tablet and any device via live Cloud Firestore listener and server sync
   useEffect(() => {
+    // 1. Initial hydration from server backend (/api/sync)
+    safeFetchJson<ERPDatabase>('/api/sync').then((res) => {
+      if (res.ok && res.data) {
+        const srv = res.data;
+        if (srv.company) setCompany(srv.company);
+        if (srv.customers && srv.customers.length > 0) setCustomers(srv.customers);
+        if (srv.products && srv.products.length > 0) setProducts(srv.products.map((p, i) => normalizeProduct(p, i)));
+        if (srv.invoices && srv.invoices.length > 0) setInvoices(srv.invoices);
+        if (srv.deliveryNotes && srv.deliveryNotes.length > 0) setDeliveryNotes(srv.deliveryNotes);
+        if (srv.quotations && srv.quotations.length > 0) setQuotations(srv.quotations);
+        if (srv.payments && srv.payments.length > 0) setPayments(srv.payments);
+        if (srv.leads && srv.leads.length > 0) setLeads(srv.leads);
+        if (srv.users && srv.users.length > 0) {
+          let uList = srv.users;
+          if (!uList.some((u) => u.email.toLowerCase() === 'admin@savoure.co.za')) {
+            uList = [MASTER_ADMIN_USER, ...uList];
+          }
+          setUsers(uList);
+        }
+      }
+    }).catch(() => {});
+
+    // 2. Real-time Firestore subscription
     setSyncStatus('syncing');
     const unsub = onSnapshot(doc(db, 'erp', 'main'), (snapshot) => {
       if (snapshot.exists()) {
         const cloudData = snapshot.data() as Partial<ERPDatabase>;
         
         if (cloudData.company) setCompany(cloudData.company);
-        if (cloudData.products && Array.isArray(cloudData.products)) {
+        if (cloudData.products && Array.isArray(cloudData.products) && cloudData.products.length > 0) {
           setProducts(cloudData.products.map((p, i) => normalizeProduct(p, i)));
         }
-        if (cloudData.customers) setCustomers(cloudData.customers);
-        if (cloudData.categories) setCategories(cloudData.categories);
-        if (cloudData.invoices) setInvoices(cloudData.invoices);
-        if (cloudData.deliveryNotes) setDeliveryNotes(cloudData.deliveryNotes);
-        if (cloudData.quotations) setQuotations(cloudData.quotations);
-        if (cloudData.payments) setPayments(cloudData.payments);
-        if (cloudData.leads) setLeads(cloudData.leads);
-        if (cloudData.communications) setCommunications(cloudData.communications);
-        if (cloudData.staff) setStaff(cloudData.staff);
-        if (cloudData.payrollPayouts) setPayrollPayouts(cloudData.payrollPayouts);
-        if (cloudData.stockPurchases) setStockPurchases(cloudData.stockPurchases);
-        if (cloudData.stockItemStatuses) setStockItemStatuses(cloudData.stockItemStatuses);
-        if (cloudData.journalEntries) setJournalEntries(cloudData.journalEntries);
-        if (cloudData.loginLogs) setLoginLogs(cloudData.loginLogs);
+        if (cloudData.customers && cloudData.customers.length > 0) setCustomers(cloudData.customers);
+        if (cloudData.categories && cloudData.categories.length > 0) setCategories(cloudData.categories);
+        if (cloudData.invoices && cloudData.invoices.length > 0) setInvoices(cloudData.invoices);
+        if (cloudData.deliveryNotes && cloudData.deliveryNotes.length > 0) setDeliveryNotes(cloudData.deliveryNotes);
+        if (cloudData.quotations && cloudData.quotations.length > 0) setQuotations(cloudData.quotations);
+        if (cloudData.payments && cloudData.payments.length > 0) setPayments(cloudData.payments);
+        if (cloudData.leads && cloudData.leads.length > 0) setLeads(cloudData.leads);
+        if (cloudData.communications && cloudData.communications.length > 0) setCommunications(cloudData.communications);
+        if (cloudData.staff && cloudData.staff.length > 0) setStaff(cloudData.staff);
+        if (cloudData.payrollPayouts && cloudData.payrollPayouts.length > 0) setPayrollPayouts(cloudData.payrollPayouts);
+        if (cloudData.stockPurchases && cloudData.stockPurchases.length > 0) setStockPurchases(cloudData.stockPurchases);
+        if (cloudData.stockItemStatuses && cloudData.stockItemStatuses.length > 0) setStockItemStatuses(cloudData.stockItemStatuses);
+        if (cloudData.journalEntries && cloudData.journalEntries.length > 0) setJournalEntries(cloudData.journalEntries);
+        if (cloudData.loginLogs && cloudData.loginLogs.length > 0) setLoginLogs(cloudData.loginLogs);
 
-        let cloudUsers = cloudData.users || [];
-        if (!cloudUsers.some((u) => u.email.toLowerCase() === 'admin@savoure.co.za')) {
-          cloudUsers = [MASTER_ADMIN_USER, ...cloudUsers];
+        if (cloudData.users && cloudData.users.length > 0) {
+          let cloudUsers = cloudData.users;
+          if (!cloudUsers.some((u) => u.email.toLowerCase() === 'admin@savoure.co.za')) {
+            cloudUsers = [MASTER_ADMIN_USER, ...cloudUsers];
+          }
+          setUsers(cloudUsers);
         }
-        setUsers(cloudUsers);
 
         // Update local storage cache
         try {
@@ -424,7 +449,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setLastSynced(new Date().toLocaleTimeString());
       } else {
         // Initialize cloud database with initial Master Admin and company settings
-        setDoc(doc(db, 'erp', 'main'), {
+        const initialPayload = {
           users: [MASTER_ADMIN_USER],
           company: INITIAL_COMPANY,
           products: [],
@@ -436,7 +461,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           leads: [],
           communications: [],
           lastUpdated: new Date().toISOString(),
-        }).catch(() => {});
+        };
+        setDoc(doc(db, 'erp', 'main'), initialPayload).catch(() => {});
         setSyncStatus('synced');
       }
     }, (error) => {
@@ -451,19 +477,36 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const refreshData = useCallback(async () => {
     try {
       setSyncStatus('syncing');
+      // 1. Fetch server
+      const res = await safeFetchJson<ERPDatabase>('/api/sync');
+      if (res.ok && res.data) {
+        const srv = res.data;
+        if (srv.products && Array.isArray(srv.products) && srv.products.length > 0) {
+          setProducts(srv.products.map((p, i) => normalizeProduct(p, i)));
+        }
+        if (srv.customers && srv.customers.length > 0) setCustomers(srv.customers);
+        if (srv.invoices && srv.invoices.length > 0) setInvoices(srv.invoices);
+        if (srv.deliveryNotes && srv.deliveryNotes.length > 0) setDeliveryNotes(srv.deliveryNotes);
+        if (srv.quotations && srv.quotations.length > 0) setQuotations(srv.quotations);
+        if (srv.payments && srv.payments.length > 0) setPayments(srv.payments);
+        if (srv.leads && srv.leads.length > 0) setLeads(srv.leads);
+        if (srv.users && srv.users.length > 0) setUsers(srv.users);
+      }
+
+      // 2. Fetch Firestore
       const snap = await getDoc(doc(db, 'erp', 'main'));
       if (snap.exists()) {
         const cloudData = snap.data() as Partial<ERPDatabase>;
-        if (cloudData.products && Array.isArray(cloudData.products)) {
+        if (cloudData.products && Array.isArray(cloudData.products) && cloudData.products.length > 0) {
           setProducts(cloudData.products.map((p, i) => normalizeProduct(p, i)));
         }
-        if (cloudData.customers) setCustomers(cloudData.customers);
-        if (cloudData.invoices) setInvoices(cloudData.invoices);
-        if (cloudData.deliveryNotes) setDeliveryNotes(cloudData.deliveryNotes);
-        if (cloudData.quotations) setQuotations(cloudData.quotations);
-        if (cloudData.payments) setPayments(cloudData.payments);
-        if (cloudData.leads) setLeads(cloudData.leads);
-        if (cloudData.users) setUsers(cloudData.users);
+        if (cloudData.customers && cloudData.customers.length > 0) setCustomers(cloudData.customers);
+        if (cloudData.invoices && cloudData.invoices.length > 0) setInvoices(cloudData.invoices);
+        if (cloudData.deliveryNotes && cloudData.deliveryNotes.length > 0) setDeliveryNotes(cloudData.deliveryNotes);
+        if (cloudData.quotations && cloudData.quotations.length > 0) setQuotations(cloudData.quotations);
+        if (cloudData.payments && cloudData.payments.length > 0) setPayments(cloudData.payments);
+        if (cloudData.leads && cloudData.leads.length > 0) setLeads(cloudData.leads);
+        if (cloudData.users && cloudData.users.length > 0) setUsers(cloudData.users);
       }
       setSyncStatus('synced');
       setLastSynced(new Date().toLocaleTimeString());
@@ -959,28 +1002,48 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (amountPaid >= grandTotal && grandTotal > 0) status = 'Paid';
     else if (amountPaid > 0 && amountPaid < grandTotal) status = 'Partial';
 
-    // Auto-detect linked merchant user for this customer
+    // Auto-detect linked merchant user for this customer or merchant selection
     const targetCustId = data.customerId;
     const targetCustName = data.customerName;
-    const linkedMerchant = users.find((u) =>
+    const targetMerchantId = data.merchantId;
+
+    let linkedMerchant = users.find((u) =>
       u.role === 'merchant' &&
-      ((targetCustId && u.customerId === targetCustId) ||
+      ((targetMerchantId && u.id === targetMerchantId) ||
+       (targetCustId && (u.customerId === targetCustId || u.id === targetCustId)) ||
        (targetCustName && u.customerName && u.customerName.toLowerCase() === targetCustName.toLowerCase()) ||
-       (targetCustName && u.merchantStoreName && u.merchantStoreName.toLowerCase() === targetCustName.toLowerCase()))
+       (targetCustName && u.merchantStoreName && u.merchantStoreName.toLowerCase() === targetCustName.toLowerCase()) ||
+       (targetCustName && u.name && u.name.toLowerCase() === targetCustName.toLowerCase()))
     );
 
-    const branchName = data.branchName || data.branch || linkedMerchant?.branch || (currentUser?.role === 'merchant' ? currentUser.branch : undefined);
+    if (!linkedMerchant && targetCustId) {
+      const custObj = customers.find((c) => c.id === targetCustId);
+      if (custObj) {
+        linkedMerchant = users.find((u) =>
+          u.role === 'merchant' &&
+          (u.customerId === custObj.id ||
+           (u.customerName && u.customerName.toLowerCase() === custObj.registeredName.toLowerCase()) ||
+           (u.merchantStoreName && u.merchantStoreName.toLowerCase() === custObj.registeredName.toLowerCase()))
+        );
+      }
+    }
+
+    const branchName = data.branchName || data.branch || linkedMerchant?.branch || (currentUser?.role === 'merchant' ? currentUser.branch : 'Main Branch');
     const branchId = data.branchId || branchName;
     const merchantId = data.merchantId || linkedMerchant?.id || (currentUser?.role === 'merchant' ? currentUser.id : undefined);
-    const merchantName = data.merchantName || linkedMerchant?.name || (currentUser?.role === 'merchant' ? currentUser.name : undefined);
+    const merchantName = data.merchantName || linkedMerchant?.merchantStoreName || linkedMerchant?.name || (currentUser?.role === 'merchant' ? (currentUser.merchantStoreName || currentUser.name) : undefined);
     const merchantEmail = data.merchantEmail || linkedMerchant?.email || (currentUser?.role === 'merchant' ? currentUser.email : undefined);
+
+    const resolvedCustId = data.customerId || linkedMerchant?.customerId || linkedMerchant?.id || (currentUser?.role === 'merchant' ? currentUser.id : 'cust_direct');
+    const resolvedCustName = data.customerName || linkedMerchant?.merchantStoreName || linkedMerchant?.name || (currentUser?.role === 'merchant' ? (currentUser.merchantStoreName || currentUser.name) : 'Direct Client');
+    const resolvedTradingName = data.customerTradingName || resolvedCustName;
 
     const newInv: Invoice = {
       id: 'inv_' + Date.now(),
       invoiceNumber: data.invoiceNumber || `INV-${new Date().getFullYear()}-${String(invoices.length + 1).padStart(4, '0')}`,
-      customerId: data.customerId || (currentUser?.role === 'merchant' ? currentUser.id : 'cust_direct'),
-      customerName: data.customerName || (currentUser?.role === 'merchant' ? (currentUser.merchantStoreName || currentUser.name) : 'Direct Client'),
-      customerTradingName: data.customerTradingName || data.customerName || (currentUser?.role === 'merchant' ? currentUser.name : 'Direct Client'),
+      customerId: resolvedCustId,
+      customerName: resolvedCustName,
+      customerTradingName: resolvedTradingName,
       branchId,
       branchName,
       branch: branchName,
@@ -1005,10 +1068,50 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdBy: currentUser?.name || 'Administrator',
     };
 
+    // Auto-generate linked Delivery Note so invoices and delivery notes are immediately connected & findable
+    let nextDeliveryNotes = deliveryNotes;
+    if (data.autoGenerateDeliveryNote !== false) {
+      const dnNumber = `DN-${new Date().getFullYear()}-${String(deliveryNotes.length + 1).padStart(4, '0')}`;
+      const newDn: DeliveryNote = {
+        id: 'dn_' + Date.now(),
+        deliveryNoteNumber: dnNumber,
+        invoiceId: newInv.id,
+        invoiceNumber: newInv.invoiceNumber,
+        customerId: newInv.customerId,
+        customerName: newInv.customerName,
+        branchId: newInv.branchId,
+        branchName: newInv.branchName || 'Main Branch',
+        merchantId: newInv.merchantId,
+        merchantName: newInv.merchantName,
+        deliveryAddress: newInv.deliveryAddress,
+        recipientName: data.recipientName || data.contactPerson || newInv.customerName,
+        recipientPhone: data.recipientPhone || data.customerPhone || '',
+        driverName: data.driverName || 'Dispatch Driver',
+        vehicleReg: data.vehicleReg || '',
+        dispatchDate: new Date().toISOString(),
+        specialInstructions: data.specialInstructions || 'Handle with care. Return delivery crates upon dropoff.',
+        items: items.map((it: any) => ({
+          id: 'dn_it_' + Math.random().toString(36).substring(2, 7),
+          sku: it.sku || '',
+          description: it.description || it.name || 'Artisanal item',
+          packSize: it.packSize || 'Standard',
+          quantityOrdered: Number(it.quantity) || 0,
+          quantityDelivered: Number(it.quantity) || 0,
+        })),
+        status: 'Draft',
+        notes: `Linked to Tax Invoice ${newInv.invoiceNumber}`,
+        createdAt: new Date().toISOString(),
+      };
+      newInv.linkedDeliveryNoteId = newDn.id;
+      nextDeliveryNotes = [newDn, ...deliveryNotes];
+      setDeliveryNotes(nextDeliveryNotes);
+      persistToLocal({ deliveryNotes: nextDeliveryNotes });
+    }
+
     const nextInvoices = [newInv, ...invoices];
     setInvoices(nextInvoices);
     persistToLocal({ invoices: nextInvoices });
-    await syncToCloud({ invoices: nextInvoices });
+    await syncToCloud({ invoices: nextInvoices, deliveryNotes: nextDeliveryNotes });
 
     return newInv;
   };
@@ -1124,18 +1227,32 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Delivery Notes
   const createDeliveryNote = async (data: any): Promise<DeliveryNote> => {
+    const targetCustId = data.customerId;
+    const targetCustName = data.customerName;
+    const targetMerchantId = data.merchantId;
+
+    const linkedMerchant = users.find((u) =>
+      u.role === 'merchant' &&
+      ((targetMerchantId && u.id === targetMerchantId) ||
+       (targetCustId && (u.customerId === targetCustId || u.id === targetCustId)) ||
+       (targetCustName && u.customerName && u.customerName.toLowerCase() === targetCustName.toLowerCase()) ||
+       (targetCustName && u.merchantStoreName && u.merchantStoreName.toLowerCase() === targetCustName.toLowerCase()))
+    );
+
     const newDn: DeliveryNote = {
       id: 'dn_' + Date.now(),
       deliveryNoteNumber: data.deliveryNoteNumber || `DN-${new Date().getFullYear()}-${String(deliveryNotes.length + 1).padStart(4, '0')}`,
       invoiceId: data.invoiceId || '',
       invoiceNumber: data.invoiceNumber || '',
-      customerId: data.customerId,
-      customerName: data.customerName,
-      branchId: data.branchId,
-      branchName: data.branchName,
-      deliveryAddress: data.deliveryAddress,
-      recipientName: data.recipientName,
-      recipientPhone: data.recipientPhone,
+      customerId: data.customerId || linkedMerchant?.customerId || linkedMerchant?.id || 'cust_direct',
+      customerName: data.customerName || linkedMerchant?.merchantStoreName || linkedMerchant?.name || 'Direct Client',
+      branchId: data.branchId || linkedMerchant?.branch || 'Main Branch',
+      branchName: data.branchName || linkedMerchant?.branch || 'Main Branch',
+      merchantId: data.merchantId || linkedMerchant?.id,
+      merchantName: data.merchantName || linkedMerchant?.merchantStoreName || linkedMerchant?.name,
+      deliveryAddress: data.deliveryAddress || '',
+      recipientName: data.recipientName || '',
+      recipientPhone: data.recipientPhone || '',
       driverName: data.driverName || 'Dispatch Driver',
       vehicleReg: data.vehicleReg || '',
       dispatchDate: data.dispatchDate || new Date().toISOString(),
