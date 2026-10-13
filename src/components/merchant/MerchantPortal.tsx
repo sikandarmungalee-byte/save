@@ -80,6 +80,19 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
         return true;
       }
 
+      // 2b. Direct match on Merchant Email
+      if (inv.merchantEmail && currentUser.email && inv.merchantEmail.toLowerCase() === currentUser.email.toLowerCase()) {
+        return true;
+      }
+
+      // 2c. Direct match on Merchant Name / Store Name
+      if (inv.merchantName && (
+        (currentUser.name && inv.merchantName.toLowerCase() === currentUser.name.toLowerCase()) ||
+        (currentUser.merchantStoreName && inv.merchantName.toLowerCase() === currentUser.merchantStoreName.toLowerCase())
+      )) {
+        return true;
+      }
+
       // 3. Match on Customer Name / Trading Name (case-insensitive)
       const targetCustomerNames = [
         currentUser.customerName?.toLowerCase(),

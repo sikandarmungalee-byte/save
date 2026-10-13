@@ -240,6 +240,69 @@ export const normalizeProduct = (p: any, idx = 0): Product => ({
   stockOnHand: Number(p?.stockOnHand) || 0,
 });
 
+function healInvoicesList(rawInvoices: Invoice[], customerList: Customer[], userList: User[]): { invoices: Invoice[]; changed: boolean } {
+  let changed = false;
+  const merchants = (userList || []).filter((u) => u.role === 'merchant');
+  const healed = (rawInvoices || []).map((inv) => {
+    let needsUpdate = false;
+    let custId = inv.customerId;
+    let merId = inv.merchantId;
+    let merName = inv.merchantName;
+    let merEmail = inv.merchantEmail;
+
+    if (!custId || custId === 'cust_temp') {
+      const matchCust = (customerList || []).find(
+        (c) =>
+          (inv.customerName && (c.registeredName.toLowerCase() === inv.customerName.toLowerCase() || c.tradingName.toLowerCase() === inv.customerName.toLowerCase())) ||
+          (inv.customerTradingName && (c.registeredName.toLowerCase() === inv.customerTradingName.toLowerCase() || c.tradingName.toLowerCase() === inv.customerTradingName.toLowerCase()))
+      );
+      if (matchCust) {
+        custId = matchCust.id;
+        needsUpdate = true;
+      }
+    }
+
+    if (!merId) {
+      const matchMer = merchants.find(
+        (m) =>
+          (custId && (m.customerId === custId || m.id === custId)) ||
+          (inv.customerName && (
+            (m.merchantStoreName && m.merchantStoreName.toLowerCase() === inv.customerName.toLowerCase()) ||
+            (m.customerName && m.customerName.toLowerCase() === inv.customerName.toLowerCase()) ||
+            (m.name && m.name.toLowerCase() === inv.customerName.toLowerCase())
+          )) ||
+          (inv.customerTradingName && (
+            (m.merchantStoreName && m.merchantStoreName.toLowerCase() === inv.customerTradingName.toLowerCase()) ||
+            (m.customerName && m.customerName.toLowerCase() === inv.customerTradingName.toLowerCase())
+          ))
+      );
+      if (matchMer) {
+        merId = matchMer.id;
+        merName = matchMer.merchantStoreName || matchMer.name;
+        merEmail = matchMer.email;
+        if (!custId || custId === 'cust_temp') {
+          custId = matchMer.customerId || matchMer.id;
+        }
+        needsUpdate = true;
+      }
+    }
+
+    if (needsUpdate) {
+      changed = true;
+      return {
+        ...inv,
+        customerId: custId,
+        merchantId: merId,
+        merchantName: merName,
+        merchantEmail: merEmail,
+      };
+    }
+    return inv;
+  });
+
+  return { invoices: healed, changed };
+}
+
 export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
@@ -321,11 +384,13 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Also background-sync to server if reachable
     try {
-      safeFetchJson('/api/sync', {
+      await safeFetchJson('/api/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
-      }).catch(() => {});
+      });
+      setSyncStatus('synced');
+      setLastSynced(new Date().toLocaleTimeString());
     } catch {}
 
     setTimeout(() => {
@@ -392,7 +457,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (srv.company) setCompany(srv.company);
         if (srv.customers && srv.customers.length > 0) setCustomers(srv.customers);
         if (srv.products && srv.products.length > 0) setProducts(srv.products.map((p, i) => normalizeProduct(p, i)));
-        if (srv.invoices && srv.invoices.length > 0) setInvoices(srv.invoices);
+        if (srv.invoices && srv.invoices.length > 0) {
+          const { invoices: healedInvs } = healInvoicesList(srv.invoices, srv.customers || [], srv.users || []);
+          setInvoices(healedInvs);
+        }
         if (srv.deliveryNotes && srv.deliveryNotes.length > 0) setDeliveryNotes(srv.deliveryNotes);
         if (srv.quotations && srv.quotations.length > 0) setQuotations(srv.quotations);
         if (srv.payments && srv.payments.length > 0) setPayments(srv.payments);
@@ -419,7 +487,26 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         if (cloudData.customers && cloudData.customers.length > 0) setCustomers(cloudData.customers);
         if (cloudData.categories && cloudData.categories.length > 0) setCategories(cloudData.categories);
-        if (cloudData.invoices && cloudData.invoices.length > 0) setInvoices(cloudData.invoices);
+
+        let cloudUsers = cloudData.users || [];
+        if (cloudUsers.length > 0) {
+          if (!cloudUsers.some((u) => u.email.toLowerCase() === 'admin@savoure.co.za')) {
+            cloudUsers = [MASTER_ADMIN_USER, ...cloudUsers];
+          }
+          setUsers(cloudUsers);
+        }
+
+        if (cloudData.invoices && cloudData.invoices.length > 0) {
+          const { invoices: healedInvs, changed } = healInvoicesList(
+            cloudData.invoices,
+            cloudData.customers || [],
+            cloudUsers
+          );
+          setInvoices(healedInvs);
+          if (changed && !isWritingCloud.current) {
+            syncToCloud({ invoices: healedInvs });
+          }
+        }
         if (cloudData.deliveryNotes && cloudData.deliveryNotes.length > 0) setDeliveryNotes(cloudData.deliveryNotes);
         if (cloudData.quotations && cloudData.quotations.length > 0) setQuotations(cloudData.quotations);
         if (cloudData.payments && cloudData.payments.length > 0) setPayments(cloudData.payments);
@@ -431,14 +518,6 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (cloudData.stockItemStatuses && cloudData.stockItemStatuses.length > 0) setStockItemStatuses(cloudData.stockItemStatuses);
         if (cloudData.journalEntries && cloudData.journalEntries.length > 0) setJournalEntries(cloudData.journalEntries);
         if (cloudData.loginLogs && cloudData.loginLogs.length > 0) setLoginLogs(cloudData.loginLogs);
-
-        if (cloudData.users && cloudData.users.length > 0) {
-          let cloudUsers = cloudData.users;
-          if (!cloudUsers.some((u) => u.email.toLowerCase() === 'admin@savoure.co.za')) {
-            cloudUsers = [MASTER_ADMIN_USER, ...cloudUsers];
-          }
-          setUsers(cloudUsers);
-        }
 
         // Update local storage cache
         try {
@@ -987,59 +1066,76 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const createInvoice = async (data: any): Promise<Invoice> => {
     const isVatReg = Boolean(company.vatNumber && company.vatNumber.trim() !== '');
     const items = data.items || [];
-    const subtotal = items.reduce((acc: number, item: any) => acc + (Number(item.subtotal) || (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)), 0);
-    const vatTotal = isVatReg ? items.reduce((acc: number, item: any) => acc + (Number(item.vatAmount) || 0), 0) : 0;
-    const discountTotal = items.reduce((acc: number, item: any) => {
-      const raw = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
-      const disc = raw * ((Number(item.discountPercent) || 0) / 100);
-      return acc + disc;
-    }, 0);
-    const grandTotal = subtotal + vatTotal;
+    const subtotal = data.subtotal !== undefined
+      ? Number(data.subtotal)
+      : items.reduce((acc: number, item: any) => acc + (Number(item.totalPrice) || (Number(item.quantity) * Number(item.unitPrice)) || Number(item.subtotal) || 0), 0);
+    const discountPercent = data.discount !== undefined ? Number(data.discount) : (Number(data.discountPercent) || 0);
+    const discountTotal = data.discountTotal !== undefined
+      ? Number(data.discountTotal)
+      : (subtotal * (discountPercent / 100));
+    const effectiveVatRate = isVatReg ? (data.vatRate !== undefined ? Number(data.vatRate) : (company.vatRate ?? 15)) : 0;
+    const vatTotal = isVatReg
+      ? (data.vatTotal !== undefined ? Number(data.vatTotal) : ((subtotal - discountTotal) * (effectiveVatRate / 100)))
+      : 0;
+    const grandTotal = data.grandTotal !== undefined
+      ? Number(data.grandTotal)
+      : Math.round((subtotal - discountTotal + vatTotal) * 100) / 100;
     const amountPaid = Number(data.amountPaid) || 0;
-    const balanceDue = Math.max(0, grandTotal - amountPaid);
+    const balanceDue = Math.max(0, Math.round((grandTotal - amountPaid) * 100) / 100);
 
     let status = data.status || 'Draft';
     if (amountPaid >= grandTotal && grandTotal > 0) status = 'Paid';
     else if (amountPaid > 0 && amountPaid < grandTotal) status = 'Partial';
 
-    // Auto-detect linked merchant user for this customer or merchant selection
+    // Auto-detect customer and linked merchant user
     const targetCustId = data.customerId;
-    const targetCustName = data.customerName;
+    const targetCustName = data.customerName || data.name;
+    const targetTradingName = data.customerTradingName || data.company;
     const targetMerchantId = data.merchantId;
 
-    let linkedMerchant = users.find((u) =>
-      u.role === 'merchant' &&
-      ((targetMerchantId && u.id === targetMerchantId) ||
-       (targetCustId && (u.customerId === targetCustId || u.id === targetCustId)) ||
-       (targetCustName && u.customerName && u.customerName.toLowerCase() === targetCustName.toLowerCase()) ||
-       (targetCustName && u.merchantStoreName && u.merchantStoreName.toLowerCase() === targetCustName.toLowerCase()) ||
-       (targetCustName && u.name && u.name.toLowerCase() === targetCustName.toLowerCase()))
+    // Search for customer record
+    const custObj = customers.find((c) =>
+      (targetCustId && targetCustId !== 'cust_temp' && c.id === targetCustId) ||
+      (targetCustName && (
+        c.registeredName.toLowerCase() === targetCustName.toLowerCase() ||
+        c.tradingName.toLowerCase() === targetCustName.toLowerCase()
+      )) ||
+      (targetTradingName && (
+        c.registeredName.toLowerCase() === targetTradingName.toLowerCase() ||
+        c.tradingName.toLowerCase() === targetTradingName.toLowerCase()
+      ))
     );
 
-    if (!linkedMerchant && targetCustId) {
-      const custObj = customers.find((c) => c.id === targetCustId);
-      if (custObj) {
-        linkedMerchant = users.find((u) =>
-          u.role === 'merchant' &&
-          (u.customerId === custObj.id ||
-           (u.customerName && u.customerName.toLowerCase() === custObj.registeredName.toLowerCase()) ||
-           (u.merchantStoreName && u.merchantStoreName.toLowerCase() === custObj.registeredName.toLowerCase()))
-        );
-      }
-    }
+    // Search for merchant user
+    const linkedMerchant = users.find((u) =>
+      u.role === 'merchant' && (
+        (targetMerchantId && u.id === targetMerchantId) ||
+        (custObj && (u.customerId === custObj.id || u.id === custObj.id)) ||
+        (targetCustId && targetCustId !== 'cust_temp' && (u.customerId === targetCustId || u.id === targetCustId)) ||
+        (targetCustName && (
+          (u.merchantStoreName && u.merchantStoreName.toLowerCase() === targetCustName.toLowerCase()) ||
+          (u.customerName && u.customerName.toLowerCase() === targetCustName.toLowerCase()) ||
+          (u.name && u.name.toLowerCase() === targetCustName.toLowerCase())
+        )) ||
+        (targetTradingName && (
+          (u.merchantStoreName && u.merchantStoreName.toLowerCase() === targetTradingName.toLowerCase()) ||
+          (u.customerName && u.customerName.toLowerCase() === targetTradingName.toLowerCase())
+        ))
+      )
+    );
 
-    const branchName = data.branchName || data.branch || linkedMerchant?.branch || (currentUser?.role === 'merchant' ? currentUser.branch : 'Main Branch');
-    const branchId = data.branchId || branchName;
+    const branchName = data.branchName || data.branch || custObj?.branches?.[0]?.branchName || linkedMerchant?.branch || (currentUser?.role === 'merchant' ? currentUser.branch : 'Main Branch');
+    const branchId = data.branchId || custObj?.branches?.[0]?.id || branchName;
     const merchantId = data.merchantId || linkedMerchant?.id || (currentUser?.role === 'merchant' ? currentUser.id : undefined);
     const merchantName = data.merchantName || linkedMerchant?.merchantStoreName || linkedMerchant?.name || (currentUser?.role === 'merchant' ? (currentUser.merchantStoreName || currentUser.name) : undefined);
     const merchantEmail = data.merchantEmail || linkedMerchant?.email || (currentUser?.role === 'merchant' ? currentUser.email : undefined);
 
-    const resolvedCustId = data.customerId || linkedMerchant?.customerId || linkedMerchant?.id || (currentUser?.role === 'merchant' ? currentUser.id : 'cust_direct');
-    const resolvedCustName = data.customerName || linkedMerchant?.merchantStoreName || linkedMerchant?.name || (currentUser?.role === 'merchant' ? (currentUser.merchantStoreName || currentUser.name) : 'Direct Client');
-    const resolvedTradingName = data.customerTradingName || resolvedCustName;
+    const resolvedCustId = custObj?.id || (targetCustId && targetCustId !== 'cust_temp' ? targetCustId : null) || linkedMerchant?.customerId || linkedMerchant?.id || (currentUser?.role === 'merchant' ? (currentUser.customerId || currentUser.id) : 'cust_' + Date.now());
+    const resolvedCustName = targetCustName || custObj?.registeredName || linkedMerchant?.merchantStoreName || linkedMerchant?.name || (currentUser?.role === 'merchant' ? (currentUser.merchantStoreName || currentUser.name) : 'Direct Client');
+    const resolvedTradingName = targetTradingName || custObj?.tradingName || linkedMerchant?.merchantStoreName || resolvedCustName;
 
     const newInv: Invoice = {
-      id: 'inv_' + Date.now(),
+      id: data.id || 'inv_' + Date.now(),
       invoiceNumber: data.invoiceNumber || `INV-${new Date().getFullYear()}-${String(invoices.length + 1).padStart(4, '0')}`,
       customerId: resolvedCustId,
       customerName: resolvedCustName,
@@ -1050,20 +1146,22 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       merchantId,
       merchantName,
       merchantEmail,
-      deliveryAddress: data.deliveryAddress || '',
-      customerVat: data.customerVat || '',
-      issueDate: data.issueDate || new Date().toISOString().split('T')[0],
+      deliveryAddress: data.deliveryAddress || custObj?.branches?.[0]?.deliveryAddress || '',
+      customerVat: data.customerVat || custObj?.vatNumber || '',
+      issueDate: data.issueDate || data.date || new Date().toISOString().split('T')[0],
       dueDate: data.dueDate || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
       items,
       subtotal: Math.round(subtotal * 100) / 100,
-      vatTotal: Math.round(vatTotal * 100) / 100,
+      discount: discountPercent,
       discountTotal: Math.round(discountTotal * 100) / 100,
+      vatRate: effectiveVatRate,
+      vatTotal: Math.round(vatTotal * 100) / 100,
       grandTotal: Math.round(grandTotal * 100) / 100,
       amountPaid: Math.round(amountPaid * 100) / 100,
       balanceDue: Math.round(balanceDue * 100) / 100,
       status,
       notes: data.notes || '',
-      paymentReference: data.paymentReference,
+      paymentReference: data.paymentReference || data.invoiceNumber,
       createdAt: new Date().toISOString(),
       createdBy: currentUser?.name || 'Administrator',
     };
@@ -1113,23 +1211,160 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     persistToLocal({ invoices: nextInvoices });
     await syncToCloud({ invoices: nextInvoices, deliveryNotes: nextDeliveryNotes });
 
+    try {
+      safeFetchJson('/api/invoices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newInv),
+      }).catch(() => {});
+    } catch {}
+
     return newInv;
   };
 
   const updateInvoice = async (id: string, data: any): Promise<Invoice> => {
+    const isVatReg = Boolean(company.vatNumber && company.vatNumber.trim() !== '');
     let resInv: Invoice | null = null;
+    let nextDeliveryNotes = deliveryNotes;
+
     const nextInvoices = invoices.map((inv) => {
-      if (inv.id === id) {
-        const mod = { ...inv, ...data };
-        resInv = mod;
-        return mod;
-      }
-      return inv;
+      if (inv.id !== id) return inv;
+
+      const items = data.items !== undefined ? data.items : (inv.items || []);
+      const subtotal = data.subtotal !== undefined
+        ? Number(data.subtotal)
+        : items.reduce((acc: number, item: any) => acc + (Number(item.totalPrice) || (Number(item.quantity) * Number(item.unitPrice)) || Number(item.subtotal) || 0), 0);
+      const discountPercent = data.discount !== undefined ? Number(data.discount) : (Number(data.discountPercent) || inv.discount || 0);
+      const discountTotal = data.discountTotal !== undefined
+        ? Number(data.discountTotal)
+        : (subtotal * (discountPercent / 100));
+      const effectiveVatRate = isVatReg ? (data.vatRate !== undefined ? Number(data.vatRate) : (inv.vatRate !== undefined ? inv.vatRate : (company.vatRate ?? 15))) : 0;
+      const vatTotal = isVatReg
+        ? (data.vatTotal !== undefined ? Number(data.vatTotal) : ((subtotal - discountTotal) * (effectiveVatRate / 100)))
+        : 0;
+      const grandTotal = data.grandTotal !== undefined
+        ? Number(data.grandTotal)
+        : Math.round((subtotal - discountTotal + vatTotal) * 100) / 100;
+      const amountPaid = data.amountPaid !== undefined ? Number(data.amountPaid) : (inv.amountPaid || 0);
+      const balanceDue = Math.max(0, Math.round((grandTotal - amountPaid) * 100) / 100);
+
+      let status = data.status || inv.status || 'Draft';
+      if (amountPaid >= grandTotal && grandTotal > 0) status = 'Paid';
+      else if (amountPaid > 0 && amountPaid < grandTotal) status = 'Partial';
+
+      // Re-resolve Customer and Merchant Linkage
+      const targetCustId = data.customerId || inv.customerId;
+      const targetCustName = data.customerName || data.name || inv.customerName;
+      const targetTradingName = data.customerTradingName || data.company || inv.customerTradingName;
+      const targetMerchantId = data.merchantId || inv.merchantId;
+
+      const custObj = customers.find((c) =>
+        (targetCustId && targetCustId !== 'cust_temp' && c.id === targetCustId) ||
+        (targetCustName && (
+          c.registeredName.toLowerCase() === targetCustName.toLowerCase() ||
+          c.tradingName.toLowerCase() === targetCustName.toLowerCase()
+        )) ||
+        (targetTradingName && (
+          c.registeredName.toLowerCase() === targetTradingName.toLowerCase() ||
+          c.tradingName.toLowerCase() === targetTradingName.toLowerCase()
+        ))
+      );
+
+      const linkedMerchant = users.find((u) =>
+        u.role === 'merchant' && (
+          (targetMerchantId && u.id === targetMerchantId) ||
+          (custObj && (u.customerId === custObj.id || u.id === custObj.id)) ||
+          (targetCustId && targetCustId !== 'cust_temp' && (u.customerId === targetCustId || u.id === targetCustId)) ||
+          (targetCustName && (
+            (u.merchantStoreName && u.merchantStoreName.toLowerCase() === targetCustName.toLowerCase()) ||
+            (u.customerName && u.customerName.toLowerCase() === targetCustName.toLowerCase()) ||
+            (u.name && u.name.toLowerCase() === targetCustName.toLowerCase())
+          )) ||
+          (targetTradingName && (
+            (u.merchantStoreName && u.merchantStoreName.toLowerCase() === targetTradingName.toLowerCase()) ||
+            (u.customerName && u.customerName.toLowerCase() === targetTradingName.toLowerCase())
+          ))
+        )
+      );
+
+      const resolvedCustId = custObj?.id || (targetCustId && targetCustId !== 'cust_temp' ? targetCustId : null) || linkedMerchant?.customerId || linkedMerchant?.id || inv.customerId;
+      const resolvedCustName = targetCustName || custObj?.registeredName || linkedMerchant?.merchantStoreName || linkedMerchant?.name || inv.customerName;
+      const resolvedTradingName = targetTradingName || custObj?.tradingName || linkedMerchant?.merchantStoreName || inv.customerTradingName;
+      const resolvedMerchantId = data.merchantId || linkedMerchant?.id || inv.merchantId;
+      const resolvedMerchantName = data.merchantName || linkedMerchant?.merchantStoreName || linkedMerchant?.name || inv.merchantName;
+      const resolvedMerchantEmail = data.merchantEmail || linkedMerchant?.email || inv.merchantEmail;
+      const branchName = data.branchName || data.branch || custObj?.branches?.[0]?.branchName || linkedMerchant?.branch || inv.branchName || 'Main Branch';
+      const branchId = data.branchId || custObj?.branches?.[0]?.id || inv.branchId || branchName;
+
+      const updatedInv: Invoice = {
+        ...inv,
+        ...data,
+        customerId: resolvedCustId,
+        customerName: resolvedCustName,
+        customerTradingName: resolvedTradingName,
+        merchantId: resolvedMerchantId,
+        merchantName: resolvedMerchantName,
+        merchantEmail: resolvedMerchantEmail,
+        branchId,
+        branchName,
+        branch: branchName,
+        items,
+        subtotal: Math.round(subtotal * 100) / 100,
+        discount: discountPercent,
+        discountTotal: Math.round(discountTotal * 100) / 100,
+        vatRate: effectiveVatRate,
+        vatTotal: Math.round(vatTotal * 100) / 100,
+        grandTotal: Math.round(grandTotal * 100) / 100,
+        amountPaid: Math.round(amountPaid * 100) / 100,
+        balanceDue: Math.round(balanceDue * 100) / 100,
+        status,
+        updatedAt: new Date().toISOString(),
+      };
+
+      resInv = updatedInv;
+      return updatedInv;
     });
 
+    // Update any linked Delivery Note
+    if (resInv) {
+      const currentRes = resInv as Invoice;
+      if (currentRes.linkedDeliveryNoteId) {
+        nextDeliveryNotes = deliveryNotes.map((dn) => {
+          if (dn.id === currentRes.linkedDeliveryNoteId || dn.invoiceId === id) {
+            return {
+              ...dn,
+              customerName: currentRes.customerName,
+              branchName: currentRes.branchName || dn.branchName,
+              deliveryAddress: currentRes.deliveryAddress || dn.deliveryAddress,
+              merchantId: currentRes.merchantId || dn.merchantId,
+              merchantName: currentRes.merchantName || dn.merchantName,
+              items: (currentRes.items || []).map((it: any) => ({
+                id: it.id || 'dn_it_' + Math.random().toString(36).substring(2, 6),
+                sku: it.sku || '',
+                description: it.description || it.name || 'Artisanal item',
+                packSize: it.packSize || 'Standard',
+                quantityOrdered: Number(it.quantity) || 0,
+                quantityDelivered: Number(it.quantity) || 0,
+              })),
+            };
+          }
+          return dn;
+        });
+        setDeliveryNotes(nextDeliveryNotes);
+      }
+    }
+
     setInvoices(nextInvoices);
-    persistToLocal({ invoices: nextInvoices });
-    await syncToCloud({ invoices: nextInvoices });
+    persistToLocal({ invoices: nextInvoices, deliveryNotes: nextDeliveryNotes });
+    await syncToCloud({ invoices: nextInvoices, deliveryNotes: nextDeliveryNotes });
+
+    try {
+      safeFetchJson(`/api/invoices/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(resInv || data),
+      }).catch(() => {});
+    } catch {}
 
     return resInv || (data as Invoice);
   };

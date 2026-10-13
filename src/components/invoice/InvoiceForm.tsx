@@ -39,6 +39,8 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
     createInvoice,
     updateInvoice,
     products,
+    customers,
+    users,
   } = useERP();
 
   // Mode: edit form vs live preview
@@ -58,14 +60,21 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
   const [status, setStatus] = useState<Invoice['status']>(initialInvoice?.status || 'Draft');
 
   // Customer Data
-  const [customer, setCustomer] = useState<InvoiceCustomerData>({
+  const [customer, setCustomer] = useState<InvoiceCustomerData>(() => ({
+    id: initialInvoice?.customerId || initialInvoice?.customer?.id,
+    customerId: initialInvoice?.customerId || initialInvoice?.customer?.customerId,
+    merchantId: initialInvoice?.merchantId || initialInvoice?.customer?.merchantId,
+    merchantName: initialInvoice?.merchantName || initialInvoice?.customer?.merchantName,
+    branchId: initialInvoice?.branchId || initialInvoice?.customer?.branchId,
+    branchName: initialInvoice?.branchName || initialInvoice?.customer?.branchName,
+    vatNumber: initialInvoice?.customerVat || initialInvoice?.customer?.vatNumber,
     name: initialInvoice?.customer?.name || initialInvoice?.customerName || '',
     company: initialInvoice?.customer?.company || initialInvoice?.customerTradingName || '',
     contactPerson: initialInvoice?.customer?.contactPerson || initialInvoice?.contactPerson || '',
     phone: initialInvoice?.customer?.phone || initialInvoice?.customerPhone || '',
     email: initialInvoice?.customer?.email || initialInvoice?.customerEmail || '',
     address: initialInvoice?.customer?.address || initialInvoice?.deliveryAddress || '',
-  });
+  }));
 
   const isVatRegistered = Boolean(businessSettings.vatNumber && businessSettings.vatNumber.trim() !== '');
   const defaultVatRate = isVatRegistered ? (businessSettings.vatRate ?? 15) : 0;
@@ -174,6 +183,38 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
     setItems(items.filter((it) => it.id !== id));
   };
 
+  // Resolve customer and merchant linkages
+  const linkedCust = (customers || []).find((c) =>
+    (customer.customerId && customer.customerId !== 'cust_temp' && c.id === customer.customerId) ||
+    (customer.id && customer.id !== 'cust_temp' && c.id === customer.id) ||
+    (customer.name && (c.registeredName.toLowerCase() === customer.name.toLowerCase() || c.tradingName.toLowerCase() === customer.name.toLowerCase())) ||
+    (customer.company && (c.registeredName.toLowerCase() === customer.company.toLowerCase() || c.tradingName.toLowerCase() === customer.company.toLowerCase()))
+  );
+
+  const linkedMerchant = (users || []).find((u) =>
+    u.role === 'merchant' && (
+      (customer.merchantId && u.id === customer.merchantId) ||
+      (linkedCust && (u.customerId === linkedCust.id || u.id === linkedCust.id)) ||
+      (customer.customerId && customer.customerId !== 'cust_temp' && (u.customerId === customer.customerId || u.id === customer.customerId)) ||
+      (customer.name && (
+        (u.merchantStoreName && u.merchantStoreName.toLowerCase() === customer.name.toLowerCase()) ||
+        (u.customerName && u.customerName.toLowerCase() === customer.name.toLowerCase()) ||
+        (u.name && u.name.toLowerCase() === customer.name.toLowerCase())
+      )) ||
+      (customer.company && (
+        (u.merchantStoreName && u.merchantStoreName.toLowerCase() === customer.company.toLowerCase()) ||
+        (u.customerName && u.customerName.toLowerCase() === customer.company.toLowerCase())
+      ))
+    )
+  );
+
+  const resolvedCustomerId = linkedCust?.id || (customer.customerId && customer.customerId !== 'cust_temp' ? customer.customerId : null) || (customer.id && customer.id !== 'cust_temp' ? customer.id : null) || linkedMerchant?.customerId || linkedMerchant?.id || initialInvoice?.customerId || 'cust_' + Date.now();
+  const resolvedCustomerName = customer.name || customer.company || linkedCust?.registeredName || linkedMerchant?.merchantStoreName || linkedMerchant?.name || 'Valued Client';
+  const resolvedTradingName = customer.company || customer.name || linkedCust?.tradingName || linkedMerchant?.merchantStoreName || resolvedCustomerName;
+  const resolvedMerchantId = customer.merchantId || linkedMerchant?.id || initialInvoice?.merchantId;
+  const resolvedMerchantName = customer.merchantName || linkedMerchant?.merchantStoreName || linkedMerchant?.name || initialInvoice?.merchantName;
+  const resolvedMerchantEmail = linkedMerchant?.email || initialInvoice?.merchantEmail;
+
   // Build full Invoice object for preview & saving
   const previewInvoice: Invoice = {
     id: initialInvoice?.id || 'inv_' + Date.now(),
@@ -181,19 +222,20 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
     date,
     issueDate: date,
     dueDate,
-    customerId: customer.customerId || customer.id || initialInvoice?.customerId || 'cust_temp',
-    customerName: customer.name || customer.company || 'Valued Client',
-    customerTradingName: customer.company || customer.name || 'Valued Client',
+    customerId: resolvedCustomerId,
+    customerName: resolvedCustomerName,
+    customerTradingName: resolvedTradingName,
     customer,
     contactPerson: customer.contactPerson,
     customerPhone: customer.phone,
     customerEmail: customer.email,
-    deliveryAddress: customer.address || '',
-    customerVat: customer.vatNumber || initialInvoice?.customerVat || '',
-    branchId: customer.branchId || initialInvoice?.branchId,
-    branchName: customer.branchName || initialInvoice?.branchName,
-    merchantId: customer.merchantId || initialInvoice?.merchantId,
-    merchantName: customer.merchantName || initialInvoice?.merchantName,
+    deliveryAddress: customer.address || linkedCust?.branches?.[0]?.deliveryAddress || '',
+    customerVat: customer.vatNumber || linkedCust?.vatNumber || initialInvoice?.customerVat || '',
+    branchId: customer.branchId || linkedCust?.branches?.[0]?.id || initialInvoice?.branchId,
+    branchName: customer.branchName || linkedCust?.branches?.[0]?.branchName || initialInvoice?.branchName,
+    merchantId: resolvedMerchantId,
+    merchantName: resolvedMerchantName,
+    merchantEmail: resolvedMerchantEmail,
     items,
     subtotal,
     discount: discountPercent,

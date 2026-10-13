@@ -42,6 +42,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
     products,
     company,
     currentUser,
+    users,
     createInvoice,
     updateInvoice,
     cloneInvoice,
@@ -49,6 +50,8 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
     deleteInvoice,
     recordPayment,
   } = useERP();
+
+  const merchants = (users || []).filter((u) => u.role === 'merchant');
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState(initialStatusFilter || 'ALL');
@@ -107,8 +110,33 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
 
   const openEditModal = (inv: Invoice) => {
     setEditingInvoice(inv);
+    let resolvedCustId = inv.customerId;
+    const matchCust = customers.find(
+      (c) =>
+        c.id === inv.customerId ||
+        (inv.customerName && (c.registeredName.toLowerCase() === inv.customerName.toLowerCase() || c.tradingName.toLowerCase() === inv.customerName.toLowerCase())) ||
+        (inv.customerTradingName && (c.registeredName.toLowerCase() === inv.customerTradingName.toLowerCase() || c.tradingName.toLowerCase() === inv.customerTradingName.toLowerCase()))
+    );
+    if (matchCust) {
+      resolvedCustId = matchCust.id;
+    } else {
+      const matchMerchant = merchants.find(
+        (m) =>
+          m.id === inv.merchantId ||
+          m.id === inv.customerId ||
+          m.customerId === inv.customerId ||
+          (inv.customerName && (
+            (m.merchantStoreName && m.merchantStoreName.toLowerCase() === inv.customerName.toLowerCase()) ||
+            (m.name && m.name.toLowerCase() === inv.customerName.toLowerCase())
+          ))
+      );
+      if (matchMerchant) {
+        resolvedCustId = matchMerchant.customerId || matchMerchant.id;
+      }
+    }
+
     setFormData({
-      customerId: inv.customerId,
+      customerId: resolvedCustId || '',
       branchId: inv.branchId || '',
       issueDate: inv.issueDate,
       dueDate: inv.dueDate,
@@ -122,10 +150,11 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
 
   const handleCustomerChange = (custId: string) => {
     const cust = customers.find((c) => c.id === custId);
+    const merchant = merchants.find((m) => m.id === custId || m.customerId === custId);
     setFormData((prev) => ({
       ...prev,
-      customerId: custId,
-      branchId: cust?.branches?.[0]?.id || '',
+      customerId: cust?.id || merchant?.customerId || custId,
+      branchId: cust?.branches?.[0]?.id || merchant?.branch || '',
     }));
   };
 
@@ -224,6 +253,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
     }
 
     const cust = customers.find((c) => c.id === formData.customerId);
+    const merchant = merchants.find((m) => m.id === formData.customerId || m.customerId === formData.customerId);
     const branch = cust?.branches.find((b) => b.id === formData.branchId);
 
     setIsSubmitting(true);
@@ -232,13 +262,16 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
     try {
       if (editingInvoice) {
         await updateInvoice(editingInvoice.id, {
-          customerId: cust?.id,
-          customerName: cust?.registeredName,
-          customerTradingName: cust?.tradingName,
-          branchId: branch?.id,
-          branchName: branch?.branchName,
-          deliveryAddress: branch?.deliveryAddress || 'Standard Delivery',
-          customerVat: cust?.vatNumber,
+          customerId: cust?.id || merchant?.customerId || formData.customerId,
+          customerName: cust?.registeredName || merchant?.merchantStoreName || merchant?.name || editingInvoice.customerName,
+          customerTradingName: cust?.tradingName || merchant?.merchantStoreName || editingInvoice.customerTradingName,
+          merchantId: merchant?.id || editingInvoice.merchantId,
+          merchantName: merchant?.merchantStoreName || merchant?.name || editingInvoice.merchantName,
+          merchantEmail: merchant?.email || editingInvoice.merchantEmail,
+          branchId: branch?.id || merchant?.branch || formData.branchId,
+          branchName: branch?.branchName || merchant?.branch || editingInvoice.branchName,
+          deliveryAddress: branch?.deliveryAddress || merchant?.merchantAddress || editingInvoice.deliveryAddress || 'Standard Delivery',
+          customerVat: cust?.vatNumber || editingInvoice.customerVat,
           issueDate: formData.issueDate,
           dueDate: formData.dueDate,
           items: formData.items,
@@ -246,12 +279,15 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
         });
       } else {
         await createInvoice({
-          customerId: cust?.id,
-          customerName: cust?.registeredName,
-          customerTradingName: cust?.tradingName,
-          branchId: branch?.id,
-          branchName: branch?.branchName,
-          deliveryAddress: branch?.deliveryAddress || 'Standard Delivery',
+          customerId: cust?.id || merchant?.customerId || formData.customerId,
+          customerName: cust?.registeredName || merchant?.merchantStoreName || merchant?.name,
+          customerTradingName: cust?.tradingName || merchant?.merchantStoreName,
+          merchantId: merchant?.id,
+          merchantName: merchant?.merchantStoreName || merchant?.name,
+          merchantEmail: merchant?.email,
+          branchId: branch?.id || merchant?.branch || formData.branchId,
+          branchName: branch?.branchName || merchant?.branch || 'Main Branch',
+          deliveryAddress: branch?.deliveryAddress || merchant?.merchantAddress || 'Standard Delivery',
           customerVat: cust?.vatNumber,
           issueDate: formData.issueDate,
           dueDate: formData.dueDate,
@@ -629,12 +665,25 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                     required
                     className="w-full px-3 py-2 text-xs bg-neutral-800 border border-neutral-700 rounded-md text-white focus:outline-hidden focus:border-[#C98A5B]"
                   >
-                    <option value="">Select a Customer...</option>
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.registeredName} ({c.accountCode})
-                      </option>
-                    ))}
+                    <option value="">Select Customer or Merchant Store...</option>
+                    {customers.length > 0 && (
+                      <optgroup label="Registered Customers">
+                        {customers.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.registeredName} ({c.accountCode || c.tradingName || 'Customer'})
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {merchants.length > 0 && (
+                      <optgroup label="Approved Merchant Accounts">
+                        {merchants.map((m) => (
+                          <option key={m.id} value={m.customerId || m.id}>
+                            {m.merchantStoreName || m.name} (Merchant: {m.email})
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
                 </div>
 
