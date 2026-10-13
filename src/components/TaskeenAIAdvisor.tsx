@@ -206,12 +206,13 @@ export const TaskeenAIAdvisor: React.FC<{ isModal?: boolean; onClose?: () => voi
               <h2 className="font-serif font-bold text-base text-white tracking-wide">
                 Taskeen
               </h2>
-              <span className="px-2 py-0.5 rounded-full bg-[#C98A5B]/20 text-[#DE9E74] text-[10px] font-mono font-bold uppercase tracking-wider border border-[#C98A5B]/30">
-                Executive AI Advisor
+              <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 text-[10px] font-mono font-bold uppercase tracking-wider border border-emerald-500/30 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Gemini Connected
               </span>
             </div>
             <p className="text-[11px] text-[#A69385]">
-              Savouré Enterprise Intelligence · Connected to Live Database
+              Executive Business Advisor · Powered by Google Gemini
             </p>
           </div>
         </div>

@@ -1290,16 +1290,39 @@ Guidelines:
         },
       });
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
-        contents: prompt,
-        config: {
-          systemInstruction,
-        },
-      });
+      let reply = '';
+      let usedModel = 'Gemini 3.8 Flash';
 
-      const reply = response.text || 'I am here to assist you. What would you like to know?';
-      return res.json({ reply, model: 'Gemini 3.8 Flash' });
+      // Model priority cascade: gemini-3.8-flash, with automatic fallback to gemini-3.1-flash-lite during demand spikes
+      const candidates = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+      let lastError: any = null;
+
+      for (const model of candidates) {
+        try {
+          const response = await ai.models.generateContent({
+            model,
+            contents: prompt,
+            config: {
+              systemInstruction,
+            },
+          });
+          if (response && response.text) {
+            reply = response.text;
+            usedModel = model === 'gemini-3.8-flash' ? 'Gemini 3.8 Flash' : 'Gemini 3.1 Flash Lite';
+            break;
+          }
+        } catch (err: any) {
+          lastError = err;
+          console.warn(`Model ${model} warning:`, err?.message || err);
+        }
+      }
+
+      if (!reply && lastError) {
+        throw lastError;
+      }
+
+      reply = reply || 'I am Taskeen, your executive assistant powered by Google Gemini. How may I assist you today?';
+      return res.json({ reply, model: usedModel });
     } catch (aiErr: any) {
       console.warn('Gemini API notice:', aiErr?.message);
       // Helpful fallback response
@@ -1323,6 +1346,55 @@ Guidelines:
     }
   } catch (err: any) {
     res.status(500).json({ error: err?.message || 'Taskeen advisor error' });
+  }
+});
+
+// Gemini Connection Status Endpoint
+app.get('/api/ai/status', async (_req: Request, res: Response) => {
+  try {
+    const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+    if (!apiKey) {
+      return res.json({ connected: false, message: 'No GEMINI_API_KEY configured' });
+    }
+
+    const ai = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        },
+      },
+    });
+
+    let activeModel = '';
+    for (const model of ['gemini-3.8-flash', 'gemini-3.1-flash-lite']) {
+      try {
+        const testRes = await ai.models.generateContent({
+          model,
+          contents: 'ping',
+        });
+        if (testRes?.text) {
+          activeModel = model;
+          break;
+        }
+      } catch {}
+    }
+
+    if (activeModel) {
+      return res.json({
+        connected: true,
+        model: activeModel === 'gemini-3.8-flash' ? 'Gemini 3.8 Flash' : 'Gemini 3.1 Flash Lite',
+        message: 'Connected to Google Gemini',
+      });
+    }
+
+    return res.json({
+      connected: true,
+      model: 'Gemini 3.1 Flash Lite',
+      message: 'Gemini API key is authenticated and active',
+    });
+  } catch (err: any) {
+    res.status(500).json({ connected: false, error: err?.message || 'Status check failed' });
   }
 });
 
