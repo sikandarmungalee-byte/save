@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { ERPDatabase, User, CompanySettings, Customer } from '../src/types/erp';
+import { ERPDatabase, User, CompanySettings } from '../src/types/erp';
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const DB_FILE = path.resolve(DATA_DIR, 'erp-database.json');
@@ -50,68 +50,13 @@ export const MASTER_ADMIN_USER: User = {
   lastLogin: new Date().toISOString(),
 };
 
-export const SOUTHERN_AMBISION_CUSTOMER: Customer = {
-  id: 'cust_1791911619388',
-  registeredName: 'Southern Ambision 1390 CC',
-  tradingName: 'TBC',
-  accountCode: 'ROKSH4',
-  registrationNumber: '2007/140641/23',
-  vatNumber: '',
-  primaryContact: 'ROOKSHANA',
-  primaryPhone: '0719153630',
-  primaryEmail: 'ROOKSHANAL@ICLOUD.COM',
-  branches: [
-    {
-      id: 'br_1791911619388',
-      branchName: 'Main / HQ',
-      deliveryAddress: '',
-      contactPerson: 'ROOKSHANA',
-      phone: '0719153630',
-      email: 'ROOKSHANAL@ICLOUD.COM',
-    },
-  ],
-  creditLimit: 50000,
-  paymentTermsDays: 7,
-  notes: '',
-  documents: [],
-  createdAt: '2026-10-13T17:13:39.388Z',
-};
-
-export const ROOKSHANA_MERCHANT_USER: User = {
-  id: 'usr_1791911737847',
-  name: 'ROOKSHANA',
-  email: 'rookshanal@icloud.com',
-  password: 'Shazia',
-  role: 'merchant',
-  customerId: 'cust_1791911619388',
-  merchantStoreName: 'TBC',
-  merchantPhone: '0719153630',
-  status: 'active',
-  permissions: {
-    manageUsers: false,
-    invoices: true,
-    deliveryNotes: true,
-    quotations: false,
-    payments: false,
-    customers: false,
-    catalog: false,
-    reports: false,
-    crmLeads: false,
-    databaseExplorer: false,
-    companySettings: false,
-    merchants: false,
-  },
-  createdAt: '2026-10-13T17:15:37.847Z',
-  lastLogin: '2026-10-13T17:15:37.847Z',
-};
-
-export const CLEAN_USERS: User[] = [MASTER_ADMIN_USER, ROOKSHANA_MERCHANT_USER];
+export const CLEAN_USERS: User[] = [MASTER_ADMIN_USER];
 
 export function getCleanEmptyDatabase(): ERPDatabase {
   return {
-    users: [MASTER_ADMIN_USER, ROOKSHANA_MERCHANT_USER],
+    users: [MASTER_ADMIN_USER],
     company: CLEAN_COMPANY,
-    customers: [SOUTHERN_AMBISION_CUSTOMER],
+    customers: [],
     products: [],
     categories: [],
     invoices: [],

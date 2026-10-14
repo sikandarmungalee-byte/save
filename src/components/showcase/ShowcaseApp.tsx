@@ -30,10 +30,8 @@ export const ShowcaseApp: React.FC<ShowcaseAppProps> = ({ onOpenAdmin }) => {
         return (
           <ShowcaseMerchantLoginPage
             onNavigate={(tab) => setCurrentTab(tab === 'merchant-login' ? 'merchant-login' : 'home')}
-            onLoginSuccess={(loggedInUser) => {
-              if (loggedInUser && loggedInUser.role !== 'merchant') {
-                onOpenAdmin();
-              }
+            onLoginSuccess={() => {
+              // Upon successful login, state updates and if user is merchant it transitions automatically
             }}
           />
         );
@@ -50,7 +48,6 @@ export const ShowcaseApp: React.FC<ShowcaseAppProps> = ({ onOpenAdmin }) => {
         currentTab={currentTab}
         onNavigate={(tab) => setCurrentTab(tab === 'merchant-login' ? 'merchant-login' : 'home')}
         onOpenMerchantLogin={() => setCurrentTab('merchant-login')}
-        onOpenAdmin={onOpenAdmin}
       />
 
       {/* Main Viewport: Fancy Coming Soon Page + Contact Card, or Merchant Login */}

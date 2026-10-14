@@ -4,7 +4,7 @@ import { useERP } from '../../context/ERPContext';
 
 interface ShowcaseMerchantLoginPageProps {
   onNavigate: (tab: string) => void;
-  onLoginSuccess: (user?: any) => void;
+  onLoginSuccess: () => void;
 }
 
 export const ShowcaseMerchantLoginPage: React.FC<ShowcaseMerchantLoginPageProps> = ({
@@ -28,8 +28,8 @@ export const ShowcaseMerchantLoginPage: React.FC<ShowcaseMerchantLoginPageProps>
     setError(null);
 
     try {
-      const authenticatedUser = await login(identifier.trim(), password.trim());
-      onLoginSuccess(authenticatedUser);
+      await login(identifier.trim(), password.trim());
+      onLoginSuccess();
     } catch (err: any) {
       setError(err.message || 'Invalid credentials. Please verify your details or contact your branch administrator.');
     } finally {
