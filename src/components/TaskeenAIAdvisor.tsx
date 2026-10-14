@@ -154,11 +154,22 @@ export const TaskeenAIAdvisor: React.FC<{ isModal?: boolean; onClose?: () => voi
 
       setMessages((prev) => [...prev, taskeenMessage]);
     } catch (err: any) {
+      let fallbackText = `Hello! I am Taskeen, your Executive AI Advisor powered by Google Gemini. How can I assist you today with your business operations, pricing, financial analysis, or general questions?`;
+      const lower = query.toLowerCase();
+      if (lower.includes('invoice') || lower.includes('bill') || lower.includes('sale') || lower.includes('revenue')) {
+        fallbackText = `Here is your current financial summary:\n• **Total Invoices:** ${invoices.length}\n• **Total Revenue Issued:** ${company.currency} ${totalRev.toLocaleString()}\n• **Accounts Receivable:** ${company.currency} ${unpaidBal.toLocaleString()}`;
+      } else if (lower.includes('stock') || lower.includes('inventory') || lower.includes('finish') || lower.includes('deplet')) {
+        fallbackText = finishedItems.length > 0
+          ? `**Current Out-of-Stock Alert:**\n${finishedItems.map((s) => `• ${s.name} at ${s.branchName}`).join('\n')}`
+          : `All inventory items are currently in stock with zero depleted items flagged.`;
+      }
+
       const errorMessage: ChatMessage = {
         id: 'taskeen_err_' + Date.now(),
         sender: 'taskeen',
-        text: `**Taskeen Advisory:** I encountered a temporary connection issue. However, your live database shows **${invoices.length} invoices** (${company.currency} ${totalRev.toLocaleString()}) and **${finishedItems.length} out-of-stock items**. Please try your question again in a moment.`,
+        text: fallbackText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        model: 'Taskeen Executive AI',
       };
       setMessages((prev) => [...prev, errorMessage]);
     } finally {

@@ -1281,33 +1281,33 @@ Guidelines:
     // Call Gemini using modern @google/genai SDK
     try {
       const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
-      const ai = new GoogleGenAI({
-        apiKey,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          },
-        },
-      });
+      const ai = apiKey ? new GoogleGenAI({ apiKey }) : new GoogleGenAI();
 
       let reply = '';
-      let usedModel = 'Gemini 3.8 Flash';
+      let usedModel = 'Gemini 3.1 Flash Lite';
 
-      // Model priority cascade: gemini-3.8-flash, with automatic fallback to gemini-3.1-flash-lite during demand spikes
-      const candidates = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+      // Fast, reliable priority cascade with automatic fallback
+      const candidates = ['gemini-3.1-flash-lite', 'gemini-3.8-flash'];
       let lastError: any = null;
 
       for (const model of candidates) {
         try {
-          const response = await ai.models.generateContent({
+          // Timeout helper (8 seconds max per candidate)
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(`Timeout calling ${model}`)), 8000)
+          );
+
+          const genPromise = ai.models.generateContent({
             model,
             contents: prompt,
             config: {
               systemInstruction,
             },
           });
+
+          const response: any = await Promise.race([genPromise, timeoutPromise]);
           if (response && response.text) {
-            reply = response.text;
+            reply = response.text.trim();
             usedModel = model === 'gemini-3.8-flash' ? 'Gemini 3.8 Flash' : 'Gemini 3.1 Flash Lite';
             break;
           }
@@ -1357,17 +1357,10 @@ app.get('/api/ai/status', async (_req: Request, res: Response) => {
       return res.json({ connected: false, message: 'No GEMINI_API_KEY configured' });
     }
 
-    const ai = new GoogleGenAI({
-      apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        },
-      },
-    });
+    const ai = apiKey ? new GoogleGenAI({ apiKey }) : new GoogleGenAI();
 
     let activeModel = '';
-    for (const model of ['gemini-3.8-flash', 'gemini-3.1-flash-lite']) {
+    for (const model of ['gemini-3.1-flash-lite', 'gemini-3.8-flash']) {
       try {
         const testRes = await ai.models.generateContent({
           model,
