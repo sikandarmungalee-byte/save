@@ -107,6 +107,19 @@ export const ShowcaseMerchantLoginPage: React.FC<ShowcaseMerchantLoginPageProps>
               <span>Log in to Merchant Portal</span>
             )}
           </button>
+
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                setIdentifier('roksh4');
+                setPassword('ROKSH4');
+              }}
+              className="w-full py-2 px-3 rounded-lg border border-stone-200 bg-stone-50 hover:bg-stone-100 text-stone-600 hover:text-[#2B150A] text-xs font-mono transition-colors flex items-center justify-center gap-1.5"
+            >
+              <span>Quick Login: Southern Ambision 1390 CC (roksh4)</span>
+            </button>
+          </div>
         </form>
 
         <p className="mt-6 text-center text-xs leading-5 text-stone-500">

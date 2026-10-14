@@ -250,6 +250,7 @@ export interface DeliveryNote {
   branchName: string;
   merchantId?: string;
   merchantName?: string;
+  merchantEmail?: string;
   deliveryAddress: string;
   recipientName: string;
   recipientPhone: string;
