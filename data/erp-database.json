@@ -108,13 +108,170 @@
   "payments": [],
   "journalEntries": [],
   "stockPurchases": [],
-  "stockItemStatuses": [],
+  "stockItemStatuses": [
+    {
+      "id": "stk_01",
+      "sku": "SAV-SPR-001",
+      "barcode": "6009800123012",
+      "name": "Savouré Spring Roll Pastry (20cm / 200g)",
+      "category": "Pastry Sheets",
+      "branchName": "Main Bakery",
+      "quantityOnHand": 450,
+      "unit": "packs",
+      "isFinished": false,
+      "minThreshold": 50,
+      "updatedAt": "2026-10-15T12:27:42.348Z"
+    },
+    {
+      "id": "stk_02",
+      "sku": "SAV-SAM-002",
+      "barcode": "6001007012342",
+      "name": "Savouré Crispy Samoosa Pastry Sheets (500g)",
+      "category": "Pastry Sheets",
+      "branchName": "Main Bakery",
+      "quantityOnHand": 320,
+      "unit": "packs",
+      "isFinished": false,
+      "minThreshold": 40,
+      "updatedAt": "2026-10-15T12:27:42.348Z"
+    },
+    {
+      "id": "stk_03",
+      "sku": "SAV-TOR-003",
+      "barcode": "6009612345672",
+      "name": "Savouré Artisanal Flour Tortilla Wraps (8 Pack)",
+      "category": "Tortillas & Wraps",
+      "branchName": "Sandton Branch",
+      "quantityOnHand": 280,
+      "unit": "packs",
+      "isFinished": false,
+      "minThreshold": 30,
+      "updatedAt": "2026-10-15T12:27:42.348Z"
+    },
+    {
+      "id": "stk_04",
+      "sku": "SAV-ROT-004",
+      "barcode": "6002100987650",
+      "name": "Savouré Traditional Flaky Roti (5 Pack / 400g)",
+      "category": "Artisanal Roti",
+      "branchName": "Rosebank Branch",
+      "quantityOnHand": 190,
+      "unit": "packs",
+      "isFinished": false,
+      "minThreshold": 25,
+      "updatedAt": "2026-10-15T12:27:42.348Z"
+    },
+    {
+      "id": "stk_05",
+      "sku": "MAT-FLOUR-01",
+      "barcode": "6001234567899",
+      "name": "Golden Supreme Cake & Pastry Flour (25kg)",
+      "category": "Flour & Grains",
+      "branchName": "Main Bakery",
+      "quantityOnHand": 65,
+      "unit": "bags (25kg)",
+      "isFinished": false,
+      "minThreshold": 10,
+      "updatedAt": "2026-10-15T12:27:42.348Z"
+    },
+    {
+      "id": "stk_06",
+      "sku": "MAT-OIL-02",
+      "barcode": "6009876543219",
+      "name": "Pure Sunflower Frying Oil (20L Drum)",
+      "category": "Oils & Fats",
+      "branchName": "Main Bakery",
+      "quantityOnHand": 28,
+      "unit": "drums (20L)",
+      "isFinished": false,
+      "minThreshold": 5,
+      "updatedAt": "2026-10-15T12:27:42.348Z"
+    }
+  ],
   "payrollPayouts": [],
   "staff": [],
   "leads": [],
   "communications": [],
-  "products": [],
+  "products": [
+    {
+      "id": "prod_spring_roll",
+      "sku": "SAV-SPR-001",
+      "name": "Savouré Spring Roll Pastry (20cm / 200g)",
+      "category": "Pastry Sheets",
+      "price": 45,
+      "stockOnHand": 450,
+      "vatApplicable": true,
+      "barcode": "6009800123012"
+    },
+    {
+      "id": "prod_samoosa",
+      "sku": "SAV-SAM-002",
+      "name": "Savouré Crispy Samoosa Pastry Sheets (500g)",
+      "category": "Pastry Sheets",
+      "price": 52.5,
+      "stockOnHand": 320,
+      "vatApplicable": true,
+      "barcode": "6001007012342"
+    },
+    {
+      "id": "prod_tortilla",
+      "sku": "SAV-TOR-003",
+      "name": "Savouré Artisanal Flour Tortilla Wraps (8 Pack)",
+      "category": "Tortillas & Wraps",
+      "price": 38,
+      "stockOnHand": 280,
+      "vatApplicable": true,
+      "barcode": "6009612345672"
+    },
+    {
+      "id": "prod_roti",
+      "sku": "SAV-ROT-004",
+      "name": "Savouré Traditional Flaky Roti (5 Pack / 400g)",
+      "category": "Artisanal Roti",
+      "price": 42,
+      "stockOnHand": 190,
+      "vatApplicable": true,
+      "barcode": "6002100987650"
+    }
+  ],
   "categories": [],
   "loginLogs": [],
-  "lastUpdated": "2026-10-14T07:31:59.540Z"
+  "lastUpdated": "2026-10-14T07:31:59.540Z",
+  "stockMovements": [
+    {
+      "id": "sm_init_1",
+      "movementNumber": "SM-2026-0001",
+      "timestamp": "2026-10-15T08:27:42.348Z",
+      "type": "STOCK_IN",
+      "barcode": "6009800123012",
+      "sku": "SAV-SPR-001",
+      "productName": "Savouré Spring Roll Pastry (20cm / 200g)",
+      "category": "Pastry Sheets",
+      "quantity": 150,
+      "unit": "packs",
+      "sourceBranch": "Main Bakery",
+      "batchNumber": "BATCH-20261015-A",
+      "reason": "Morning production line pack run",
+      "recordedBy": "Master Admin",
+      "isSouthAfricanBarcode": true
+    },
+    {
+      "id": "sm_init_2",
+      "movementNumber": "SM-2026-0002",
+      "timestamp": "2026-10-15T10:27:42.348Z",
+      "type": "TRANSFER",
+      "barcode": "6001007012342",
+      "sku": "SAV-SAM-002",
+      "productName": "Savouré Crispy Samoosa Pastry Sheets (500g)",
+      "category": "Pastry Sheets",
+      "quantity": 50,
+      "unit": "packs",
+      "sourceBranch": "Main Bakery",
+      "destinationBranch": "Sandton Branch",
+      "batchNumber": "BATCH-20261015-B",
+      "reason": "Inter-branch stock rebalancing order",
+      "recordedBy": "Master Admin",
+      "isSouthAfricanBarcode": true
+    }
+  ]
 }

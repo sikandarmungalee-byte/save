@@ -170,6 +170,10 @@ export interface Product {
   vatApplicable: boolean;
   stockOnHand: number;
   barcode?: string; // South African EAN-13 (prefix 600/601) or SKU
+  showcase?: boolean; // Featured on public showcase website
+  description?: string; // Showcase display description
+  badge?: string; // Highlight badge (e.g. "Best Seller", "Signature")
+  packagingType?: 'dozen' | 'pack' | 'carton';
 }
 
 export interface LineItem {

@@ -160,9 +160,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ onGoToWebsite }) => {
         return (
           <StockCapturingView
             key={currentSubcategoryId || 'stock'}
-            initialTab={targetConfig.initialTab || 'purchases'}
+            initialTab={targetConfig.initialTab || 'movements'}
             initialStatusFilter={targetConfig.initialStatusFilter || 'ALL'}
             initialOpenCreate={Boolean(targetConfig.initialOpenCreate)}
+            initialOpenScanner={Boolean(targetConfig.initialOpenScanner)}
           />
         );
 

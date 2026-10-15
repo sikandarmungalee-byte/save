@@ -16,6 +16,7 @@ import {
   PayrollPayout,
   StockPurchase,
   StockItemStatus,
+  StockMovement,
   JournalEntry,
   UserLoginLog
 } from '../types/erp';
@@ -167,6 +168,192 @@ export const INITIAL_ROOKSHANA_USER: User = {
   lastLogin: '2026-10-13T17:15:37.847Z',
 };
 
+// Default South African GS1 Barcode Products (Prefix 600 / 601)
+export const INITIAL_SAVOURE_PRODUCTS: Product[] = [
+  {
+    id: 'prod_spring_roll',
+    sku: 'SAV-SPR-001',
+    name: 'Savouré Spring Roll Pastry (20cm / 200g)',
+    category: 'Pastry Sheets',
+    packSize: 'Pack of 30 Sheets',
+    physicalSize: 'Standard 20cm',
+    unitPrice: 42.50,
+    costPrice: 22.00,
+    vatApplicable: false,
+    stockOnHand: 480,
+    barcode: '6009800123012',
+    showcase: true,
+    description: 'Ultra-thin, non-porous crispy pastry sheets engineered for restaurant-grade spring rolls. Crisps to a golden amber finish without absorbing grease.',
+    badge: 'Chef Favorite',
+    packagingType: 'dozen',
+  },
+  {
+    id: 'prod_samoosa_pastry',
+    sku: 'SAV-SAM-002',
+    name: 'Savouré Crispy Samoosa Pastry Sheets (500g)',
+    category: 'Pastry Sheets',
+    packSize: 'Pack of 50 Strips',
+    physicalSize: 'Standard 7x25cm',
+    unitPrice: 48.00,
+    costPrice: 24.50,
+    vatApplicable: false,
+    stockOnHand: 650,
+    barcode: '6001007012342',
+    showcase: true,
+    description: 'Traditional tissue-thin folded samoosa leaves. Separates effortlessly, holds fillings securely, and achieves an unforgettable flaky crackle.',
+    badge: 'Best Seller',
+    packagingType: 'dozen',
+  },
+  {
+    id: 'prod_flaky_roti',
+    sku: 'SAV-ROT-003',
+    name: 'Savouré Hand-Rolled Flaky Roti (Pack of 6)',
+    category: 'Artisanal Roti',
+    packSize: 'Pack of 6 Rotis',
+    physicalSize: '22cm Round',
+    unitPrice: 38.00,
+    costPrice: 19.00,
+    vatApplicable: false,
+    stockOnHand: 320,
+    barcode: '6009612345671',
+    showcase: true,
+    description: 'Authentic layered Cape Malay & Durban style flaky rotis. Hand-stretched with pure clarified butter for extraordinary tender layers.',
+    badge: 'Artisanal Classic',
+    packagingType: 'dozen',
+  },
+  {
+    id: 'prod_tortilla_wraps',
+    sku: 'SAV-TOR-004',
+    name: 'Savouré Stone-Ground Tortilla Wraps 30cm (Pack of 12)',
+    category: 'Tortillas & Wraps',
+    packSize: 'Pack of 12 Wraps',
+    physicalSize: 'Large 30cm',
+    unitPrice: 54.00,
+    costPrice: 28.00,
+    vatApplicable: false,
+    stockOnHand: 410,
+    barcode: '6002100987650',
+    showcase: true,
+    description: 'Soft-fold stone-ground flour tortillas. Roll tight without cracking or tearing, perfect for Mexican dining, shawarmas, and deli wraps.',
+    badge: 'Wholesale Hero',
+    packagingType: 'pack',
+  },
+];
+
+export const INITIAL_STOCK_ITEM_STATUSES: StockItemStatus[] = [
+  {
+    id: 'stk_flour_supreme',
+    sku: 'RAW-FLR-001',
+    barcode: '6001234567899',
+    name: 'Supreme Unbleached Pastry Flour (25kg)',
+    category: 'Flour & Grains',
+    branchName: 'Main Bakery',
+    quantityOnHand: 140,
+    unit: 'bags (25kg)',
+    isFinished: false,
+    minThreshold: 20,
+    notes: 'Premium cake and laminating flour from Premier FMCG (GS1 SA)',
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'stk_sunflower_oil',
+    sku: 'RAW-OIL-002',
+    barcode: '6009876543219',
+    name: 'Pure Sunflower Frying & Laminating Oil (20L)',
+    category: 'Oils & Fats',
+    branchName: 'Main Bakery',
+    quantityOnHand: 45,
+    unit: 'drums (20L)',
+    isFinished: false,
+    minThreshold: 10,
+    notes: 'High-smoke-point pure vegetable oil',
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'stk_finished_spring_roll',
+    sku: 'SAV-SPR-001',
+    barcode: '6009800123012',
+    name: 'Savouré Spring Roll Pastry (20cm / 200g)',
+    category: 'Pastry Sheets',
+    branchName: 'Main Bakery',
+    quantityOnHand: 350,
+    unit: 'packs',
+    isFinished: false,
+    minThreshold: 50,
+    notes: 'Freshly rolled and blast chilled at Main Bakery',
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'stk_finished_samoosa',
+    sku: 'SAV-SAM-002',
+    barcode: '6001007012342',
+    name: 'Savouré Crispy Samoosa Pastry Sheets (500g)',
+    category: 'Pastry Sheets',
+    branchName: 'Main Bakery',
+    quantityOnHand: 420,
+    unit: 'packs',
+    isFinished: false,
+    minThreshold: 60,
+    notes: 'Cut pastry sheets ready for dispatch',
+    updatedAt: new Date().toISOString(),
+  },
+];
+
+export const INITIAL_STOCK_MOVEMENTS: StockMovement[] = [
+  {
+    id: 'sm_001',
+    movementNumber: 'SM-2026-0001',
+    timestamp: new Date(Date.now() - 3600000 * 4).toISOString(),
+    type: 'STOCK_IN',
+    barcode: '6009800123012',
+    sku: 'SAV-SPR-001',
+    productName: 'Savouré Spring Roll Pastry (20cm / 200g)',
+    category: 'Pastry Sheets',
+    quantity: 120,
+    unit: 'packs',
+    sourceBranch: 'Supplier Production',
+    destinationBranch: 'Main Bakery',
+    batchNumber: 'BATCH-2026-0414-A',
+    reason: 'Morning production run completed & quality tested',
+    recordedBy: 'Master Admin',
+    isSouthAfricanBarcode: true,
+  },
+  {
+    id: 'sm_002',
+    movementNumber: 'SM-2026-0002',
+    timestamp: new Date(Date.now() - 3600000 * 2).toISOString(),
+    type: 'TRANSFER',
+    barcode: '6001007012342',
+    sku: 'SAV-SAM-002',
+    productName: 'Savouré Crispy Samoosa Pastry Sheets (500g)',
+    category: 'Pastry Sheets',
+    quantity: 40,
+    unit: 'packs',
+    sourceBranch: 'Main Bakery',
+    destinationBranch: 'Sandton Branch',
+    batchNumber: 'BATCH-2026-0414-B',
+    reason: 'Replenishing Sandton walk-in retail stock',
+    recordedBy: 'Master Admin',
+    isSouthAfricanBarcode: true,
+  },
+  {
+    id: 'sm_003',
+    movementNumber: 'SM-2026-0003',
+    timestamp: new Date(Date.now() - 3600000 * 1).toISOString(),
+    type: 'STOCK_OUT',
+    barcode: '6009612345671',
+    sku: 'SAV-ROT-003',
+    productName: 'Savouré Hand-Rolled Flaky Roti (Pack of 6)',
+    category: 'Artisanal Roti',
+    quantity: 25,
+    unit: 'packs',
+    sourceBranch: 'Main Bakery',
+    reason: 'Dispatched for Southern Ambision 1390 CC wholesale order',
+    recordedBy: 'Master Admin',
+    isSouthAfricanBarcode: true,
+  },
+];
+
 interface ERPContextType {
   currentUser: User | null;
   setCurrentUser: (u: User | null) => void;
@@ -209,6 +396,7 @@ interface ERPContextType {
   createProduct: (data: Partial<Product>) => Promise<Product>;
   updateProduct: (id: string, data: Partial<Product>) => Promise<Product>;
   deleteProduct: (id: string) => Promise<void>;
+  toggleProductShowcase: (id: string) => Promise<boolean>;
   
   // Custom Product Categories
   categories: string[];
@@ -257,6 +445,7 @@ interface ERPContextType {
   // Stock Capturing, Slips & Inventory Management
   stockPurchases: StockPurchase[];
   stockItemStatuses: StockItemStatus[];
+  stockMovements: StockMovement[];
   createStockPurchase: (data: Partial<StockPurchase>) => Promise<StockPurchase>;
   deleteStockPurchase: (id: string) => Promise<void>;
   createStockItemStatus: (data: Partial<StockItemStatus>) => Promise<StockItemStatus>;
@@ -264,6 +453,8 @@ interface ERPContextType {
   deleteStockItemStatus: (id: string) => Promise<void>;
   markStockAsFinished: (id: string) => Promise<void>;
   setStockQuantity: (id: string, quantity: number) => Promise<void>;
+  recordStockMovement: (data: Partial<StockMovement>) => Promise<StockMovement>;
+  deleteStockMovement: (id: string) => Promise<void>;
 
   // Accounting & Journal Entries
   journalEntries: JournalEntry[];
@@ -296,6 +487,11 @@ export const normalizeProduct = (p: any, idx = 0): Product => ({
   costPrice: Number(p?.costPrice) || 0,
   vatApplicable: p?.vatApplicable !== undefined ? Boolean(p?.vatApplicable) : true,
   stockOnHand: Number(p?.stockOnHand) || 0,
+  barcode: p?.barcode || undefined,
+  showcase: p?.showcase !== undefined ? Boolean(p?.showcase) : true,
+  description: p?.description || '',
+  badge: p?.badge || '',
+  packagingType: p?.packagingType || 'dozen',
 });
 
 function healInvoicesList(rawInvoices: Invoice[], customerList: Customer[], userList: User[]): { invoices: Invoice[]; changed: boolean } {
@@ -374,8 +570,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [users, setUsers] = useState<User[]>([MASTER_ADMIN_USER, INITIAL_ROOKSHANA_USER]);
   const [company, setCompany] = useState<CompanySettings>(INITIAL_COMPANY);
   const [customers, setCustomers] = useState<Customer[]>([INITIAL_CUSTOMER_SOUTHERN_AMBISION]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<string[]>([]);
+  const [products, setProducts] = useState<Product[]>(INITIAL_SAVOURE_PRODUCTS);
+  const [categories, setCategories] = useState<string[]>(['Pastry Sheets', 'Artisanal Roti', 'Tortillas & Wraps', 'Flour & Grains', 'Oils & Fats']);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [deliveryNotes, setDeliveryNotes] = useState<DeliveryNote[]>([]);
   const [quotations, setQuotations] = useState<Quotation[]>([]);
@@ -385,7 +581,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [payrollPayouts, setPayrollPayouts] = useState<PayrollPayout[]>([]);
   const [stockPurchases, setStockPurchases] = useState<StockPurchase[]>([]);
-  const [stockItemStatuses, setStockItemStatuses] = useState<StockItemStatus[]>([]);
+  const [stockItemStatuses, setStockItemStatuses] = useState<StockItemStatus[]>(INITIAL_STOCK_ITEM_STATUSES);
+  const [stockMovements, setStockMovements] = useState<StockMovement[]>(INITIAL_STOCK_MOVEMENTS);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [loginLogs, setLoginLogs] = useState<UserLoginLog[]>([]);
 
@@ -414,6 +611,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         payrollPayouts,
         stockPurchases,
         stockItemStatuses,
+        stockMovements,
         journalEntries,
         loginLogs,
         lastUpdated: new Date().toISOString(),
@@ -423,7 +621,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.warn('Cache write warning:', e);
     }
-  }, [users, company, customers, products, categories, invoices, deliveryNotes, quotations, payments, leads, communications, staff, payrollPayouts, stockPurchases, stockItemStatuses, journalEntries, loginLogs]);
+  }, [users, company, customers, products, categories, invoices, deliveryNotes, quotations, payments, leads, communications, staff, payrollPayouts, stockPurchases, stockItemStatuses, stockMovements, journalEntries, loginLogs]);
 
   // Helper to sanitize payload and remove all undefined values recursively for Firestore compatibility
   const sanitizeForCloud = (obj: any): any => {
@@ -504,9 +702,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (parsed.leads) setLeads(parsed.leads);
         if (parsed.communications) setCommunications(parsed.communications);
         if (parsed.staff) setStaff(parsed.staff);
-        if (parsed.payrollPayouts) setPayrollPayouts(parsed.payrollPayouts);
         if (parsed.stockPurchases) setStockPurchases(parsed.stockPurchases);
         if (parsed.stockItemStatuses) setStockItemStatuses(parsed.stockItemStatuses);
+        if (parsed.stockMovements) setStockMovements(parsed.stockMovements);
         if (parsed.journalEntries) setJournalEntries(parsed.journalEntries);
         if (parsed.loginLogs) setLoginLogs(parsed.loginLogs);
 
@@ -544,6 +742,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (Array.isArray(srv.payrollPayouts)) setPayrollPayouts(srv.payrollPayouts);
         if (Array.isArray(srv.stockPurchases)) setStockPurchases(srv.stockPurchases);
         if (Array.isArray(srv.stockItemStatuses)) setStockItemStatuses(srv.stockItemStatuses);
+        if (Array.isArray(srv.stockMovements)) setStockMovements(srv.stockMovements);
         if (Array.isArray(srv.journalEntries)) setJournalEntries(srv.journalEntries);
         if (Array.isArray(srv.loginLogs)) setLoginLogs(srv.loginLogs);
         if (Array.isArray(srv.users) && srv.users.length > 0) {
@@ -594,9 +793,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (Array.isArray(cloudData.leads)) setLeads(cloudData.leads);
         if (Array.isArray(cloudData.communications)) setCommunications(cloudData.communications);
         if (Array.isArray(cloudData.staff)) setStaff(cloudData.staff);
-        if (Array.isArray(cloudData.payrollPayouts)) setPayrollPayouts(cloudData.payrollPayouts);
-        if (Array.isArray(cloudData.stockPurchases)) setStockPurchases(cloudData.stockPurchases);
+        if (cloudData.stockPurchases) setStockPurchases(cloudData.stockPurchases);
         if (Array.isArray(cloudData.stockItemStatuses)) setStockItemStatuses(cloudData.stockItemStatuses);
+        if (Array.isArray(cloudData.stockMovements)) setStockMovements(cloudData.stockMovements);
         if (Array.isArray(cloudData.journalEntries)) setJournalEntries(cloudData.journalEntries);
         if (Array.isArray(cloudData.loginLogs)) setLoginLogs(cloudData.loginLogs);
 
@@ -1181,6 +1380,11 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       costPrice: Number(data.costPrice) || 0,
       vatApplicable: data.vatApplicable !== undefined ? data.vatApplicable : true,
       stockOnHand: Number(data.stockOnHand) || 0,
+      barcode: data.barcode || undefined,
+      showcase: data.showcase !== undefined ? data.showcase : true,
+      description: data.description || '',
+      badge: data.badge || '',
+      packagingType: data.packagingType || 'dozen',
     };
 
     const nextProducts = [newProd, ...products];
@@ -1207,6 +1411,22 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await syncToCloud({ products: nextProducts });
 
     return resProd || (data as Product);
+  };
+
+  const toggleProductShowcase = async (id: string): Promise<boolean> => {
+    let newState = false;
+    const nextProducts = products.map((p) => {
+      if (p.id === id) {
+        newState = p.showcase === false ? true : false;
+        return { ...p, showcase: newState };
+      }
+      return p;
+    });
+
+    setProducts(nextProducts);
+    persistToLocal({ products: nextProducts });
+    await syncToCloud({ products: nextProducts });
+    return newState;
   };
 
   const deleteProduct = async (id: string) => {
@@ -2303,6 +2523,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newItem: StockItemStatus = {
       id: 'stk_' + Date.now(),
       sku: data.sku || `STK-${String(stockItemStatuses.length + 1).padStart(3, '0')}`,
+      barcode: data.barcode || undefined,
       name: data.name || 'Raw Material',
       category: data.category || 'General',
       branchName: data.branchName || 'Main Bakery',
@@ -2343,6 +2564,179 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setStockItemStatuses(nextStatuses);
     persistToLocal({ stockItemStatuses: nextStatuses });
     await syncToCloud({ stockItemStatuses: nextStatuses });
+  };
+
+  // ------------------------------------------------------------------
+  // South African Barcode Scanner & Stock Movements
+  // ------------------------------------------------------------------
+  const recordStockMovement = async (data: Partial<StockMovement>): Promise<StockMovement> => {
+    const rawBarcode = (data.barcode || '').trim();
+    const isSA = Boolean(rawBarcode && (rawBarcode.startsWith('600') || rawBarcode.startsWith('601')));
+    const now = new Date();
+    const year = now.getFullYear();
+    const movementNumber =
+      data.movementNumber || `SM-${year}-${String(stockMovements.length + 1).padStart(4, '0')}`;
+
+    const quantity = Math.abs(Number(data.quantity) || 1);
+    const movType = data.type || 'STOCK_IN';
+    const sourceBranch = data.sourceBranch || 'Main Bakery';
+
+    const newMovement: StockMovement = {
+      id: 'sm_' + Date.now(),
+      movementNumber,
+      timestamp: data.timestamp || now.toISOString(),
+      type: movType,
+      barcode: rawBarcode,
+      sku: data.sku || '',
+      productName: data.productName || 'Stock Item',
+      category: data.category || 'Bakery Pastry & Materials',
+      quantity,
+      unit: data.unit || 'packs',
+      sourceBranch,
+      destinationBranch: data.destinationBranch,
+      batchNumber: data.batchNumber || '',
+      reason: data.reason || '',
+      notes: data.notes || '',
+      recordedBy: currentUser?.name || 'Master Admin',
+      costValue: data.costValue,
+      isSouthAfricanBarcode: isSA,
+    };
+
+    const nextMovements = [newMovement, ...stockMovements];
+    setStockMovements(nextMovements);
+
+    // Automatically update stock levels on matching Product and StockItemStatus
+    let nextProducts = [...products];
+    let nextStatuses = [...stockItemStatuses];
+    let productsModified = false;
+    let statusesModified = false;
+
+    // 1. Adjust finished product in catalog if barcode/sku matches
+    if (rawBarcode || data.sku) {
+      nextProducts = nextProducts.map((p) => {
+        const matchBarcode = Boolean(rawBarcode && p.barcode && p.barcode.trim() === rawBarcode);
+        const matchSku = Boolean(data.sku && p.sku && p.sku.toLowerCase() === data.sku.toLowerCase());
+        const matchName = Boolean(data.productName && p.name.toLowerCase() === data.productName.toLowerCase());
+
+        if (matchBarcode || matchSku || matchName) {
+          productsModified = true;
+          let newStock = p.stockOnHand;
+          if (movType === 'STOCK_IN' || movType === 'RETURN') {
+            newStock += quantity;
+          } else if (movType === 'STOCK_OUT' || movType === 'WASTAGE') {
+            newStock = Math.max(0, newStock - quantity);
+          } else if (movType === 'ADJUSTMENT') {
+            newStock = quantity;
+          }
+          return {
+            ...p,
+            stockOnHand: newStock,
+            barcode: p.barcode || (rawBarcode ? rawBarcode : undefined),
+          };
+        }
+        return p;
+      });
+    }
+
+    // 2. Adjust or create branch StockItemStatus
+    const existingStatusIdx = nextStatuses.findIndex((s) => {
+      const matchBarcode = Boolean(rawBarcode && s.barcode && s.barcode.trim() === rawBarcode && s.branchName === sourceBranch);
+      const matchName = Boolean(s.name.toLowerCase() === (data.productName || '').toLowerCase() && s.branchName === sourceBranch);
+      return matchBarcode || matchName;
+    });
+
+    if (existingStatusIdx >= 0) {
+      statusesModified = true;
+      const cur = nextStatuses[existingStatusIdx];
+      let newQty = cur.quantityOnHand;
+
+      if (movType === 'STOCK_IN' || movType === 'RETURN') {
+        newQty += quantity;
+      } else if (movType === 'STOCK_OUT' || movType === 'WASTAGE') {
+        newQty = Math.max(0, newQty - quantity);
+      } else if (movType === 'ADJUSTMENT') {
+        newQty = quantity;
+      } else if (movType === 'TRANSFER') {
+        newQty = Math.max(0, newQty - quantity);
+
+        // Add to destination branch
+        if (data.destinationBranch) {
+          const destIdx = nextStatuses.findIndex(
+            (s) =>
+              (rawBarcode && s.barcode === rawBarcode && s.branchName === data.destinationBranch) ||
+              (s.name.toLowerCase() === newMovement.productName.toLowerCase() && s.branchName === data.destinationBranch)
+          );
+          if (destIdx >= 0) {
+            nextStatuses[destIdx] = {
+              ...nextStatuses[destIdx],
+              quantityOnHand: nextStatuses[destIdx].quantityOnHand + quantity,
+              isFinished: false,
+              updatedAt: now.toISOString(),
+            };
+          } else {
+            nextStatuses.push({
+              id: 'stk_' + Date.now() + '_dest',
+              barcode: newMovement.barcode,
+              sku: newMovement.sku,
+              name: newMovement.productName,
+              category: newMovement.category || cur.category,
+              branchName: data.destinationBranch,
+              quantityOnHand: quantity,
+              unit: newMovement.unit || cur.unit,
+              isFinished: false,
+              updatedAt: now.toISOString(),
+            });
+          }
+        }
+      }
+
+      nextStatuses[existingStatusIdx] = {
+        ...cur,
+        quantityOnHand: newQty,
+        isFinished: newQty <= 0,
+        lastFinishedAt: newQty <= 0 ? now.toISOString().split('T')[0] : cur.lastFinishedAt,
+        barcode: cur.barcode || newMovement.barcode,
+        updatedAt: now.toISOString(),
+      };
+    } else {
+      // Create new tracking status item for this scanned item
+      statusesModified = true;
+      const initialQty = movType === 'STOCK_OUT' || movType === 'WASTAGE' ? 0 : quantity;
+      nextStatuses.unshift({
+        id: 'stk_' + Date.now(),
+        barcode: newMovement.barcode,
+        sku: newMovement.sku || `STK-${String(nextStatuses.length + 1).padStart(3, '0')}`,
+        name: newMovement.productName,
+        category: newMovement.category || 'Bakery Items',
+        branchName: sourceBranch,
+        quantityOnHand: initialQty,
+        unit: newMovement.unit,
+        isFinished: initialQty <= 0,
+        notes: newMovement.notes || (isSA ? 'GS1 South Africa Product' : ''),
+        updatedAt: now.toISOString(),
+      });
+    }
+
+    if (productsModified) setProducts(nextProducts);
+    if (statusesModified) setStockItemStatuses(nextStatuses);
+
+    const payloadToPersist: Partial<ERPDatabase> = {
+      stockMovements: nextMovements,
+      ...(productsModified ? { products: nextProducts } : {}),
+      ...(statusesModified ? { stockItemStatuses: nextStatuses } : {}),
+    };
+
+    persistToLocal(payloadToPersist);
+    await syncToCloud(payloadToPersist);
+
+    return newMovement;
+  };
+
+  const deleteStockMovement = async (id: string): Promise<void> => {
+    const next = stockMovements.filter((m) => m.id !== id);
+    setStockMovements(next);
+    persistToLocal({ stockMovements: next });
+    await syncToCloud({ stockMovements: next });
   };
 
   const createJournalEntry = async (data: Partial<JournalEntry>): Promise<JournalEntry> => {
@@ -2406,6 +2800,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deletePayrollPayout,
         stockPurchases,
         stockItemStatuses,
+        stockMovements,
         createStockPurchase,
         deleteStockPurchase,
         createStockItemStatus,
@@ -2413,6 +2808,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteStockItemStatus,
         markStockAsFinished,
         setStockQuantity,
+        recordStockMovement,
+        deleteStockMovement,
         journalEntries,
         createJournalEntry,
         deleteJournalEntry,
@@ -2435,6 +2832,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createProduct,
         updateProduct,
         deleteProduct,
+        toggleProductShowcase,
         categories,
         createCategory,
         deleteCategory,

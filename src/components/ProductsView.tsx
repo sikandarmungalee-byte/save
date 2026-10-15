@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useERP } from '../context/ERPContext';
 import { Product } from '../types/erp';
+import { BarcodeScanner } from './BarcodeScanner';
 import {
   Package,
   Plus,
@@ -15,7 +16,13 @@ import {
   ArrowRight,
   Sparkles,
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  Barcode,
+  Camera,
+  Globe,
+  Eye,
+  EyeOff,
+  ExternalLink
 } from 'lucide-react';
 
 interface ProductsViewProps {
@@ -31,17 +38,30 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   initialSearch = '',
   initialOpenCreate = false,
 }) => {
-  const { products, categories, createCategory, deleteCategory, company, createProduct, updateProduct, deleteProduct, refreshData } = useERP();
+  const {
+    products,
+    categories,
+    createCategory,
+    deleteCategory,
+    company,
+    createProduct,
+    updateProduct,
+    deleteProduct,
+    toggleProductShowcase,
+    refreshData
+  } = useERP();
 
   // Active View Tabs: 'catalog' (products table) or 'categories' (dedicated category center)
   const [activeTab, setActiveTab] = useState<'catalog' | 'categories'>(initialTab);
 
   const [search, setSearch] = useState(initialSearch);
   const [categoryFilter, setCategoryFilter] = useState(initialCategoryFilter);
+  const [showcaseFilter, setShowcaseFilter] = useState<'ALL' | 'SHOWCASE' | 'INTERNAL'>('ALL');
 
   // Product Modal State
   const [isModalOpen, setIsModalOpen] = useState(initialOpenCreate);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [isBarcodeScanOpen, setIsBarcodeScanOpen] = useState(false);
 
   // Dedicated Category Creator State
   const [categoryInput, setCategoryInput] = useState('');
@@ -50,6 +70,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   // Product Form State (stored as strings so inputs never start with an annoying 0)
   const [form, setForm] = useState({
     sku: '',
+    barcode: '',
     name: '',
     category: '',
     customCategoryInput: '',
@@ -59,6 +80,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     costPrice: '',
     vatApplicable: true,
     stockOnHand: '',
+    showcase: true,
+    description: '',
+    badge: '',
+    packagingType: 'dozen' as 'dozen' | 'pack' | 'carton',
   });
 
   const openCreateModal = (defaultCategory?: string) => {
@@ -66,15 +91,20 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     const chosenCat = defaultCategory || (categories.length > 0 ? categories[0] : '');
     setForm({
       sku: `SKU-${String(products.length + 1).padStart(3, '0')}`,
+      barcode: '',
       name: '',
       category: chosenCat,
       customCategoryInput: '',
-      packSize: 'Single / Each',
+      packSize: 'Pack of 12 (1 Dozen)',
       physicalSize: 'Standard',
       unitPrice: '',
       costPrice: '',
       vatApplicable: true,
       stockOnHand: '',
+      showcase: true,
+      description: '',
+      badge: '',
+      packagingType: 'dozen',
     });
     setIsModalOpen(true);
   };
@@ -83,6 +113,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     setEditingProduct(p);
     setForm({
       sku: p.sku,
+      barcode: p.barcode || '',
       name: p.name,
       category: p.category,
       customCategoryInput: '',
@@ -92,6 +123,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       costPrice: p.costPrice ? String(p.costPrice) : '',
       vatApplicable: p.vatApplicable,
       stockOnHand: p.stockOnHand ? String(p.stockOnHand) : '',
+      showcase: p.showcase !== false,
+      description: p.description || '',
+      badge: p.badge || '',
+      packagingType: (p.packagingType || 'dozen') as 'dozen' | 'pack' | 'carton',
     });
     setIsModalOpen(true);
   };
@@ -148,6 +183,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     if (editingProduct) {
       await updateProduct(editingProduct.id, {
         sku: form.sku,
+        barcode: form.barcode.trim() || undefined,
         name: form.name,
         category: finalCat,
         packSize: form.packSize,
@@ -156,10 +192,15 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         costPrice: Number(form.costPrice),
         vatApplicable: form.vatApplicable,
         stockOnHand: Number(form.stockOnHand),
+        showcase: form.showcase,
+        description: form.description.trim(),
+        badge: form.badge.trim(),
+        packagingType: form.packagingType,
       });
     } else {
       await createProduct({
         sku: form.sku,
+        barcode: form.barcode.trim() || undefined,
         name: form.name,
         category: finalCat,
         packSize: form.packSize,
@@ -168,6 +209,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         costPrice: Number(form.costPrice),
         vatApplicable: form.vatApplicable,
         stockOnHand: Number(form.stockOnHand),
+        showcase: form.showcase,
+        description: form.description.trim(),
+        badge: form.badge.trim(),
+        packagingType: form.packagingType,
       });
     }
     setIsModalOpen(false);
@@ -177,17 +222,26 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     if (!p) return false;
     const term = (search || '').toLowerCase().trim();
     const sku = (p.sku || '').toLowerCase();
+    const barcode = (p.barcode || '').toLowerCase();
     const name = (p.name || '').toLowerCase();
     const packSize = (p.packSize || '').toLowerCase();
     const category = (p.category || '').toLowerCase();
     const matchesSearch =
       !term ||
       sku.includes(term) ||
+      barcode.includes(term) ||
       name.includes(term) ||
       packSize.includes(term) ||
       category.includes(term);
     const matchesCategory = categoryFilter === 'ALL' || (p.category || '') === categoryFilter;
-    return matchesSearch && matchesCategory;
+
+    const isShowcase = p.showcase !== false;
+    const matchesShowcase =
+      showcaseFilter === 'ALL' ||
+      (showcaseFilter === 'SHOWCASE' && isShowcase) ||
+      (showcaseFilter === 'INTERNAL' && !isShowcase);
+
+    return matchesSearch && matchesCategory && matchesShowcase;
   });
 
   return (
@@ -530,16 +584,59 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           </div>
 
           {/* Control Bar: Search & Dynamic Category Filters */}
-          <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
-            <div className="relative flex-1 max-w-md">
-              <Search className="w-4 h-4 text-[#8A776B] absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search SKU code, product name, pack sizing..."
-                className="w-full pl-9 pr-3 py-2 text-xs bg-[#171311] border border-[#2C211B] rounded-lg text-white placeholder-[#6E5B4F] focus:outline-hidden focus:border-[#C98A5B]"
-              />
+          <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1 max-w-2xl">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-[#8A776B] absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search SKU code, product name, barcode, sizing..."
+                  className="w-full pl-9 pr-3 py-2 text-xs bg-[#171311] border border-[#2C211B] rounded-lg text-white placeholder-[#6E5B4F] focus:outline-hidden focus:border-[#C98A5B]"
+                />
+              </div>
+
+              {/* Showcase Visibility Quick Switcher */}
+              <div className="inline-flex p-1 bg-[#120F0D] border border-[#2C211B] rounded-lg shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowcaseFilter('ALL')}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
+                    showcaseFilter === 'ALL'
+                      ? 'bg-[#C98A5B] text-[#120F0D] shadow-xs'
+                      : 'text-[#A69385] hover:text-white'
+                  }`}
+                >
+                  All ({products.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowcaseFilter('SHOWCASE')}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1 ${
+                    showcaseFilter === 'SHOWCASE'
+                      ? 'bg-emerald-600 text-white shadow-xs font-bold'
+                      : 'text-emerald-400 hover:text-emerald-300'
+                  }`}
+                  title="Products published on customer website"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Showcase ({products.filter((p) => p.showcase !== false).length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowcaseFilter('INTERNAL')}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1 ${
+                    showcaseFilter === 'INTERNAL'
+                      ? 'bg-[#2C211B] text-[#EDE6DE] border border-[#3A2D25]'
+                      : 'text-[#8A776B] hover:text-white'
+                  }`}
+                  title="Internal kitchen/unlisted items"
+                >
+                  <EyeOff className="w-3.5 h-3.5" />
+                  <span>Hidden ({products.filter((p) => p.showcase === false).length})</span>
+                </button>
+              </div>
             </div>
 
             {/* Dynamic Category Filter Pills */}
@@ -552,7 +649,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                     : 'text-[#A69385] hover:text-white'
                 }`}
               >
-                All Items ({products.length})
+                All Categories
               </button>
               {categories.map((cat) => {
                 const count = products.filter((p) => p.category === cat).length;
@@ -593,13 +690,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                     <th className="py-3 px-4 font-semibold text-right">Cost Price</th>
                     <th className="py-3 px-4 font-semibold text-right">Gross Margin</th>
                     <th className="py-3 px-4 font-semibold text-center">VAT</th>
+                    <th className="py-3 px-4 font-semibold text-center">Website Showcase</th>
                     <th className="py-3 px-4 font-semibold text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#2C211B]">
                   {filteredProducts.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-16 text-center text-[#8A776B]">
+                      <td colSpan={9} className="py-16 text-center text-[#8A776B]">
                         <Package className="w-12 h-12 mx-auto mb-3 opacity-30 text-[#DE9E74]" />
                         <p className="font-serif text-lg text-white font-bold">Catalog is Empty</p>
                         <p className="text-xs text-[#A69385] mt-1 max-w-md mx-auto">
@@ -632,7 +730,19 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                       return (
                         <tr key={p.id} className="hover:bg-[#221B17]/60 transition-colors">
                           <td className="py-3 px-4 font-mono font-medium text-[#DE9E74]">
-                            {p.sku}
+                            <div>{p.sku}</div>
+                            {p.barcode ? (
+                              <div className="text-[10px] font-mono text-[#A69385] flex items-center gap-1 mt-0.5">
+                                {(p.barcode.startsWith('600') || p.barcode.startsWith('601')) && (
+                                  <span className="text-emerald-400 font-bold" title="GS1 South Africa (600/601)">
+                                    🇿🇦
+                                  </span>
+                                )}
+                                <span>{p.barcode}</span>
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-[#6E5B4F] italic">No Barcode</span>
+                            )}
                           </td>
 
                           <td className="py-3 px-4">
@@ -640,6 +750,11 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                             <div className="text-[11px] text-[#A69385] flex items-center gap-1.5 mt-0.5">
                               <Tag className="w-3 h-3 text-[#C98A5B]" />
                               <span>{p.category || 'General'}</span>
+                              {p.badge && (
+                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                  {p.badge}
+                                </span>
+                              )}
                             </div>
                           </td>
 
@@ -672,6 +787,31 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                             >
                               {p.vatApplicable ? '15%' : '0%'}
                             </span>
+                          </td>
+
+                          {/* Website Showcase Toggle Column */}
+                          <td className="py-3 px-4 text-center">
+                            {p.showcase !== false ? (
+                              <button
+                                type="button"
+                                onClick={() => toggleProductShowcase(p.id)}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-[11px] font-semibold hover:bg-emerald-500/25 transition-all cursor-pointer"
+                                title="Currently visible on public website. Click to remove from showcase"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-emerald-400" />
+                                <span>Live on Web</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => toggleProductShowcase(p.id)}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#221B17] border border-[#3A2D25] text-[#8A776B] text-[11px] font-medium hover:text-white hover:border-[#DE9E74] transition-all cursor-pointer"
+                                title="Hidden from website. Click to publish to public showcase"
+                              >
+                                <EyeOff className="w-3.5 h-3.5" />
+                                <span>Hidden</span>
+                              </button>
+                            )}
                           </td>
 
                           <td className="py-3 px-4 text-right">
@@ -870,7 +1010,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 pt-2">
+              <div className="flex items-center gap-2 pt-1">
                 <input
                   type="checkbox"
                   id="vatApplicable"
@@ -881,6 +1021,72 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 <label htmlFor="vatApplicable" className="text-xs text-[#EDE6DE] font-medium">
                   Standard VAT Rate Applies (15%)
                 </label>
+              </div>
+
+              {/* Public Website Showcase & WhatsApp Enquiry Settings */}
+              <div className="p-4 rounded-xl bg-[#120F0D] border border-[#2C211B] space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-[#221B17]">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-emerald-400" />
+                    <span className="text-xs font-semibold text-white">
+                      Website Showcase & WhatsApp Ordering
+                    </span>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.showcase}
+                      onChange={(e) => setForm({ ...form, showcase: e.target.checked })}
+                      className="rounded border-[#2C211B] text-emerald-500 focus:ring-emerald-500 w-4 h-4 bg-black/40"
+                    />
+                    <span className="text-xs font-medium text-emerald-300">
+                      Show on Website
+                    </span>
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-medium text-[#A69385] mb-1">
+                      Highlight Badge (optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={form.badge}
+                      onChange={(e) => setForm({ ...form, badge: e.target.value })}
+                      placeholder="e.g. Best Seller, Chef Favorite, Signature"
+                      className="w-full px-3 py-1.5 text-xs bg-black/40 border border-[#2C211B] rounded-lg text-white placeholder-[#6E5B4F] focus:outline-hidden focus:border-[#C98A5B]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-medium text-[#A69385] mb-1">
+                      Preferred WhatsApp Enquiry Unit
+                    </label>
+                    <select
+                      value={form.packagingType}
+                      onChange={(e) => setForm({ ...form, packagingType: e.target.value as any })}
+                      className="w-full px-3 py-1.5 text-xs bg-black/40 border border-[#2C211B] rounded-lg text-[#EDE6DE] focus:outline-hidden focus:border-[#C98A5B]"
+                    >
+                      <option value="dozen">Dozens (12 units per portion)</option>
+                      <option value="pack">Packs (Commercial Packets)</option>
+                      <option value="carton">Wholesale Cartons / Crates</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-[#A69385] mb-1">
+                    Website Customer Description
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={form.description}
+                    onChange={(e) => setForm({ ...form, description: e.target.value })}
+                    placeholder="Describe pastry texture, flakiness, or rolling strength for website visitors and WhatsApp enquiry prefill..."
+                    className="w-full px-3 py-1.5 text-xs bg-black/40 border border-[#2C211B] rounded-lg text-white placeholder-[#6E5B4F] focus:outline-hidden focus:border-[#C98A5B]"
+                  />
+                </div>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#2C211B]">

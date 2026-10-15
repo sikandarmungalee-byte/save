@@ -124,6 +124,7 @@ export function getCleanEmptyDatabase(): ERPDatabase {
     payrollPayouts: [],
     stockPurchases: [],
     stockItemStatuses: [],
+    stockMovements: [],
     journalEntries: [],
     loginLogs: [],
     lastUpdated: new Date().toISOString(),

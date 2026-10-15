@@ -1,9 +1,14 @@
 import React, { useState } from 'react';
 import { ShowcaseHeader } from './ShowcaseHeader';
 import { ShowcaseFooter } from './ShowcaseFooter';
-import { ShowcaseHomePage } from './ShowcaseHomePage';
+import { HomePage } from './pages/HomePage';
+import { ProductsPage } from './pages/ProductsPage';
+import { AboutPage } from './pages/AboutPage';
+import { WholesalePage } from './pages/WholesalePage';
+import { ContactPage } from './pages/ContactPage';
 import { ShowcaseMerchantLoginPage } from './ShowcaseMerchantLoginPage';
 import { FloatingWhatsAppButton } from './FloatingWhatsAppButton';
+import { WhatsAppEnquiryModal } from './WhatsAppEnquiryModal';
 import { MerchantPortal } from '../merchant/MerchantPortal';
 import { useERP } from '../../context/ERPContext';
 
@@ -13,23 +18,35 @@ interface ShowcaseAppProps {
 
 export const ShowcaseApp: React.FC<ShowcaseAppProps> = ({ onOpenAdmin }) => {
   const { currentUser } = useERP();
-  const [currentTab, setCurrentTab] = useState<'home' | 'merchant-login'>('home');
+  const [currentPage, setCurrentPage] = useState<string>('home');
+  const [isEnquiryModalOpen, setIsEnquiryModalOpen] = useState(false);
+  const [selectedEnquiryProduct, setSelectedEnquiryProduct] = useState<string | null>(null);
 
   // If the currently logged in user is a merchant, show the Merchant Portal directly
   if (currentUser && currentUser.role === 'merchant') {
     return (
       <MerchantPortal
-        onBackToWebsite={() => setCurrentTab('home')}
+        onBackToWebsite={() => setCurrentPage('home')}
       />
     );
   }
 
-  const renderContent = () => {
-    switch (currentTab) {
+  const handleOpenEnquiryModal = (productId?: string) => {
+    setSelectedEnquiryProduct(productId || null);
+    setIsEnquiryModalOpen(true);
+  };
+
+  const handleNavigate = (page: string) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const renderPage = () => {
+    switch (currentPage) {
       case 'merchant-login':
         return (
           <ShowcaseMerchantLoginPage
-            onNavigate={(tab) => setCurrentTab(tab === 'merchant-login' ? 'merchant-login' : 'home')}
+            onNavigate={handleNavigate}
             onLoginSuccess={(loggedInUser) => {
               if (loggedInUser && loggedInUser.role !== 'merchant') {
                 onOpenAdmin();
@@ -37,35 +54,74 @@ export const ShowcaseApp: React.FC<ShowcaseAppProps> = ({ onOpenAdmin }) => {
             }}
           />
         );
+      case 'products':
+        return (
+          <ProductsPage
+            onNavigate={handleNavigate}
+            onOpenEnquiryModal={handleOpenEnquiryModal}
+          />
+        );
+      case 'about':
+        return (
+          <AboutPage
+            onNavigate={handleNavigate}
+          />
+        );
+      case 'wholesale':
+        return (
+          <WholesalePage
+            onNavigate={handleNavigate}
+            onOpenEnquiryModal={handleOpenEnquiryModal}
+          />
+        );
+      case 'contact':
+        return (
+          <ContactPage
+            onNavigate={handleNavigate}
+          />
+        );
       case 'home':
       default:
-        return <ShowcaseHomePage onNavigate={(tab) => setCurrentTab(tab === 'merchant-login' ? 'merchant-login' : 'home')} />;
+        return (
+          <HomePage
+            onNavigate={handleNavigate}
+            onOpenEnquiryModal={handleOpenEnquiryModal}
+          />
+        );
     }
   };
 
   return (
-    <div className="min-h-screen bg-white text-[#2B150A] flex flex-col font-sans selection:bg-[#CC8468] selection:text-white">
-      {/* Header with Savouré Wordmark, WhatsApp & Merchant Login */}
+    <div className="min-h-screen bg-[#f5eee5] text-[#3d2117] flex flex-col font-sans selection:bg-[#b86643] selection:text-white">
+      {/* Header with Savouré Wordmark, Page Tabs & Enquire Now CTA (Admin moved to Footer) */}
       <ShowcaseHeader
-        currentTab={currentTab}
-        onNavigate={(tab) => setCurrentTab(tab === 'merchant-login' ? 'merchant-login' : 'home')}
-        onOpenMerchantLogin={() => setCurrentTab('merchant-login')}
-        onOpenAdmin={onOpenAdmin}
+        currentPage={currentPage}
+        onNavigate={handleNavigate}
+        onOpenMerchantLogin={() => handleNavigate('merchant-login')}
+        onOpenEnquiryModal={() => handleOpenEnquiryModal()}
       />
 
-      {/* Main Viewport: Fancy Coming Soon Page + Contact Card, or Merchant Login */}
+      {/* Main Viewport: Home, Products, About, Wholesale, Contact, or Merchant Login */}
       <main className="flex-1">
-        {renderContent()}
+        {renderPage()}
       </main>
 
-      {/* Footer with Brand Info, Contact channels, and discrete Administration Entrypoint */}
+      {/* Footer with Brand Info, Navigation, and discrete Admin Entrypoint */}
       <ShowcaseFooter
-        onNavigate={(tab) => setCurrentTab(tab === 'merchant-login' ? 'merchant-login' : 'home')}
+        onNavigate={handleNavigate}
+        onOpenEnquiryModal={() => handleOpenEnquiryModal()}
         onOpenAdmin={onOpenAdmin}
       />
 
       {/* Floating WhatsApp Action Widget */}
       <FloatingWhatsAppButton />
+
+      {/* Interactive WhatsApp / CRM Enquiry Modal */}
+      <WhatsAppEnquiryModal
+        isOpen={isEnquiryModalOpen}
+        onClose={() => setIsEnquiryModalOpen(false)}
+        selectedSpecialtyId={selectedEnquiryProduct}
+      />
     </div>
   );
 };

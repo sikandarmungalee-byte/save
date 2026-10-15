@@ -46,9 +46,12 @@ import {
   Search,
   MessageSquare,
   Send,
-  Phone,
   FileBox,
-  HelpCircle
+  HelpCircle,
+  Camera,
+  Barcode,
+  ArrowRightLeft,
+  Globe
 } from 'lucide-react';
 import {
   Invoice,
@@ -61,6 +64,7 @@ import {
   StockItemStatus,
   StaffMember,
   PayrollPayout,
+  StockMovement,
   Lead,
   User,
   CompanySettings
@@ -76,6 +80,7 @@ export interface ERPContextState {
   categories: string[];
   stockPurchases: StockPurchase[];
   stockItemStatuses: StockItemStatus[];
+  stockMovements: StockMovement[];
   staff: StaffMember[];
   payrollPayouts: PayrollPayout[];
   leads: Lead[];
@@ -631,6 +636,15 @@ export const ERP_MODULES: ERPModule[] = [
     badge: (erp) => `${erp.products.length} products`,
     subcategories: [
       {
+        id: 'website-showcase-products',
+        title: '🌐 Public Website Showcase Products',
+        subtitle: 'Add or remove products shown on website with WhatsApp order options',
+        icon: Globe,
+        actionType: 'tab',
+        badge: (erp) => `${(erp.products || []).filter((p) => p.showcase !== false).length} live`,
+        targetConfig: { initialTab: 'catalog', initialCategoryFilter: 'ALL' }
+      },
+      {
         id: 'product-catalogue',
         title: 'Product Catalogue',
         subtitle: 'Complete list of bakery items and specs',
@@ -744,6 +758,24 @@ export const ERP_MODULES: ERPModule[] = [
       return out > 0 ? `${out} out of stock` : undefined;
     },
     subcategories: [
+      {
+        id: 'barcode-scanner-movement',
+        title: '📱 Phone Barcode Scanner (South Africa 600/601)',
+        subtitle: 'Camera scan GS1 barcodes & record instant movements',
+        icon: Camera,
+        actionType: 'modal',
+        badge: (erp) => `${(erp.stockMovements || []).length} logged`,
+        targetConfig: { initialTab: 'movements', initialOpenScanner: true }
+      },
+      {
+        id: 'stock-movements-history',
+        title: 'Stock Movements Audit Trail',
+        subtitle: 'Intakes, dispatches, branch transfers & reconciliations',
+        icon: ArrowRightLeft,
+        actionType: 'tab',
+        badge: (erp) => `${(erp.stockMovements || []).length} logs`,
+        targetConfig: { initialTab: 'movements' }
+      },
       {
         id: 'capture-purchase-slip',
         title: 'Capture Purchase Slip',
