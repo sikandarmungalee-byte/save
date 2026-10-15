@@ -370,6 +370,26 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
     return matchesSearch && matchesStatus;
   });
 
+  const handleQuickStatusChange = async (inv: Invoice, newStatus: string) => {
+    let updatePayload: Partial<Invoice> = { status: newStatus as any };
+    if (newStatus === 'Paid') {
+      updatePayload.amountPaid = inv.grandTotal;
+      updatePayload.balanceDue = 0;
+    } else if (newStatus === 'Sent' || newStatus === 'Draft') {
+      if (inv.status === 'Paid') {
+        updatePayload.amountPaid = 0;
+        updatePayload.balanceDue = inv.grandTotal;
+      }
+    }
+    try {
+      console.log(`[InvoicesView] Updating invoice ${inv.invoiceNumber} status to:`, newStatus);
+      await updateInvoice(inv.id, updatePayload);
+    } catch (err: any) {
+      console.error('[InvoicesView Error] Status update failed:', err);
+      alert(err?.message || 'Failed to update invoice status');
+    }
+  };
+
   // Calculate live form totals
   const formSubtotal = formData.items.reduce((acc, it) => acc + (it.subtotal || 0), 0);
   const formVatTotal = formData.items.reduce((acc, it) => acc + (it.vatAmount || 0), 0);
@@ -533,23 +553,31 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                         </span>
                       </td>
 
-                      {/* Status */}
+                      {/* Status Quick Update Selector */}
                       <td className="py-3 px-4 text-center">
-                        <span
-                          className={`inline-block px-2.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${
+                        <select
+                          value={inv.status}
+                          onChange={(e) => handleQuickStatusChange(inv, e.target.value)}
+                          className={`px-2 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wider cursor-pointer border transition-all focus:outline-hidden ${
                             inv.status === 'Paid'
-                              ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
                               : inv.status === 'Partial'
-                              ? 'bg-[#C98A5B]/15 text-[#F3D2BF] border border-[#C98A5B]/30'
+                              ? 'bg-[#C98A5B]/20 text-[#F3D2BF] border-[#C98A5B]/40 hover:bg-[#C98A5B]/30'
                               : inv.status === 'Overdue'
-                              ? 'bg-red-500/15 text-red-300 border border-red-500/30'
+                              ? 'bg-red-500/20 text-red-300 border-red-500/40 hover:bg-red-500/30'
                               : inv.status === 'Sent'
-                              ? 'bg-blue-500/15 text-blue-300 border border-blue-500/30'
-                              : 'bg-neutral-800 text-neutral-400 border border-neutral-700'
+                              ? 'bg-blue-500/20 text-blue-300 border-blue-500/40 hover:bg-blue-500/30'
+                              : 'bg-neutral-800 text-neutral-300 border-neutral-700 hover:bg-neutral-700'
                           }`}
+                          title="Click to update invoice status"
                         >
-                          {inv.status}
-                        </span>
+                          <option value="Draft" className="bg-[#171311] text-white">Draft</option>
+                          <option value="Sent" className="bg-[#171311] text-white">Sent</option>
+                          <option value="Partial" className="bg-[#171311] text-white">Partial</option>
+                          <option value="Paid" className="bg-[#171311] text-white">Paid</option>
+                          <option value="Overdue" className="bg-[#171311] text-white">Overdue</option>
+                          <option value="Cancelled" className="bg-[#171311] text-white">Cancelled</option>
+                        </select>
                       </td>
 
                       {/* Actions */}

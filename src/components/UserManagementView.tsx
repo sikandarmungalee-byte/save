@@ -305,10 +305,24 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
     }));
   };
 
+  const [successBanner, setSuccessBanner] = useState<string | null>(null);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('[UserManagementView] Registration form submitted:', {
+      isEdit: Boolean(editingUser),
+      name: formData.name,
+      username: formData.username,
+      email: formData.email,
+      role: formData.role,
+      status: formData.status,
+      currentAdmin: currentUser?.email,
+    });
+
     if (!formData.name.trim() || !formData.email.trim()) {
-      setFormError('Full name and email are mandatory.');
+      const err = 'Full name and email are mandatory fields.';
+      console.warn('[UserManagementView] Validation failed:', err);
+      setFormError(err);
       return;
     }
     setFormLoading(true);
@@ -316,7 +330,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
 
     try {
       if (editingUser) {
-        await updateUser(editingUser.id, {
+        console.log('[UserManagementView] Dispatching updateUser for id:', editingUser.id);
+        const updated = await updateUser(editingUser.id, {
           name: formData.name.trim(),
           username: formData.username.trim() || formData.email.trim().split('@')[0],
           email: formData.email.trim().toLowerCase(),
@@ -325,13 +340,18 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
           permissions: formData.permissions,
           ...(formData.password ? { password: formData.password } : {}),
         });
+        console.log('[UserManagementView] User successfully updated:', updated);
+        setSuccessBanner(`User "${updated.name}" (${updated.email}) updated and saved to Cloud Firestore successfully.`);
       } else {
         if (!formData.password) {
-          setFormError('Password is required when creating a new user.');
+          const err = 'Password is required when creating a new user.';
+          console.warn('[UserManagementView] Validation failed:', err);
+          setFormError(err);
           setFormLoading(false);
           return;
         }
-        await createUser({
+        console.log('[UserManagementView] Dispatching createUser...');
+        const created = await createUser({
           name: formData.name.trim(),
           username: formData.username.trim() || formData.email.trim().split('@')[0],
           email: formData.email.trim().toLowerCase(),
@@ -340,20 +360,29 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
           status: formData.status,
           permissions: formData.permissions,
         });
+        console.log('[UserManagementView] User account created and persisted:', created);
+        setSuccessBanner(`Account for "${created.name}" (${created.email}) created and persisted to Cloud Firestore successfully.`);
       }
       setIsModalOpen(false);
+      setTimeout(() => setSuccessBanner(null), 6000);
     } catch (err: any) {
-      setFormError(err.message || 'Operation failed');
+      console.error('[UserManagementView Error] Failed during user save/persistence:', err);
+      setFormError(err?.message || 'Failed to save account to Cloud Firestore. Please check logs.');
     } finally {
       setFormLoading(false);
     }
   };
 
   const handleDelete = async (u: User) => {
-    if (confirm(`Are you sure you want to remove user "${u.name}" (${u.email})?`)) {
+    console.log('[UserManagementView] Delete requested for user:', u.name, u.email);
+    if (confirm(`Are you sure you want to permanently remove user "${u.name}" (${u.email})?`)) {
       try {
         await deleteUser(u.id);
+        console.log('[UserManagementView] User deleted successfully:', u.id);
+        setSuccessBanner(`User "${u.name}" has been removed and cloud updated.`);
+        setTimeout(() => setSuccessBanner(null), 5000);
       } catch (err: any) {
+        console.error('[UserManagementView Error] Failed to delete user:', err);
         alert(err.message || 'Failed to delete user');
       }
     }
@@ -433,6 +462,22 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Success Confirmation Toast Banner */}
+        {successBanner && (
+          <div className="mt-4 p-3.5 rounded-xl bg-emerald-950/70 border border-emerald-500/50 text-emerald-200 text-xs flex items-center justify-between shadow-lg animate-in fade-in">
+            <div className="flex items-center gap-2.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span className="font-medium">{successBanner}</span>
+            </div>
+            <button
+              onClick={() => setSuccessBanner(null)}
+              className="text-emerald-400 hover:text-white p-1"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
 
         {/* Tab Switcher: Users vs Login Logs */}
         <div className="flex items-center gap-2 mt-6 pt-6 border-t border-[#2C211B]">

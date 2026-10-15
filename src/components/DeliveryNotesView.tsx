@@ -13,7 +13,8 @@ import {
   MapPin,
   PenTool,
   X,
-  AlertCircle
+  AlertCircle,
+  Trash2,
 } from 'lucide-react';
 
 interface DeliveryNotesViewProps {
@@ -121,6 +122,19 @@ export const DeliveryNotesView: React.FC<DeliveryNotesViewProps> = ({ initialSta
       notes: podNotes,
     });
     setPodNote(null);
+  };
+
+  const handleDeleteDeliveryNote = async (note: DeliveryNote) => {
+    if (confirm(`Are you sure you want to permanently delete delivery note "${note.deliveryNoteNumber}"? This will update the cloud database immediately.`)) {
+      try {
+        await deleteDeliveryNote(note.id);
+        if (printNote?.id === note.id) {
+          setPrintNote(null);
+        }
+      } catch (err: any) {
+        alert(err?.message || 'Failed to delete delivery note');
+      }
+    }
   };
 
   const filteredNotes = deliveryNotes.filter((note) => {
@@ -320,6 +334,15 @@ export const DeliveryNotesView: React.FC<DeliveryNotesViewProps> = ({ initialSta
                               <Truck className="w-3.5 h-3.5" />
                             </button>
                           )}
+
+                          {/* Delete Delivery Note Button */}
+                          <button
+                            onClick={() => handleDeleteDeliveryNote(note)}
+                            className="p-1.5 rounded bg-neutral-800 hover:bg-rose-950/80 text-neutral-400 hover:text-rose-300 border border-transparent hover:border-rose-800/60 transition-colors"
+                            title="Delete Delivery Note"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -444,6 +467,14 @@ export const DeliveryNotesView: React.FC<DeliveryNotesViewProps> = ({ initialSta
                 Delivery Slip: <span className="font-mono text-[#DE9E74]">{printNote.deliveryNoteNumber}</span>
               </span>
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleDeleteDeliveryNote(printNote)}
+                  className="px-2.5 py-1.5 rounded-lg bg-rose-950/60 hover:bg-rose-900 border border-rose-800/60 text-rose-300 font-semibold text-xs transition-colors flex items-center gap-1.5"
+                  title="Delete this delivery note"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete</span>
+                </button>
                 <button
                   onClick={() => window.print()}
                   className="px-3 py-1.5 rounded-lg bg-[#C98A5B] hover:bg-[#DE9E74] text-neutral-950 font-semibold text-xs transition-colors flex items-center gap-1.5"

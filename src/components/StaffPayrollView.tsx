@@ -79,6 +79,9 @@ export const StaffPayrollView: React.FC<StaffPayrollViewProps> = ({
     startDate: new Date().toISOString().split('T')[0],
     status: 'Active' as StaffMember['status'],
   });
+  const [staffSaving, setStaffSaving] = useState(false);
+  const [staffError, setStaffError] = useState<string | null>(null);
+  const [staffSuccessBanner, setStaffSuccessBanner] = useState<string | null>(null);
 
   // Payout Modal
   const [isPayoutModalOpen, setIsPayoutModalOpen] = useState(false);
@@ -242,34 +245,57 @@ export const StaffPayrollView: React.FC<StaffPayrollViewProps> = ({
   // Submit Staff Form
   const handleSaveStaff = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!staffForm.name) return;
+    if (!staffForm.name.trim()) {
+      setStaffError('Staff member full name is required.');
+      return;
+    }
+
+    setStaffSaving(true);
+    setStaffError(null);
 
     const payload: Partial<StaffMember> = {
-      employeeCode: staffForm.employeeCode,
-      name: staffForm.name,
-      idNumber: staffForm.idNumber,
-      role: staffForm.role,
-      department: staffForm.department,
-      phone: staffForm.phone,
-      email: staffForm.email,
+      employeeCode: staffForm.employeeCode.trim(),
+      name: staffForm.name.trim(),
+      idNumber: staffForm.idNumber.trim(),
+      role: staffForm.role.trim(),
+      department: staffForm.department.trim(),
+      phone: staffForm.phone.trim(),
+      email: staffForm.email.trim(),
       employmentType: staffForm.employmentType,
       basicSalary: staffForm.basicSalary === '' ? 0 : Number(staffForm.basicSalary),
       hourlyRate: staffForm.hourlyRate === '' ? 0 : Number(staffForm.hourlyRate),
       overtimeHourlyRate: staffForm.overtimeHourlyRate === '' ? 0 : Number(staffForm.overtimeHourlyRate),
-      bankName: staffForm.bankName,
-      accountHolder: staffForm.accountHolder || staffForm.name,
-      accountNumber: staffForm.accountNumber,
-      branchCode: staffForm.branchCode,
+      bankName: staffForm.bankName.trim(),
+      accountHolder: staffForm.accountHolder.trim() || staffForm.name.trim(),
+      accountNumber: staffForm.accountNumber.trim(),
+      branchCode: staffForm.branchCode.trim(),
       startDate: staffForm.startDate,
       status: staffForm.status,
     };
 
-    if (editingStaff) {
-      await updateStaffMember(editingStaff.id, payload);
-    } else {
-      await createStaffMember(payload);
+    console.log('[StaffPayrollView] Saving staff member form:', {
+      isEdit: Boolean(editingStaff),
+      payload,
+    });
+
+    try {
+      if (editingStaff) {
+        await updateStaffMember(editingStaff.id, payload);
+        console.log('[StaffPayrollView] Successfully updated staff member:', editingStaff.id);
+        setStaffSuccessBanner(`Staff member "${payload.name}" updated successfully.`);
+      } else {
+        const created = await createStaffMember(payload);
+        console.log('[StaffPayrollView] Successfully created staff member:', created);
+        setStaffSuccessBanner(`Staff member "${created.name}" (${created.employeeCode}) registered and saved to Cloud Firestore.`);
+      }
+      setIsStaffModalOpen(false);
+      setTimeout(() => setStaffSuccessBanner(null), 5000);
+    } catch (err: any) {
+      console.error('[StaffPayrollView Error] Failed to save staff member:', err);
+      setStaffError(err?.message || 'Failed to save staff member to Cloud Firestore.');
+    } finally {
+      setStaffSaving(false);
     }
-    setIsStaffModalOpen(false);
   };
 
   // Submit Payout Form
@@ -351,6 +377,22 @@ export const StaffPayrollView: React.FC<StaffPayrollViewProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Success Notification Banner */}
+      {staffSuccessBanner && (
+        <div className="p-3.5 rounded-xl bg-emerald-950/70 border border-emerald-500/50 text-emerald-200 text-xs flex items-center justify-between shadow-lg">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span className="font-medium">{staffSuccessBanner}</span>
+          </div>
+          <button
+            onClick={() => setStaffSuccessBanner(null)}
+            className="text-emerald-400 hover:text-white p-1"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* KPI Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 no-print">
@@ -760,6 +802,13 @@ export const StaffPayrollView: React.FC<StaffPayrollViewProps> = ({
               </button>
             </div>
 
+            {staffError && (
+              <div className="p-3 rounded-xl bg-rose-950/70 border border-rose-500/50 text-rose-200 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>{staffError}</span>
+              </div>
+            )}
+
             <form onSubmit={handleSaveStaff} className="space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -930,9 +979,17 @@ export const StaffPayrollView: React.FC<StaffPayrollViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-[#C98A5B] hover:bg-[#DE9E74] text-[#120F0D] font-bold text-xs"
+                  disabled={staffSaving}
+                  className="px-5 py-2.5 rounded-xl bg-[#C98A5B] hover:bg-[#DE9E74] text-[#120F0D] font-bold text-xs disabled:opacity-50 flex items-center gap-1.5 transition-colors"
                 >
-                  {editingStaff ? 'Update Staff Member' : 'Save Staff Member'}
+                  {staffSaving ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-[#120F0D] border-t-transparent rounded-full animate-spin" />
+                      <span>Saving to Cloud...</span>
+                    </>
+                  ) : (
+                    <span>{editingStaff ? 'Update Staff Member' : 'Save Staff Member'}</span>
+                  )}
                 </button>
               </div>
             </form>

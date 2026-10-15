@@ -169,6 +169,7 @@ export interface Product {
   costPrice: number;
   vatApplicable: boolean;
   stockOnHand: number;
+  barcode?: string; // South African EAN-13 (prefix 600/601) or SKU
 }
 
 export interface LineItem {
@@ -250,6 +251,7 @@ export interface DeliveryNote {
   branchName: string;
   merchantId?: string;
   merchantName?: string;
+  merchantEmail?: string;
   deliveryAddress: string;
   recipientName: string;
   recipientPhone: string;
@@ -361,6 +363,7 @@ export interface StaffMember {
   branchCode: string;
   startDate: string;
   status: 'Active' | 'On Leave' | 'Terminated';
+  notes?: string;
 }
 
 export interface PayrollPayout {
@@ -417,6 +420,7 @@ export interface StockPurchase {
 export interface StockItemStatus {
   id: string;
   sku?: string;
+  barcode?: string; // South African EAN-13 (prefix 600/601) or SKU
   name: string;
   category: string;
   branchName: string;
@@ -428,6 +432,40 @@ export interface StockItemStatus {
   minThreshold?: number;
   notes?: string;
   updatedAt: string;
+}
+
+// ------------------------------------------------------------------
+// Stock Movement & Barcode Scanning Types
+// ------------------------------------------------------------------
+export type StockMovementType =
+  | 'STOCK_IN'       // Received from supplier or production run
+  | 'STOCK_OUT'      // Sold, consumed, or dispatched
+  | 'TRANSFER'       // Inter-branch movement (e.g. Main Bakery -> Sandton)
+  | 'WASTAGE'        // Spoiled, damaged, or expired batch write-off
+  | 'ADJUSTMENT'     // Audit count reconciliation
+  | 'RETURN';        // Customer or supplier return
+
+export interface StockMovement {
+  id: string;
+  movementNumber: string; // e.g. "SM-2026-0001"
+  timestamp: string;      // ISO datetime
+  type: StockMovementType;
+  productId?: string;
+  stockItemId?: string;
+  barcode: string;        // Scanned barcode e.g. 6009800123014
+  sku?: string;
+  productName: string;
+  category?: string;
+  quantity: number;
+  unit: string;
+  sourceBranch?: string;       // e.g. "Main Bakery"
+  destinationBranch?: string;  // e.g. "Sandton Branch"
+  batchNumber?: string;
+  reason?: string;
+  notes?: string;
+  recordedBy: string;          // User name or email
+  costValue?: number;
+  isSouthAfricanBarcode?: boolean;
 }
 
 export interface JournalEntryLine {
@@ -468,6 +506,7 @@ export interface ERPDatabase {
   payrollPayouts?: PayrollPayout[];
   stockPurchases?: StockPurchase[];
   stockItemStatuses?: StockItemStatus[];
+  stockMovements?: StockMovement[];
   journalEntries?: JournalEntry[];
   loginLogs?: UserLoginLog[];
   lastUpdated: string;
