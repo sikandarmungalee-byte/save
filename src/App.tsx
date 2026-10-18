@@ -20,10 +20,13 @@ import { StockCapturingView } from './components/StockCapturingView';
 import { AccountingView } from './components/AccountingView';
 import { TaskeenAIAdvisor } from './components/TaskeenAIAdvisor';
 import { MerchantsManagementView } from './components/MerchantsManagementView';
+import { WebsiteShowcaseView } from './components/WebsiteShowcaseView';
+import { MerchantOrdersView } from './components/MerchantOrdersView';
+import { BarcodeScannerModuleView } from './components/BarcodeScannerModuleView';
 import { ShowcaseApp } from './components/showcase/ShowcaseApp';
 import { News24Ticker } from './components/News24Ticker';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, ShieldCheck } from 'lucide-react';
 
 // New Square-Tile Architecture Components
 import { ERP_MODULES, ERPModule, ModuleSubcategory } from './components/dashboard/moduleRegistry';
@@ -80,9 +83,84 @@ const MainLayout: React.FC<MainLayoutProps> = ({ onGoToWebsite }) => {
     setCurrentSubcategoryId(null);
   };
 
+  // Permission check for active user
+  const isModuleAllowed = (moduleId: string): boolean => {
+    if (!currentUser) return true;
+    if (currentUser.role === 'super_admin') return true;
+    const perms = currentUser.permissions;
+    if (!perms) return false;
+
+    switch (moduleId) {
+      case 'dashboard':
+        return true;
+      case 'invoices':
+      case 'invoice-studio':
+        return Boolean(perms.invoices);
+      case 'delivery-notes':
+        return Boolean(perms.deliveryNotes);
+      case 'quotations':
+        return Boolean(perms.quotations);
+      case 'payments':
+        return Boolean(perms.payments);
+      case 'customers':
+        return Boolean(perms.customers);
+      case 'catalog':
+        return Boolean(perms.catalog);
+      case 'stock':
+        return Boolean(perms.stock);
+      case 'barcode-scanner':
+        return Boolean(perms.barcodeScanner ?? (currentUser.role === 'logistics'));
+      case 'merchant-orders':
+        return Boolean(perms.merchantOrders ?? true);
+      case 'website-showcase':
+        return Boolean(perms.websiteShowcase ?? (currentUser.role === 'sales'));
+      case 'payroll':
+        return Boolean(perms.payroll);
+      case 'accounting':
+        return Boolean(perms.accounting);
+      case 'taskeen':
+        return Boolean(perms.taskeenAI ?? true);
+      case 'reports':
+        return Boolean(perms.reports);
+      case 'crm':
+        return Boolean(perms.crmLeads);
+      case 'users':
+        return Boolean(perms.manageUsers);
+      case 'merchants':
+        return Boolean(perms.merchants ?? perms.manageUsers);
+      case 'database':
+        return Boolean(perms.databaseExplorer);
+      case 'settings':
+        return Boolean(perms.companySettings);
+      default:
+        return false;
+    }
+  };
+
   // Render the real active view based on active module & selected subcategory
   const renderModuleActiveView = () => {
     if (!activeModule) return null;
+
+    if (!isModuleAllowed(activeModule.id)) {
+      return (
+        <div className="p-8 max-w-lg mx-auto my-12 bg-white rounded-3xl border border-stone-200 text-center shadow-sm space-y-4">
+          <div className="w-12 h-12 rounded-full bg-red-50 text-red-600 flex items-center justify-center mx-auto">
+            <ShieldCheck className="w-6 h-6" />
+          </div>
+          <h3 className="font-serif text-xl font-bold text-[#2B150A]">Access Restricted</h3>
+          <p className="text-xs text-stone-600">
+            Your user account does not have permission to access the <strong>{activeModule.title}</strong> module.
+            Please consult your Savouré system administrator to update your assigned permissions.
+          </p>
+          <button
+            onClick={handleBackToDashboard}
+            className="px-4 py-2 rounded-xl bg-[#CC8468] text-white text-xs font-semibold hover:bg-[#b86643] transition-colors cursor-pointer"
+          >
+            Return to Dashboard
+          </button>
+        </div>
+      );
+    }
 
     const targetConfig = activeSubcategory?.targetConfig || {};
 
@@ -239,6 +317,29 @@ const MainLayout: React.FC<MainLayoutProps> = ({ onGoToWebsite }) => {
 
       case 'settings':
         return <CompanySettingsView key={currentSubcategoryId || 'settings'} />;
+
+      case 'website-showcase':
+        return (
+          <WebsiteShowcaseView
+            key={currentSubcategoryId || 'website-showcase'}
+            onGoToWebsite={onGoToWebsite}
+          />
+        );
+
+      case 'merchant-orders':
+        return (
+          <MerchantOrdersView
+            key={currentSubcategoryId || 'merchant-orders'}
+            initialStatusFilter={targetConfig.initialStatusFilter || 'ALL'}
+          />
+        );
+
+      case 'barcode-scanner':
+        return (
+          <BarcodeScannerModuleView
+            key={currentSubcategoryId || 'barcode-scanner'}
+          />
+        );
 
       default:
         return <DashboardOverview onNavigate={(tab) => handleSelectModule(tab)} />;

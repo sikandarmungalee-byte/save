@@ -12,7 +12,9 @@ import {
   AlertTriangle,
   CheckCircle2,
   FileCode,
-  HardDrive
+  HardDrive,
+  Cloud,
+  Server
 } from 'lucide-react';
 
 interface DatabaseExplorerViewProps {
@@ -31,6 +33,14 @@ export const DatabaseExplorerView: React.FC<DatabaseExplorerViewProps> = ({ init
     communications,
     users,
     company,
+    staff,
+    stockPurchases,
+    stockItemStatuses,
+    stockMovements,
+    merchantOrders,
+    showcaseProducts,
+    syncStatus,
+    lastSynced,
     purgeMockData,
     restoreBackup,
     refreshData,
@@ -49,9 +59,15 @@ export const DatabaseExplorerView: React.FC<DatabaseExplorerViewProps> = ({ init
     { id: 'payments', label: 'Payments', data: payments, count: payments.length },
     { id: 'customers', label: 'Customers', data: customers, count: customers.length },
     { id: 'products', label: 'Products', data: products, count: products.length },
+    { id: 'merchantOrders', label: 'Merchant Orders (B2B)', data: merchantOrders || [], count: (merchantOrders || []).length },
+    { id: 'showcaseProducts', label: 'Showcase Catalog', data: showcaseProducts || [], count: (showcaseProducts || []).length },
+    { id: 'staff', label: 'Staff & Payroll', data: staff || [], count: (staff || []).length },
+    { id: 'stockPurchases', label: 'Stock Purchases', data: stockPurchases || [], count: (stockPurchases || []).length },
+    { id: 'stockItemStatuses', label: 'Stock On Hand', data: stockItemStatuses || [], count: (stockItemStatuses || []).length },
+    { id: 'stockMovements', label: 'Stock Movements', data: stockMovements || [], count: (stockMovements || []).length },
     { id: 'leads', label: 'Sales Leads', data: leads, count: leads.length },
     { id: 'communications', label: 'Communications', data: communications, count: communications.length },
-    { id: 'users', label: 'Users', data: users, count: users.length },
+    { id: 'users', label: 'Users & Staff', data: users, count: users.length },
   ];
 
   const currentCollection = collections.find((c) => c.id === selectedCollection) || collections[0];
@@ -73,6 +89,12 @@ export const DatabaseExplorerView: React.FC<DatabaseExplorerViewProps> = ({ init
       payments,
       leads,
       communications,
+      staff,
+      stockPurchases,
+      stockItemStatuses,
+      stockMovements,
+      merchantOrders,
+      showcaseProducts,
       lastUpdated: new Date().toISOString(),
     };
 
@@ -186,6 +208,46 @@ export const DatabaseExplorerView: React.FC<DatabaseExplorerViewProps> = ({ init
             <span>{statusMsg}</span>
           </div>
         )}
+      </div>
+
+      {/* Google Cloud Firestore Live Status Panel */}
+      <div className="bg-[#1C1714] border border-[#3A2D25] rounded-xl p-4 sm:p-5 shadow-xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#2C211B] border border-[#4A392F] flex items-center justify-center shrink-0">
+              <Cloud className="w-5 h-5 text-[#DE9E74]" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-semibold text-white">Google Cloud Firestore Database</h2>
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-800 text-[11px] font-medium text-emerald-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Live & Connected
+                </span>
+              </div>
+              <p className="text-xs text-[#A69385] mt-0.5">
+                Real-time multi-device cloud synchronization. Any order, invoice, customer, or stock update is instantly pushed to the cloud and synced across phones, tablets, and computers.
+              </p>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-[11px] font-mono text-[#C5B7AC]">
+                <span>Cloud Doc: <strong className="text-[#DE9E74]">/erp/main</strong></span>
+                <span>•</span>
+                <span>DB: <strong className="text-[#DE9E74]">ai-studio-apexerpenterpris</strong></span>
+                <span>•</span>
+                <span>Last Synced: <strong className="text-white">{lastSynced || 'Active (Live Listener)'}</strong></span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => refreshData()}
+              className="px-3 py-1.5 rounded-lg bg-[#2C211B] hover:bg-[#3A2D25] text-stone-200 hover:text-white border border-[#4A392F] text-xs font-medium flex items-center gap-1.5 transition-colors shadow-2xs"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-[#DE9E74] ${syncStatus === 'syncing' ? 'animate-spin' : ''}`} />
+              <span>{syncStatus === 'syncing' ? 'Syncing...' : 'Force Cloud Sync'}</span>
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Collection Navigation Tabs */}

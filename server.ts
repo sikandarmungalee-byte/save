@@ -1370,6 +1370,59 @@ app.get('/api/ai/status', async (_req: Request, res: Response) => {
   }
 });
 
+// In-memory store for registered FCM device tokens & push notification logs
+const registeredDeviceTokens = new Map<string, { token: string; userId?: string; isMobile?: boolean; timestamp: string }>();
+const orderNotificationsHistory: Array<{ id: string; orderId: string; orderNumber: string; merchantName: string; total: number; title: string; body: string; timestamp: string }> = [];
+
+// FCM Token Registration Endpoint
+app.post('/api/fcm/register-token', (req: Request, res: Response) => {
+  try {
+    const { token, userId, isMobile } = req.body;
+    if (!token) {
+      return res.status(400).json({ error: 'FCM Token is required.' });
+    }
+    registeredDeviceTokens.set(token, {
+      token,
+      userId: userId || 'anonymous',
+      isMobile: Boolean(isMobile),
+      timestamp: new Date().toISOString(),
+    });
+    console.log(`[FCM Server] Device registered for push notifications. Total devices: ${registeredDeviceTokens.size}`);
+    return res.json({ success: true, registeredCount: registeredDeviceTokens.size });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// FCM Order Notification Broadcast Endpoint
+app.post('/api/fcm/send-order-notification', (req: Request, res: Response) => {
+  try {
+    const { orderId, orderNumber, merchantName, total, title, body } = req.body;
+    const notificationItem = {
+      id: 'notif_' + Date.now(),
+      orderId: orderId || '',
+      orderNumber: orderNumber || 'ORD',
+      merchantName: merchantName || 'Merchant',
+      total: Number(total) || 0,
+      title: title || `🔔 New Order: ${orderNumber}`,
+      body: body || `${merchantName} placed an order.`,
+      timestamp: new Date().toISOString(),
+    };
+    orderNotificationsHistory.unshift(notificationItem);
+    if (orderNotificationsHistory.length > 50) orderNotificationsHistory.pop();
+
+    console.log(`[FCM Server] Order Notification Broadcasted: ${notificationItem.orderNumber} from ${notificationItem.merchantName} (Total devices: ${registeredDeviceTokens.size})`);
+    return res.json({ success: true, deliveredToCount: registeredDeviceTokens.size, notification: notificationItem });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Retrieve Order Push Notifications
+app.get('/api/fcm/notifications', (_req: Request, res: Response) => {
+  res.json({ notifications: orderNotificationsHistory });
+});
+
 // Fallback for unmatched API routes - always returns JSON, never HTML
 app.all('/api/*', (req: Request, res: Response) => {
   res.status(404).json({ error: `API route not found: ${req.method} ${req.path}` });

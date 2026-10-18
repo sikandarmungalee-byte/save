@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowRight, ChevronLeft, ChevronRight, Sparkles, Check } from 'lucide-react';
 import { SHOWCASE_COLLECTION, ShowcaseProductItem } from '../showcaseData';
+import { useERP } from '../../../context/ERPContext';
 
 interface HomePageProps {
   onNavigate: (page: string) => void;
@@ -8,15 +9,18 @@ interface HomePageProps {
 }
 
 export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenEnquiryModal }) => {
+  const { showcaseProducts } = useERP();
+  const productList = (showcaseProducts && showcaseProducts.length > 0) ? showcaseProducts : SHOWCASE_COLLECTION;
   const [activeIndex, setActiveIndex] = useState(0);
-  const currentProduct = SHOWCASE_COLLECTION[activeIndex];
+  const safeIndex = activeIndex >= productList.length ? 0 : activeIndex;
+  const currentProduct = productList[safeIndex] || productList[0] || SHOWCASE_COLLECTION[0];
 
   const handlePrev = () => {
-    setActiveIndex((prev) => (prev + SHOWCASE_COLLECTION.length - 1) % SHOWCASE_COLLECTION.length);
+    setActiveIndex((prev) => (prev + productList.length - 1) % productList.length);
   };
 
   const handleNext = () => {
-    setActiveIndex((prev) => (prev + 1) % SHOWCASE_COLLECTION.length);
+    setActiveIndex((prev) => (prev + 1) % productList.length);
   };
 
   // Tone-specific soft ambient backdrops to blend products seamlessly into the site
@@ -223,7 +227,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenEnquiryMod
 
               {/* Numbered indicators */}
               <div className="flex items-center gap-2 font-mono text-xs text-[#75412e]">
-                {SHOWCASE_COLLECTION.map((item, idx) => (
+                {productList.map((item, idx) => (
                   <button
                     key={item.id}
                     type="button"

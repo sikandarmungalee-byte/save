@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { useERP } from '../../context/ERPContext';
-import { Invoice, DeliveryNote } from '../../types/erp';
+import { Invoice, DeliveryNote, MerchantOrderItem } from '../../types/erp';
 import {
   Store,
   FileText,
@@ -27,6 +27,12 @@ import {
   Package,
   MapPin,
   User,
+  Plus,
+  Minus,
+  ShoppingBag,
+  Bell,
+  Sparkles,
+  Send
 } from 'lucide-react';
 import { InvoicePrintModal } from '../InvoicePrintModal';
 import { SHOWCASE_CONTACT } from '../showcase/showcaseData';
@@ -36,15 +42,27 @@ interface MerchantPortalProps {
 }
 
 export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite }) => {
-  const { currentUser, invoices, deliveryNotes, logout, customers, company, savePOD } = useERP();
+  const {
+    currentUser,
+    invoices,
+    deliveryNotes,
+    products,
+    merchantOrders,
+    createMerchantOrder,
+    logout,
+    customers,
+    company,
+    savePOD
+  } = useERP();
 
-  // Navigation tab
-  const [activeTab, setActiveTab] = useState<'invoices' | 'delivery-notes'>('invoices');
+  // Navigation tab: 'place-order' | 'my-orders' | 'invoices' | 'delivery-notes'
+  const [activeTab, setActiveTab] = useState<'place-order' | 'my-orders' | 'invoices' | 'delivery-notes'>('place-order');
 
   // Search & filter states
   const [search, setSearch] = useState('');
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<'ALL' | 'Paid' | 'Pending' | 'Overdue'>('ALL');
   const [deliveryStatusFilter, setDeliveryStatusFilter] = useState<'ALL' | 'In Transit' | 'Delivered'>('ALL');
+  const [orderStatusFilter, setOrderStatusFilter] = useState<'ALL' | 'PENDING' | 'ACCEPTED' | 'PREPARING' | 'DISPATCHED' | 'DELIVERED'>('ALL');
 
   // Modal states
   const [selectedInvoiceForPrint, setSelectedInvoiceForPrint] = useState<Invoice | null>(null);
@@ -58,6 +76,24 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasDrawn, setHasDrawn] = useState(false);
+
+  // ------------------------------------------------------------------
+  // NEW ORDER FORM STATE
+  // ------------------------------------------------------------------
+  const [orderQuantities, setOrderQuantities] = useState<Record<string, number>>({});
+  const [requestedDeliveryDate, setRequestedDeliveryDate] = useState<string>(() => {
+    const d = new Date(Date.now() + 86400000 * 2);
+    return d.toISOString().split('T')[0];
+  });
+  const [deliveryAddress, setDeliveryAddress] = useState<string>(
+    currentUser?.deliveryAddress || currentUser?.merchantAddress || 'Commercial Store Dispatch Address'
+  );
+  const [selectedBranch, setSelectedBranch] = useState<string>(
+    currentUser?.branch || 'Main Branch'
+  );
+  const [orderNotes, setOrderNotes] = useState<string>('');
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState<boolean>(false);
+  const [orderSuccessBanner, setOrderSuccessBanner] = useState<string | null>(null);
 
   // Find linked customer record from ERP database if available
   const linkedCustomer = useMemo(() => {
@@ -83,7 +119,7 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
     linkedCustomer?.registeredName ||
     currentUser?.merchantStoreName ||
     currentUser?.name ||
-    'Merchant Store';
+    'Merchant Partner';
 
   // ------------------------------------------------------------------
   // STRICT AUTOMATIC FILTERING FOR INVOICES
@@ -92,33 +128,15 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
     if (!currentUser) return [];
 
     return invoices.filter((inv) => {
-      // 1. Direct match on linked Customer ID
-      if (currentUser.customerId && inv.customerId === currentUser.customerId) {
-        return true;
-      }
-      if (linkedCustomer?.id && inv.customerId === linkedCustomer.id) {
-        return true;
-      }
-
-      // 2. Direct match on Merchant ID (if tagged upon creation)
-      if (inv.merchantId && inv.merchantId === currentUser.id) {
-        return true;
-      }
-
-      // 2b. Direct match on Merchant Email
-      if (inv.merchantEmail && currentUser.email && inv.merchantEmail.toLowerCase() === currentUser.email.toLowerCase()) {
-        return true;
-      }
-
-      // 2c. Direct match on Merchant Name / Store Name
+      if (currentUser.customerId && inv.customerId === currentUser.customerId) return true;
+      if (linkedCustomer?.id && inv.customerId === linkedCustomer.id) return true;
+      if (inv.merchantId && inv.merchantId === currentUser.id) return true;
+      if (inv.merchantEmail && currentUser.email && inv.merchantEmail.toLowerCase() === currentUser.email.toLowerCase()) return true;
       if (inv.merchantName && (
         (currentUser.name && inv.merchantName.toLowerCase() === currentUser.name.toLowerCase()) ||
         (currentUser.merchantStoreName && inv.merchantName.toLowerCase() === currentUser.merchantStoreName.toLowerCase())
-      )) {
-        return true;
-      }
+      )) return true;
 
-      // 3. Match on Customer Name / Trading Name (case-insensitive)
       const targetCustomerNames = [
         currentUser.customerName?.toLowerCase(),
         currentUser.merchantStoreName?.toLowerCase(),
@@ -129,44 +147,9 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
       const invCustomerName = (inv.customerName || '').toLowerCase();
       const invTradingName = (inv.customerTradingName || '').toLowerCase();
 
-      if (targetCustomerNames.some((name) => name && (invCustomerName.includes(name) || invTradingName.includes(name) || name.includes(invCustomerName)))) {
-        return true;
-      }
-
-      // 4. Branch match if assigned to a specific branch
-      if (
-        currentUser.branch &&
-        currentUser.branch !== 'All Branches' &&
-        currentUser.branch !== 'Unassigned'
-      ) {
-        const matchBranch =
-          inv.branch === currentUser.branch ||
-          inv.branchName === currentUser.branch ||
-          inv.branchId === currentUser.branch;
-        if (matchBranch) return true;
-      }
-
-      return false;
+      return targetCustomerNames.some((name) => name && (invCustomerName.includes(name) || invTradingName.includes(name) || name.includes(invCustomerName)));
     });
   }, [invoices, currentUser, linkedCustomer]);
-
-  // Filtered invoices by search & status
-  const filteredInvoices = useMemo(() => {
-    return merchantInvoices.filter((inv) => {
-      const matchesSearch =
-        (inv.invoiceNumber || '').toLowerCase().includes(search.toLowerCase()) ||
-        (inv.customerName || '').toLowerCase().includes(search.toLowerCase()) ||
-        (inv.issueDate || '').toLowerCase().includes(search.toLowerCase());
-
-      const matchesStatus =
-        invoiceStatusFilter === 'ALL' ||
-        (invoiceStatusFilter === 'Paid' && inv.status === 'Paid') ||
-        (invoiceStatusFilter === 'Pending' && (inv.status === 'Sent' || inv.status === 'Partial' || inv.status === 'Draft')) ||
-        (invoiceStatusFilter === 'Overdue' && inv.status === 'Overdue');
-
-      return matchesSearch && matchesStatus;
-    });
-  }, [merchantInvoices, search, invoiceStatusFilter]);
 
   // ------------------------------------------------------------------
   // STRICT AUTOMATIC FILTERING FOR DELIVERY NOTES
@@ -174,667 +157,783 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
   const merchantDeliveryNotes = useMemo(() => {
     if (!currentUser) return [];
 
-    return deliveryNotes.filter((dn) => {
-      // 1. Direct match on linked Customer ID
-      if (currentUser.customerId && dn.customerId === currentUser.customerId) {
-        return true;
-      }
-      if (linkedCustomer?.id && dn.customerId === linkedCustomer.id) {
-        return true;
-      }
+    return deliveryNotes.filter((note) => {
+      if (currentUser.customerId && note.customerId === currentUser.customerId) return true;
+      if (linkedCustomer?.id && note.customerId === linkedCustomer.id) return true;
+      if (note.merchantId && note.merchantId === currentUser.id) return true;
 
-      // 2. Direct match on Merchant ID
-      if (dn.merchantId && dn.merchantId === currentUser.id) {
-        return true;
-      }
-
-      // 2b. Direct match on Merchant Email
-      if (dn.merchantEmail && currentUser.email && dn.merchantEmail.toLowerCase() === currentUser.email.toLowerCase()) {
-        return true;
-      }
-
-      // 3. Match via linked invoice
-      if (dn.invoiceId && merchantInvoices.some((inv) => inv.id === dn.invoiceId)) {
-        return true;
-      }
-      if (dn.invoiceNumber && merchantInvoices.some((inv) => inv.invoiceNumber === dn.invoiceNumber)) {
-        return true;
-      }
-
-      // 4. Customer Name / Trading Name match
       const targetCustomerNames = [
         currentUser.customerName?.toLowerCase(),
         currentUser.merchantStoreName?.toLowerCase(),
-        linkedCustomer?.registeredName?.toLowerCase(),
-        linkedCustomer?.tradingName?.toLowerCase(),
+        linkedCustomer?.registeredName.toLowerCase(),
+        linkedCustomer?.tradingName.toLowerCase(),
       ].filter(Boolean);
 
-      const dnCustomerName = (dn.customerName || '').toLowerCase();
-      if (targetCustomerNames.some((name) => name && (dnCustomerName.includes(name) || name.includes(dnCustomerName)))) {
-        return true;
-      }
+      const noteCustomerName = (note.customerName || '').toLowerCase();
+      return targetCustomerNames.some((name) => name && (noteCustomerName.includes(name) || name.includes(noteCustomerName)));
+    });
+  }, [deliveryNotes, currentUser, linkedCustomer]);
 
-      // 5. Branch match
-      if (
-        currentUser.branch &&
-        currentUser.branch !== 'All Branches' &&
-        currentUser.branch !== 'Unassigned'
-      ) {
-        if (dn.branchName === currentUser.branch || dn.branchId === currentUser.branch) {
-          return true;
-        }
-      }
-
+  // ------------------------------------------------------------------
+  // STRICT AUTOMATIC FILTERING FOR MERCHANT ORDERS
+  // ------------------------------------------------------------------
+  const myOrdersList = useMemo(() => {
+    if (!currentUser) return [];
+    return (merchantOrders || []).filter((o) => {
+      if (o.merchantId === currentUser.id) return true;
+      if (currentUser.email && o.merchantEmail && o.merchantEmail.toLowerCase() === currentUser.email.toLowerCase()) return true;
+      if (currentUser.merchantStoreName && o.merchantStoreName && o.merchantStoreName.toLowerCase() === currentUser.merchantStoreName.toLowerCase()) return true;
       return false;
     });
-  }, [deliveryNotes, currentUser, linkedCustomer, merchantInvoices]);
+  }, [merchantOrders, currentUser]);
 
-  // Filtered delivery notes by search & status
-  const filteredDeliveryNotes = useMemo(() => {
-    return merchantDeliveryNotes.filter((dn) => {
-      const term = search.toLowerCase().trim();
-      const matchesSearch =
-        !term ||
-        (dn.deliveryNoteNumber || '').toLowerCase().includes(term) ||
-        (dn.invoiceNumber || '').toLowerCase().includes(term) ||
-        (dn.driverName || '').toLowerCase().includes(term) ||
-        (dn.recipientName || '').toLowerCase().includes(term) ||
-        (dn.items || []).some((it) => (it.description || '').toLowerCase().includes(term));
+  // Financial statistics
+  const totalBilled = merchantInvoices.reduce((acc, i) => acc + (Number(i.grandTotal) || 0), 0);
+  const totalPaid = merchantInvoices.reduce((acc, i) => acc + (Number(i.amountPaid) || 0), 0);
+  const totalBalanceDue = merchantInvoices.reduce((acc, i) => acc + (Number(i.balanceDue) || 0), 0);
+  const pendingOrdersCount = myOrdersList.filter((o) => o.status === 'PENDING' || o.status === 'ACCEPTED' || o.status === 'PREPARING').length;
 
-      const isDelivered = dn.status === 'Delivered' || Boolean(dn.podSignature);
-      const isInTransit = !isDelivered;
+  // Ordering catalog items (from ERP products)
+  const orderableProducts = useMemo(() => {
+    return (products || []).filter((p) => p.unitPrice > 0 || p.showcase !== false);
+  }, [products]);
 
-      const matchesStatus =
-        deliveryStatusFilter === 'ALL' ||
-        (deliveryStatusFilter === 'Delivered' && isDelivered) ||
-        (deliveryStatusFilter === 'In Transit' && isInTransit);
-
-      return matchesSearch && matchesStatus;
+  // Calculate order items and total
+  const selectedOrderItems: MerchantOrderItem[] = useMemo(() => {
+    const list: MerchantOrderItem[] = [];
+    Object.entries(orderQuantities).forEach(([prodId, qty]) => {
+      if (qty > 0) {
+        const prod = orderableProducts.find((p) => p.id === prodId);
+        if (prod) {
+          const unitPrice = prod.unitPrice || 35.00;
+          list.push({
+            productId: prod.id,
+            productName: prod.name,
+            packSize: prod.packSize || '12-Pack / Catering Box',
+            quantity: qty,
+            unitPrice,
+            lineTotal: qty * unitPrice,
+          });
+        }
+      }
     });
-  }, [merchantDeliveryNotes, search, deliveryStatusFilter]);
+    return list;
+  }, [orderQuantities, orderableProducts]);
 
-  // Metrics
-  const totalInvoiced = useMemo(() => {
-    return merchantInvoices.reduce((acc, inv) => acc + (inv.grandTotal || 0), 0);
-  }, [merchantInvoices]);
+  const orderSubtotal = selectedOrderItems.reduce((acc, it) => acc + it.lineTotal, 0);
+  const orderTotal = orderSubtotal; // Zero-rated / staple exemption default
 
-  const totalOutstanding = useMemo(() => {
-    return merchantInvoices.reduce((acc, inv) => acc + (inv.balanceDue || 0), 0);
-  }, [merchantInvoices]);
-
-  const totalPaid = useMemo(() => {
-    return merchantInvoices.reduce((acc, inv) => acc + (inv.amountPaid || (inv.status === 'Paid' ? inv.grandTotal : 0)), 0);
-  }, [merchantInvoices]);
-
-  const inTransitCount = useMemo(() => {
-    return merchantDeliveryNotes.filter((d) => d.status === 'In Transit' || (!d.podSignature && d.status !== 'Delivered')).length;
-  }, [merchantDeliveryNotes]);
-
-  const deliveredCount = useMemo(() => {
-    return merchantDeliveryNotes.filter((d) => d.status === 'Delivered' || Boolean(d.podSignature)).length;
-  }, [merchantDeliveryNotes]);
-
-  // Helper to find linked delivery note for an invoice
-  const getLinkedDeliveryNote = (invoice: Invoice): DeliveryNote | undefined => {
-    return merchantDeliveryNotes.find(
-      (dn) =>
-        (invoice.linkedDeliveryNoteId && dn.id === invoice.linkedDeliveryNoteId) ||
-        (dn.invoiceId && dn.invoiceId === invoice.id) ||
-        (dn.invoiceNumber && dn.invoiceNumber === invoice.invoiceNumber)
-    );
+  const handleQtyChange = (prodId: string, delta: number) => {
+    setOrderQuantities((prev) => {
+      const cur = prev[prodId] || 0;
+      const next = Math.max(0, cur + delta);
+      if (next === 0) {
+        const copy = { ...prev };
+        delete copy[prodId];
+        return copy;
+      }
+      return { ...prev, [prodId]: next };
+    });
   };
 
-  // ------------------------------------------------------------------
-  // POD SIGNATURE DRAWING HANDLERS
-  // ------------------------------------------------------------------
+  const handlePlaceOrderSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedOrderItems.length === 0) {
+      alert('Please select at least one bakery product to place an order.');
+      return;
+    }
+
+    setIsSubmittingOrder(true);
+    try {
+      const created = await createMerchantOrder({
+        merchantId: currentUser?.id,
+        merchantName: currentUser?.name || 'Commercial Merchant',
+        merchantStoreName: customerDisplayName,
+        merchantEmail: currentUser?.email || 'orders@savoure.co.za',
+        merchantPhone: currentUser?.merchantPhone || currentUser?.phone || '061 364 5712',
+        branch: selectedBranch,
+        deliveryAddress: deliveryAddress.trim() || 'Store Direct Delivery',
+        requestedDeliveryDate,
+        items: selectedOrderItems,
+        subtotal: orderSubtotal,
+        vat: 0,
+        total: orderTotal,
+        specialInstructions: orderNotes.trim(),
+      });
+
+      setOrderQuantities({});
+      setOrderNotes('');
+      setOrderSuccessBanner(
+        `🎉 Order #${created.orderNumber} successfully submitted! The bakery dispatch desk has received your order and triggered live push notifications.`
+      );
+      setActiveTab('my-orders');
+      setTimeout(() => setOrderSuccessBanner(null), 8000);
+    } catch (err: any) {
+      alert(err?.message || 'Failed to submit order. Please try again or WhatsApp dispatch.');
+    } finally {
+      setIsSubmittingOrder(false);
+    }
+  };
+
+  // Digital Signature Canvas Handlers
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     setIsDrawing(true);
-    draw(e);
+    setHasDrawn(true);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
+    const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  };
+
+  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
+    const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#1E0F07';
+    ctx.lineTo(x, y);
+    ctx.stroke();
   };
 
   const stopDrawing = () => {
     setIsDrawing(false);
-    if (canvasRef.current) {
-      const ctx = canvasRef.current.getContext('2d');
-      ctx?.beginPath();
-    }
-  };
-
-  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    if (!isDrawing || !canvasRef.current) return;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const rect = canvas.getBoundingClientRect();
-    let clientX = 0;
-    let clientY = 0;
-
-    if ('touches' in e) {
-      clientX = e.touches[0].clientX;
-      clientY = e.touches[0].clientY;
-    } else {
-      clientX = e.clientX;
-      clientY = e.clientY;
-    }
-
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
-
-    ctx.lineWidth = 2.5;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#0284c7';
-
-    ctx.lineTo(x, y);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    setHasDrawn(true);
   };
 
   const clearCanvas = () => {
-    if (!canvasRef.current) return;
-    const ctx = canvasRef.current.getContext('2d');
-    if (ctx) {
-      ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-      setHasDrawn(false);
-    }
-  };
-
-  const openPodModal = (note: DeliveryNote) => {
-    setPodNote(note);
-    setRecipientName(note.recipientName || currentUser?.name || '');
-    setPodNotes('');
-    setPodError(null);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     setHasDrawn(false);
   };
 
-  const handleSavePOD = async () => {
-    if (!podNote || !canvasRef.current) return;
+  const handleSavePodSignature = async () => {
+    if (!podNote) return;
     if (!recipientName.trim()) {
-      setPodError('Please provide receiving bay clerk or store manager name.');
+      setPodError('Please enter recipient full name.');
       return;
     }
-    if (!hasDrawn) {
-      setPodError('Please sign on the signature pad to confirm receipt.');
+    const canvas = canvasRef.current;
+    if (!canvas || !hasDrawn) {
+      setPodError('Please provide a digital signature.');
       return;
     }
 
-    const signatureDataUrl = canvasRef.current.toDataURL('image/png');
-    const updatedNote = await savePOD(podNote.id, {
-      podSignature: signatureDataUrl,
-      podReceivedBy: recipientName.trim(),
-      notes: podNotes.trim(),
-    });
-
-    setPodNote(null);
-    // If user is currently viewing this delivery note in the preview modal, update preview to signed version
-    if (selectedDeliveryNoteForView && selectedDeliveryNoteForView.id === podNote.id) {
-      setSelectedDeliveryNoteForView(updatedNote);
+    try {
+      const sigData = canvas.toDataURL('image/png');
+      await savePOD(podNote.id, {
+        podSignature: sigData,
+        podReceivedBy: recipientName.trim(),
+        notes: podNotes.trim(),
+      });
+      setPodNote(null);
+      clearCanvas();
+      alert('Proof of Delivery (POD) signed and submitted successfully.');
+    } catch (e: any) {
+      setPodError(e.message || 'Failed to submit POD signature');
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#14100D] text-[#EDE6DE] flex flex-col font-sans selection:bg-[#C98A5B] selection:text-white">
-      {/* Top Navbar */}
-      <header className="border-b border-[#2C211B] bg-[#1A1411] sticky top-0 z-30 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={onBackToWebsite}
-              className="p-2 -ml-2 rounded-lg text-[#A69385] hover:text-white hover:bg-[#2C211B] transition-colors"
-              title="Return to Savouré website"
-            >
-              <Globe className="w-5 h-5 text-[#C98A5B]" />
-            </button>
-            <div className="flex items-center gap-3">
-              <div className="flex flex-col">
-                <span className="font-serif text-lg sm:text-xl font-bold tracking-[0.2em] text-[#EDE6DE] uppercase leading-none">
-                  Savouré
+    <div className="min-h-screen bg-[#FBF7F1] text-[#2B150A] flex flex-col font-sans">
+      {/* 1. TOP EXECUTIVE HEADER (Admin Portal Styling) */}
+      <header className="sticky top-0 z-40 bg-[#1E0F07] text-white border-b border-[#3A2215] shadow-md">
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 py-3.5 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <img
+              src="/showcase/savoure-logo.png"
+              alt="Savouré Logo"
+              className="w-10 h-10 rounded-full object-contain bg-white/10 p-1 border border-[#CC8468]/40 shrink-0"
+            />
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-serif text-lg font-bold tracking-tight text-white">
+                  Savouré Commercial Merchant Portal
                 </span>
-                <span className="text-[8px] uppercase tracking-[0.22em] text-[#DE9E74] font-semibold mt-0.5">
-                  A Taste of Tradition
+                <span className="hidden sm:inline-block text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded bg-[#CC8468]/30 text-[#E0A282] border border-[#CC8468]/40">
+                  Direct B2B Order Desk
                 </span>
               </div>
-              <div className="hidden sm:block border-l border-[#3A2D25] pl-3">
-                <span className="text-xs uppercase font-serif tracking-widest text-[#DE9E74] font-bold block">
-                  Merchant Portal
-                </span>
-                <span className="text-[11px] text-[#A69385] flex items-center gap-1.5 font-medium">
-                  <Building2 className="w-3 h-3 text-[#C98A5B]" />
-                  <span>Branch: <strong className="text-white">{currentBranch}</strong></span>
-                </span>
+              <div className="text-xs text-[#C5B7AC] flex items-center gap-2">
+                <Store className="w-3.5 h-3.5 text-[#CC8468]" />
+                <span className="font-semibold text-white">{customerDisplayName}</span>
+                <span>·</span>
+                <span>Branch: {currentBranch}</span>
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <a
-              href={SHOWCASE_CONTACT.whatsappHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 text-xs font-semibold border border-emerald-700/50 transition-colors"
+            <button
+              onClick={onBackToWebsite}
+              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-all cursor-pointer"
             >
-              <MessageCircle className="w-3.5 h-3.5" />
-              <span>WhatsApp Wholesale Desk</span>
-            </a>
-
-            <div className="text-right hidden md:block">
-              <div className="text-xs font-semibold text-white">{currentUser?.name}</div>
-              <div className="text-[10px] text-[#DE9E74]">{customerDisplayName}</div>
-            </div>
+              <Globe className="w-3.5 h-3.5" />
+              <span>Public Website</span>
+            </button>
 
             <button
               onClick={() => logout()}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#2C211B] hover:bg-rose-950/40 text-xs font-semibold text-[#EDE6DE] hover:text-rose-300 border border-[#3A2D25] hover:border-rose-800/60 transition-colors"
-              title="Sign out of merchant account"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-500/30 text-xs font-semibold transition-all cursor-pointer"
+              title="Sign Out of Merchant Account"
             >
-              <LogOut className="w-3.5 h-3.5 text-rose-400" />
-              <span>Sign Out</span>
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Sign Out</span>
             </button>
+          </div>
+        </div>
+
+        {/* 2. SUB-BAR NAVIGATION TABS */}
+        <div className="bg-[#2B150A] border-t border-[#3A2215] px-4 sm:px-8">
+          <div className="max-w-7xl mx-auto flex items-center gap-2 overflow-x-auto py-2">
+            {[
+              { id: 'place-order', label: 'Place New Order', icon: ShoppingBag, badge: 'Direct Desk' },
+              { id: 'my-orders', label: 'My Orders', icon: Package, badge: myOrdersList.length ? String(myOrdersList.length) : undefined },
+              { id: 'invoices', label: 'Invoices & Statements', icon: FileText, badge: merchantInvoices.length ? String(merchantInvoices.length) : undefined },
+              { id: 'delivery-notes', label: 'Delivery Notes & PODs', icon: Truck, badge: merchantDeliveryNotes.length ? String(merchantDeliveryNotes.length) : undefined },
+            ].map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shrink-0 ${
+                    isActive
+                      ? 'bg-[#CC8468] text-[#1E0F07] shadow-sm'
+                      : 'text-[#C5B7AC] hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{tab.label}</span>
+                  {tab.badge && (
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${isActive ? 'bg-[#1E0F07] text-[#E0A282]' : 'bg-white/10 text-stone-300'}`}>
+                      {tab.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
-        {/* Customer Account & Branch Identification Banner */}
-        <div className="bg-gradient-to-r from-[#201713] via-[#2A1E18] to-[#1C1410] border border-[#C98A5B]/40 rounded-2xl p-6 sm:p-8 shadow-xl relative overflow-hidden">
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#C98A5B]/20 border border-[#C98A5B]/40 text-[#DE9E74] text-xs font-serif font-bold uppercase tracking-wider">
-                  <Store className="w-3.5 h-3.5" />
-                  <span>Authorized Merchant Account</span>
-                </span>
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-950/60 border border-emerald-800/60 text-emerald-300 text-[11px] font-mono">
-                  <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                  <span>Live Cloud Sync Active</span>
-                </span>
-                {inTransitCount > 0 && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-950/80 border border-amber-600/70 text-amber-300 text-[11px] font-bold animate-pulse">
-                    <Truck className="w-3 h-3" />
-                    <span>{inTransitCount} Shipment{inTransitCount === 1 ? '' : 's'} In Transit</span>
-                  </span>
-                )}
-              </div>
-
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-serif font-bold text-white tracking-tight">
-                {customerDisplayName}
-              </h1>
-
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#A69385]">
-                {linkedCustomer?.accountCode && (
-                  <span>Account Code: <strong className="text-[#EDE6DE] font-mono">{linkedCustomer.accountCode}</strong></span>
-                )}
-                <span>Branch: <strong className="text-[#EDE6DE]">{currentBranch}</strong></span>
-                {currentUser?.email && (
-                  <span>Login: <strong className="text-[#EDE6DE]">{currentUser.email}</strong></span>
-                )}
-              </div>
-
-              <p className="text-xs text-[#A69385]/80 pt-1 max-w-2xl leading-relaxed">
-                Welcome to your merchant portal. Official tax invoices, delivery notes with live transit tracking, and signed Proof of Delivery records issued by Savouré Administration synchronize here in real time.
-              </p>
+      <main className="flex-1 max-w-7xl mx-auto w-full p-4 sm:p-8 space-y-6">
+        {/* Success Banner */}
+        {orderSuccessBanner && (
+          <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs sm:text-sm font-medium flex items-center justify-between gap-3 shadow-sm animate-fade-in">
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+              <span>{orderSuccessBanner}</span>
             </div>
-
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
-              <a
-                href={SHOWCASE_CONTACT.whatsappHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-900/40 hover:bg-emerald-900/60 text-emerald-200 border border-emerald-700/60 text-xs font-semibold transition-colors"
-              >
-                <MessageCircle className="w-4 h-4 text-emerald-400" />
-                <span>Enquire via WhatsApp</span>
-              </a>
-
-              <button
-                onClick={onBackToWebsite}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#221B17] hover:bg-[#2C211B] text-xs font-semibold text-[#EDE6DE] border border-[#3A2D25] transition-colors"
-              >
-                <Globe className="w-4 h-4 text-[#C98A5B]" />
-                <span>Showcase Website</span>
-              </button>
-            </div>
+            <button onClick={() => setOrderSuccessBanner(null)} className="text-emerald-700 hover:text-emerald-900">
+              <X className="w-4 h-4" />
+            </button>
           </div>
-        </div>
+        )}
 
-        {/* Real-Time Financial & Delivery Summary Cards */}
+        {/* 3. EXECUTIVE KPI SUMMARY CARDS */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-[#1A1411] border border-[#2C211B] rounded-xl p-5 shadow-xs">
-            <span className="text-[11px] uppercase font-serif tracking-wider text-[#A69385] block">
-              Total Invoiced
+          <div className="p-5 rounded-2xl bg-white border border-[#E8D9CD] shadow-sm flex flex-col justify-between">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-[#8D5037] flex items-center gap-1.5">
+              <ShoppingBag className="w-3.5 h-3.5 text-[#CC8468]" />
+              <span>Pending Orders</span>
             </span>
-            <div className="mt-2 text-2xl font-bold font-mono text-white">
-              {company.currency || 'R'} {totalInvoiced.toFixed(2)}
+            <div className="text-2xl font-serif font-bold text-[#2B150A] mt-2">
+              {pendingOrdersCount}
             </div>
-            <span className="text-[10px] text-[#8A776B] block mt-1">
-              {merchantInvoices.length} official statements issued
-            </span>
+            <span className="text-[11px] text-[#7A6458] mt-1">In bakery oven queue</span>
           </div>
 
-          <div className="bg-[#1A1411] border border-[#2C211B] rounded-xl p-5 shadow-xs">
-            <span className="text-[11px] uppercase font-serif tracking-wider text-[#A69385] block">
-              Balance Due
+          <div className="p-5 rounded-2xl bg-white border border-[#E8D9CD] shadow-sm flex flex-col justify-between">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-[#8D5037] flex items-center gap-1.5">
+              <FileText className="w-3.5 h-3.5 text-[#CC8468]" />
+              <span>Total Orders Placed</span>
             </span>
-            <div className={`mt-2 text-2xl font-bold font-mono ${totalOutstanding > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
-              {company.currency || 'R'} {totalOutstanding.toFixed(2)}
+            <div className="text-2xl font-serif font-bold text-[#2B150A] mt-2">
+              {myOrdersList.length}
             </div>
-            <span className="text-[10px] text-[#8A776B] block mt-1">
-              {totalOutstanding > 0 ? 'Outstanding balance' : 'Account fully settled'}
-            </span>
+            <span className="text-[11px] text-[#7A6458] mt-1">B2B commercial orders</span>
           </div>
 
-          <div
-            onClick={() => { setActiveTab('delivery-notes'); setDeliveryStatusFilter('In Transit'); }}
-            className="bg-[#1A1411] border border-[#2C211B] hover:border-amber-500/60 rounded-xl p-5 shadow-xs cursor-pointer transition-colors"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] uppercase font-serif tracking-wider text-amber-400/90 font-semibold block">
-                In Transit (Unsigned)
-              </span>
-              <Truck className="w-4 h-4 text-amber-400" />
-            </div>
-            <div className="mt-2 text-2xl font-bold font-mono text-amber-300">
-              {inTransitCount}
-            </div>
-            <span className="text-[10px] text-amber-500/80 block mt-1">
-              Awaiting store delivery & POD sign-off
+          <div className="p-5 rounded-2xl bg-white border border-[#E8D9CD] shadow-sm flex flex-col justify-between">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-[#8D5037] flex items-center gap-1.5">
+              <Receipt className="w-3.5 h-3.5 text-[#CC8468]" />
+              <span>Total Invoiced</span>
             </span>
+            <div className="text-2xl font-serif font-bold text-[#2B150A] mt-2">
+              R {totalBilled.toFixed(2)}
+            </div>
+            <span className="text-[11px] text-emerald-700 mt-1">Settled: R {totalPaid.toFixed(2)}</span>
           </div>
 
-          <div
-            onClick={() => { setActiveTab('delivery-notes'); setDeliveryStatusFilter('Delivered'); }}
-            className="bg-[#1A1411] border border-[#2C211B] hover:border-emerald-500/60 rounded-xl p-5 shadow-xs cursor-pointer transition-colors"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] uppercase font-serif tracking-wider text-emerald-400/90 font-semibold block">
-                Delivered & Signed
-              </span>
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <div className="p-5 rounded-2xl bg-white border border-[#E8D9CD] shadow-sm flex flex-col justify-between">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-[#8D5037] flex items-center gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+              <span>Current Account Balance</span>
+            </span>
+            <div className={`text-2xl font-serif font-bold mt-2 ${totalBalanceDue > 0 ? 'text-amber-800' : 'text-emerald-700'}`}>
+              R {totalBalanceDue.toFixed(2)}
             </div>
-            <div className="mt-2 text-2xl font-bold font-mono text-emerald-400">
-              {deliveredCount}
-            </div>
-            <span className="text-[10px] text-emerald-600 block mt-1">
-              Verified electronic Proof of Delivery
+            <span className="text-[11px] text-[#7A6458] mt-1">
+              {totalBalanceDue > 0 ? 'Pending statement settlement' : 'Account fully paid up'}
             </span>
           </div>
         </div>
 
-        {/* Master Tab Bar: Invoices vs Delivery Notes */}
-        <div className="flex items-center justify-between gap-4 border-b border-[#2C211B] pb-2">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => { setActiveTab('invoices'); setSearch(''); }}
-              className={`flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-serif font-bold tracking-wide transition-all ${
-                activeTab === 'invoices'
-                  ? 'bg-[#391E0F] text-[#F3D2BF] border border-[#C98A5B]/60 shadow-md'
-                  : 'text-[#A69385] hover:text-white hover:bg-[#201814]'
-              }`}
-            >
-              <FileText className="w-4 h-4 text-[#C98A5B]" />
-              <span>Tax Invoices</span>
-              <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-black/40 text-stone-300">
-                {merchantInvoices.length}
-              </span>
-            </button>
-
-            <button
-              onClick={() => { setActiveTab('delivery-notes'); setSearch(''); }}
-              className={`flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-serif font-bold tracking-wide transition-all relative ${
-                activeTab === 'delivery-notes'
-                  ? 'bg-[#391E0F] text-[#F3D2BF] border border-[#C98A5B]/60 shadow-md'
-                  : 'text-[#A69385] hover:text-white hover:bg-[#201814]'
-              }`}
-            >
-              <Truck className="w-4 h-4 text-[#C98A5B]" />
-              <span>Delivery Notes & POD</span>
-              <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-black/40 text-stone-300">
-                {merchantDeliveryNotes.length}
-              </span>
-              {inTransitCount > 0 && (
-                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping absolute top-2 right-2" />
-              )}
-            </button>
-          </div>
-
-          <div className="text-xs text-[#8A776B] hidden sm:block font-mono">
-            {activeTab === 'invoices' ? 'Viewing customer billing history' : 'Viewing store dispatch waybills & electronic PODs'}
-          </div>
-        </div>
-
         {/* ---------------------------------------------------- */}
-        {/* TAB 1: TAX INVOICES SECTION                          */}
+        {/* TAB 1: PLACE NEW ORDER                               */}
         {/* ---------------------------------------------------- */}
-        {activeTab === 'invoices' && (
-          <div className="bg-[#1A1411] border border-[#2C211B] rounded-2xl p-6 shadow-sm space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-serif font-bold text-white flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-[#C98A5B]" />
-                  <span>Tax Invoices & Billing Statements</span>
-                </h2>
-                <p className="text-xs text-[#A69385] mt-0.5">
-                  Click any invoice below to inspect or print your official SARS-compliant Tax Invoice.
-                </p>
-              </div>
+        {activeTab === 'place-order' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            {/* Left: Product Selector Grid */}
+            <div className="lg:col-span-8 space-y-4">
+              <div className="bg-white rounded-3xl border border-[#E8D9CD] p-6 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#E8D9CD]">
+                  <div>
+                    <h2 className="font-serif text-xl sm:text-2xl font-bold text-[#2B150A]">
+                      Bakery Order Catalog
+                    </h2>
+                    <p className="text-xs text-[#66483B] mt-0.5">
+                      Select daily pastry batches, rotis, tortilla wraps, and sheet quantities for wholesale dispatch.
+                    </p>
+                  </div>
 
-              {/* Invoice Filter Pills */}
-              <div className="flex flex-wrap items-center gap-1.5 bg-[#120F0D] p-1 rounded-xl border border-[#2C211B]">
-                <button
-                  onClick={() => setInvoiceStatusFilter('ALL')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    invoiceStatusFilter === 'ALL'
-                      ? 'bg-[#C98A5B] text-[#120F0D] font-bold shadow-xs'
-                      : 'text-[#A69385] hover:text-white'
-                  }`}
-                >
-                  All ({merchantInvoices.length})
-                </button>
-                <button
-                  onClick={() => setInvoiceStatusFilter('Paid')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    invoiceStatusFilter === 'Paid'
-                      ? 'bg-emerald-600 text-white font-bold shadow-xs'
-                      : 'text-[#A69385] hover:text-white'
-                  }`}
-                >
-                  Paid ({merchantInvoices.filter((i) => i.status === 'Paid').length})
-                </button>
-                <button
-                  onClick={() => setInvoiceStatusFilter('Pending')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    invoiceStatusFilter === 'Pending'
-                      ? 'bg-amber-600 text-white font-bold shadow-xs'
-                      : 'text-[#A69385] hover:text-white'
-                  }`}
-                >
-                  Pending ({merchantInvoices.filter((i) => i.status === 'Sent' || i.status === 'Partial' || i.status === 'Draft').length})
-                </button>
-                <button
-                  onClick={() => setInvoiceStatusFilter('Overdue')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    invoiceStatusFilter === 'Overdue'
-                      ? 'bg-rose-700 text-white font-bold shadow-xs'
-                      : 'text-[#A69385] hover:text-white'
-                  }`}
-                >
-                  Overdue ({merchantInvoices.filter((i) => i.status === 'Overdue').length})
-                </button>
-              </div>
-            </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold px-3 py-1 rounded-full bg-[#EAD8C6] text-[#75412E] border border-[#BD896E]/30">
+                      100% Halal Certified Kitchen
+                    </span>
+                  </div>
+                </div>
 
-            {/* Search Bar */}
-            <div className="relative">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8A776B]" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by invoice number (e.g. INV-2026-0001) or issue date..."
-                className="w-full pl-10 pr-4 py-2.5 text-xs bg-[#120F0D] border border-[#2C211B] rounded-xl text-white placeholder-[#8A776B] focus:outline-none focus:border-[#C98A5B]"
-              />
-            </div>
+                {/* Product List */}
+                <div className="divide-y divide-[#E8D9CD]/60 mt-4">
+                  {orderableProducts.map((prod) => {
+                    const curQty = orderQuantities[prod.id] || 0;
+                    const unitPrice = prod.unitPrice || 35.00;
 
-            {/* Invoices Table */}
-            {filteredInvoices.length === 0 ? (
-              <div className="py-16 text-center border border-dashed border-[#2C211B] rounded-xl p-8 space-y-3">
-                <Receipt className="w-12 h-12 text-[#8A776B]/40 mx-auto" />
-                <h3 className="text-base font-serif font-bold text-white">
-                  {search ? 'No matching invoices found' : 'No Invoices Issued Yet'}
-                </h3>
-                <p className="text-xs text-[#A69385] max-w-md mx-auto leading-relaxed">
-                  {search
-                    ? 'Try searching with a different invoice number or clearing your filter.'
-                    : `Invoices created for ${customerDisplayName} will automatically synchronize and appear here once posted by Savouré Administration.`}
-                </p>
-                <div className="pt-2">
-                  <a
-                    href={SHOWCASE_CONTACT.whatsappHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-950 text-emerald-300 border border-emerald-800 text-xs font-semibold hover:bg-emerald-900 transition-colors"
-                  >
-                    <MessageCircle className="w-3.5 h-3.5" />
-                    <span>Enquire with Bakery Finance Desk</span>
-                  </a>
+                    return (
+                      <div
+                        key={prod.id}
+                        className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-[#FBF7F1]/50 p-2 rounded-2xl transition-colors"
+                      >
+                        <div className="flex items-start gap-4">
+                          <div className="w-16 h-16 rounded-2xl bg-[#EAD8C6]/50 border border-[#BD896E]/30 flex items-center justify-center p-2 shrink-0">
+                            <Package className="w-8 h-8 text-[#8D5037]" />
+                          </div>
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-serif text-base font-bold text-[#2B150A]">
+                                {prod.name}
+                              </h3>
+                              {prod.badge && (
+                                <span className="text-[10px] px-2 py-0.2 rounded-full bg-[#CC8468]/20 text-[#8D5037] font-semibold">
+                                  {prod.badge}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs text-[#7A6458] flex flex-wrap items-center gap-2">
+                              <span>Spec: {prod.packSize || 'Commercial Pack'}</span>
+                              <span>·</span>
+                              <span className="font-mono text-emerald-800 font-bold">R {unitPrice.toFixed(2)} / pack</span>
+                            </div>
+                            {prod.description && (
+                              <p className="text-[11px] text-[#66483B] line-clamp-1 max-w-md">
+                                {prod.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Quantity Counter */}
+                        <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                          <div className="flex items-center border border-[#BD896E]/40 rounded-full bg-white p-1 shadow-2xs">
+                            <button
+                              type="button"
+                              onClick={() => handleQtyChange(prod.id, -1)}
+                              disabled={curQty === 0}
+                              className="w-8 h-8 rounded-full flex items-center justify-center text-[#2B150A] hover:bg-[#EAD8C6] disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer transition-colors"
+                            >
+                              <Minus className="w-3.5 h-3.5" />
+                            </button>
+                            <span className="w-10 text-center font-mono font-bold text-xs tabular-nums text-[#2B150A]">
+                              {curQty}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleQtyChange(prod.id, 1)}
+                              className="w-8 h-8 rounded-full flex items-center justify-center bg-[#CC8468] hover:bg-[#B86643] text-white cursor-pointer transition-colors shadow-2xs"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          <div className="w-20 text-right font-mono font-bold text-xs text-[#2B150A]">
+                            R {(curQty * unitPrice).toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
+            </div>
+
+            {/* Right: Order Summary & Checkout Card */}
+            <div className="lg:col-span-4 bg-white rounded-3xl border border-[#E8D9CD] p-6 shadow-sm sticky top-28 space-y-5">
+              <div className="flex items-center justify-between pb-3 border-b border-[#E8D9CD]">
+                <h3 className="font-serif text-lg font-bold text-[#2B150A] flex items-center gap-2">
+                  <ShoppingBag className="w-4 h-4 text-[#CC8468]" />
+                  <span>Order Summary</span>
+                </h3>
+                <span className="text-xs font-mono font-bold text-[#8D5037]">
+                  {selectedOrderItems.length} items
+                </span>
+              </div>
+
+              {selectedOrderItems.length === 0 ? (
+                <div className="py-8 text-center text-xs text-[#7A6458] space-y-2">
+                  <Package className="w-10 h-10 text-stone-300 mx-auto" />
+                  <p>Your order is empty.</p>
+                  <p className="text-[11px] text-[#A69385]">Add packs using the plus (+) buttons.</p>
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
+                  {selectedOrderItems.map((it) => (
+                    <div key={it.productId} className="flex items-center justify-between text-xs py-1.5 border-b border-[#FBF7F1]">
+                      <div>
+                        <div className="font-semibold text-[#2B150A]">{it.productName}</div>
+                        <div className="text-[10px] text-[#7A6458] font-mono">
+                          {it.quantity} × R {it.unitPrice.toFixed(2)} ({it.packSize})
+                        </div>
+                      </div>
+                      <div className="font-mono font-bold text-[#2B150A]">
+                        R {it.lineTotal.toFixed(2)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Delivery Settings */}
+              <form onSubmit={handlePlaceOrderSubmit} className="space-y-4 pt-3 border-t border-[#E8D9CD]">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-[#75412E] mb-1">
+                    Requested Delivery Date
+                  </label>
+                  <div className="relative">
+                    <Calendar className="w-4 h-4 text-[#8D5037] absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="date"
+                      required
+                      value={requestedDeliveryDate}
+                      onChange={(e) => setRequestedDeliveryDate(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#FBF7F1] border border-[#BD896E]/30 text-xs text-[#2B150A] focus:outline-hidden focus:border-[#CC8468]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-[#75412E] mb-1">
+                    Delivery / Drop-Off Location
+                  </label>
+                  <div className="relative">
+                    <MapPin className="w-4 h-4 text-[#8D5037] absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      required
+                      value={deliveryAddress}
+                      onChange={(e) => setDeliveryAddress(e.target.value)}
+                      placeholder="Enter store or kitchen address"
+                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#FBF7F1] border border-[#BD896E]/30 text-xs text-[#2B150A] focus:outline-hidden focus:border-[#CC8468]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-[#75412E] mb-1">
+                    Special Bakery Instructions (Optional)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={orderNotes}
+                    onChange={(e) => setOrderNotes(e.target.value)}
+                    placeholder="e.g. Please pack in double insulated cold crate..."
+                    className="w-full px-3 py-2 rounded-xl bg-[#FBF7F1] border border-[#BD896E]/30 text-xs text-[#2B150A] focus:outline-hidden focus:border-[#CC8468]"
+                  />
+                </div>
+
+                {/* Subtotal & Total */}
+                <div className="pt-3 border-t border-[#E8D9CD] space-y-1.5 text-xs">
+                  <div className="flex justify-between text-[#66483B]">
+                    <span>Items Subtotal</span>
+                    <span className="font-mono">R {orderSubtotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-[#66483B]">
+                    <span>Delivery (Cold Chain Nationwide)</span>
+                    <span className="font-mono text-emerald-700 font-semibold">Included</span>
+                  </div>
+                  <div className="flex justify-between text-base font-serif font-bold text-[#2B150A] pt-2 border-t border-[#E8D9CD]">
+                    <span>Estimated Total</span>
+                    <span className="font-mono text-[#8D5037]">R {orderTotal.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSubmittingOrder || selectedOrderItems.length === 0}
+                  className="w-full py-3.5 rounded-full bg-[#CC8468] hover:bg-[#B86643] disabled:opacity-50 text-white font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm hover:-translate-y-0.5"
+                >
+                  <Send className="w-4 h-4" />
+                  <span>{isSubmittingOrder ? 'Submitting Order...' : 'Submit Order to Bakery Dispatch'}</span>
+                </button>
+
+                <p className="text-[10px] text-center text-[#8D5037] leading-relaxed">
+                  🔔 Submitting triggers instant real-time push alerts to the bakery oven dispatch desk.
+                </p>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ---------------------------------------------------- */}
+        {/* TAB 2: MY ORDERS                                     */}
+        {/* ---------------------------------------------------- */}
+        {activeTab === 'my-orders' && (
+          <div className="bg-white rounded-3xl border border-[#E8D9CD] p-6 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#E8D9CD]">
+              <div>
+                <h2 className="font-serif text-xl sm:text-2xl font-bold text-[#2B150A]">
+                  My Bakery Orders ({myOrdersList.length})
+                </h2>
+                <p className="text-xs text-[#66483B]">
+                  Live status tracking for wholesale delivery orders from dispatch to delivery.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('place-order')}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#CC8468] hover:bg-[#B86643] text-white font-bold text-xs uppercase tracking-wider shadow-xs cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Place New Order</span>
+              </button>
+            </div>
+
+            {myOrdersList.length === 0 ? (
+              <div className="py-16 text-center space-y-3">
+                <Package className="w-12 h-12 text-stone-300 mx-auto" />
+                <h3 className="font-serif text-lg text-[#2B150A]">No orders placed yet</h3>
+                <p className="text-xs text-[#7A6458] max-w-sm mx-auto">
+                  Ready to restock your store? Switch to the "Place New Order" tab to request fresh batches.
+                </p>
+                <button
+                  onClick={() => setActiveTab('place-order')}
+                  className="px-5 py-2 rounded-full bg-[#2B150A] text-white text-xs font-semibold"
+                >
+                  Open Order Catalog
+                </button>
+              </div>
             ) : (
-              <div className="overflow-x-auto border border-[#2C211B] rounded-xl">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-[#120F0D] text-[#A69385] uppercase font-serif tracking-wider text-[10px] border-b border-[#2C211B]">
-                    <tr>
-                      <th className="py-3 px-4">Invoice No</th>
-                      <th className="py-3 px-4">Issue Date</th>
-                      <th className="py-3 px-4">Linked Delivery Note</th>
-                      <th className="py-3 px-4">Items Summary</th>
-                      <th className="py-3 px-4 text-right">Grand Total</th>
-                      <th className="py-3 px-4 text-right">Balance Due</th>
-                      <th className="py-3 px-4 text-center">Status</th>
-                      <th className="py-3 px-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#2C211B]">
-                    {filteredInvoices.map((inv) => {
-                      const linkedDn = getLinkedDeliveryNote(inv);
-                      const isDnDelivered = linkedDn && (linkedDn.status === 'Delivered' || Boolean(linkedDn.podSignature));
+              <div className="space-y-4">
+                {myOrdersList.map((ord) => {
+                  const statusColors: Record<string, string> = {
+                    PENDING: 'bg-amber-100 text-amber-800 border-amber-300',
+                    ACCEPTED: 'bg-blue-100 text-blue-800 border-blue-300',
+                    PREPARING: 'bg-purple-100 text-purple-800 border-purple-300',
+                    DISPATCHED: 'bg-indigo-100 text-indigo-800 border-indigo-300',
+                    DELIVERED: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+                    CANCELLED: 'bg-rose-100 text-rose-800 border-rose-300',
+                  };
 
-                      return (
-                        <tr
-                          key={inv.id}
-                          className="hover:bg-[#221B17]/60 transition-colors cursor-pointer"
-                          onClick={() => setSelectedInvoiceForPrint(inv)}
-                        >
-                          <td className="py-3.5 px-4 font-mono font-bold text-white">
-                            <div className="flex items-center gap-2">
-                              <Receipt className="w-3.5 h-3.5 text-[#C98A5B]" />
-                              <span>{inv.invoiceNumber}</span>
-                            </div>
-                          </td>
-
-                          <td className="py-3.5 px-4 font-mono text-[#EDE6DE]">
-                            {inv.issueDate}
-                          </td>
-
-                          <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
-                            {linkedDn ? (
-                              <button
-                                onClick={() => setSelectedDeliveryNoteForView(linkedDn)}
-                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold transition-all ${
-                                  isDnDelivered
-                                    ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 hover:bg-emerald-900'
-                                    : 'bg-amber-950/80 text-amber-300 border border-amber-600/60 hover:bg-amber-900 animate-pulse'
-                                }`}
-                                title={isDnDelivered ? 'View signed Proof of Delivery' : 'View unsigned in-transit delivery note'}
-                              >
-                                <Truck className="w-3 h-3" />
-                                <span>{linkedDn.deliveryNoteNumber}</span>
-                                <span className="opacity-75">
-                                  {isDnDelivered ? '(Signed)' : '(In Transit)'}
-                                </span>
-                              </button>
-                            ) : (
-                              <span className="text-[10px] text-[#8A776B] font-mono">Direct / Pickup</span>
-                            )}
-                          </td>
-
-                          <td className="py-3.5 px-4 text-[#EDE6DE] max-w-xs truncate">
-                            {inv.items && inv.items.length > 0 ? (
-                              <span>
-                                {inv.items.map((it) => it.description || it.sku).join(', ')}
-                              </span>
-                            ) : (
-                              <span className="text-[#8A776B] italic">Standard order</span>
-                            )}
-                          </td>
-
-                          <td className="py-3.5 px-4 text-right font-mono font-bold text-white">
-                            {company.currency || 'R'} {(inv.grandTotal || 0).toFixed(2)}
-                          </td>
-
-                          <td className="py-3.5 px-4 text-right font-mono font-bold">
-                            {(inv.balanceDue || 0) > 0 ? (
-                              <span className="text-amber-400">
-                                {company.currency || 'R'} {(inv.balanceDue || 0).toFixed(2)}
-                              </span>
-                            ) : (
-                              <span className="text-emerald-400">R 0.00</span>
-                            )}
-                          </td>
-
-                          <td className="py-3.5 px-4 text-center">
+                  return (
+                    <div
+                      key={ord.id}
+                      className="p-5 rounded-2xl bg-[#FBF7F1]/80 border border-[#E8D9CD] space-y-4 hover:shadow-xs transition-shadow"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#E8D9CD]/60">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-sm font-bold text-[#2B150A]">
+                              {ord.orderNumber}
+                            </span>
                             <span
-                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold font-mono uppercase tracking-wider ${
-                                inv.status === 'Paid'
-                                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
-                                  : inv.status === 'Overdue'
-                                  ? 'bg-rose-950 text-rose-300 border border-rose-800'
-                                  : inv.status === 'Partial'
-                                  ? 'bg-amber-950 text-amber-300 border border-amber-800'
-                                  : 'bg-blue-950 text-blue-300 border border-blue-800'
+                              className={`text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full border ${
+                                statusColors[ord.status] || 'bg-stone-100 text-stone-800 border-stone-300'
                               }`}
                             >
-                              {inv.status === 'Paid' && <CheckCircle className="w-3 h-3" />}
-                              {inv.status === 'Overdue' && <AlertCircle className="w-3 h-3" />}
-                              {inv.status !== 'Paid' && inv.status !== 'Overdue' && <Clock className="w-3 h-3" />}
-                              <span>{inv.status}</span>
+                              {ord.status}
+                            </span>
+                          </div>
+                          <div className="text-xs text-[#66483B] flex items-center gap-2">
+                            <span>Placed: {new Date(ord.createdAt).toLocaleDateString()}</span>
+                            <span>·</span>
+                            <span>Delivery Target: {ord.requestedDeliveryDate}</span>
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <span className="text-xs text-[#66483B] block">Order Amount</span>
+                          <span className="font-mono text-lg font-bold text-[#8D5037]">
+                            R {ord.total.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Items */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                        {ord.items.map((it, idx) => (
+                          <div
+                            key={idx}
+                            className="p-2.5 rounded-xl bg-white border border-[#E8D9CD]/70 text-xs space-y-0.5"
+                          >
+                            <div className="font-semibold text-[#2B150A] truncate">{it.productName}</div>
+                            <div className="text-[11px] text-[#7A6458] flex justify-between">
+                              <span>Qty: {it.quantity} ({it.packSize})</span>
+                              <span className="font-mono font-bold">R {it.lineTotal.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {ord.specialInstructions && (
+                        <div className="p-3 rounded-xl bg-white border border-[#E8D9CD]/60 text-xs text-[#66483B]">
+                          <strong>Instructions:</strong> {ord.specialInstructions}
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap items-center justify-between gap-3 pt-2 text-xs text-[#7A6458]">
+                        <div className="flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-[#8D5037]" />
+                          <span>{ord.deliveryAddress || 'Standard Delivery Location'}</span>
+                        </div>
+
+                        <a
+                          href={`https://wa.me/${SHOWCASE_CONTACT.whatsappNumber}?text=${encodeURIComponent(
+                            `Hello Savouré Bakery Desk, regarding Order ${ord.orderNumber} for ${ord.merchantStoreName || ord.merchantName}...`
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#25D366] text-white font-bold text-[10px] uppercase tracking-wider hover:bg-[#20ba59]"
+                        >
+                          <MessageCircle className="w-3 h-3 fill-white" />
+                          <span>WhatsApp Desk</span>
+                        </a>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ---------------------------------------------------- */}
+        {/* TAB 3: TAX INVOICES & STATEMENTS                     */}
+        {/* ---------------------------------------------------- */}
+        {activeTab === 'invoices' && (
+          <div className="bg-white rounded-3xl border border-[#E8D9CD] p-6 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#E8D9CD]">
+              <div>
+                <h2 className="font-serif text-xl sm:text-2xl font-bold text-[#2B150A]">
+                  Tax Invoices & Statement History
+                </h2>
+                <p className="text-xs text-[#66483B]">
+                  Official SARS-compliant tax invoices issued for your commercial wholesale purchases.
+                </p>
+              </div>
+
+              {/* Status Filter */}
+              <div className="flex items-center gap-1 bg-[#FBF7F1] p-1 rounded-xl border border-[#E8D9CD]">
+                {(['ALL', 'Paid', 'Pending', 'Overdue'] as const).map((st) => (
+                  <button
+                    key={st}
+                    onClick={() => setInvoiceStatusFilter(st)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                      invoiceStatusFilter === st
+                        ? 'bg-[#CC8468] text-white shadow-2xs'
+                        : 'text-[#66483B] hover:text-[#2B150A]'
+                    }`}
+                  >
+                    {st}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {merchantInvoices.length === 0 ? (
+              <div className="py-12 text-center text-xs text-[#7A6458]">
+                No invoices recorded for your merchant profile.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#FBF7F1] text-[#8D5037] uppercase text-[10px] tracking-wider border-b border-[#E8D9CD]">
+                    <tr>
+                      <th className="py-3 px-4 font-bold">Invoice #</th>
+                      <th className="py-3 px-4 font-bold">Issue Date</th>
+                      <th className="py-3 px-4 font-bold">Due Date</th>
+                      <th className="py-3 px-4 font-bold">Total (ZAR)</th>
+                      <th className="py-3 px-4 font-bold">Balance Due</th>
+                      <th className="py-3 px-4 font-bold">Status</th>
+                      <th className="py-3 px-4 font-bold text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#E8D9CD]/50">
+                    {merchantInvoices
+                      .filter((i) => invoiceStatusFilter === 'ALL' || i.status === invoiceStatusFilter)
+                      .map((inv) => (
+                        <tr key={inv.id} className="hover:bg-[#FBF7F1]/60 transition-colors">
+                          <td className="py-3.5 px-4 font-mono font-bold text-[#2B150A]">
+                            {inv.invoiceNumber}
+                          </td>
+                          <td className="py-3.5 px-4 text-[#66483B]">{inv.issueDate}</td>
+                          <td className="py-3.5 px-4 text-[#66483B]">{inv.dueDate}</td>
+                          <td className="py-3.5 px-4 font-mono font-bold text-[#2B150A]">
+                            R {inv.grandTotal.toFixed(2)}
+                          </td>
+                          <td className="py-3.5 px-4 font-mono font-bold text-[#8D5037]">
+                            R {inv.balanceDue.toFixed(2)}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <span
+                              className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                                inv.status === 'Paid'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : inv.status === 'Overdue'
+                                  ? 'bg-rose-100 text-rose-800'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}
+                            >
+                              {inv.status}
                             </span>
                           </td>
-
                           <td className="py-3.5 px-4 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
-                              {linkedDn && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedDeliveryNoteForView(linkedDn);
-                                  }}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#C98A5B]/20 hover:bg-[#C98A5B]/30 text-[#F3D2BF] font-semibold text-xs border border-[#C98A5B]/40 transition-colors shadow-xs"
-                                  title="Print linked Proof of Delivery (POD)"
-                                >
-                                  <Truck className="w-3 h-3 text-[#C98A5B]" />
-                                  <span>Print POD</span>
-                                </button>
-                              )}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedInvoiceForPrint(inv);
-                                }}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#2C211B] hover:bg-[#3E2C20] text-[#DE9E74] hover:text-[#F3D2BF] font-semibold text-xs border border-[#C98A5B]/40 transition-colors shadow-xs"
-                                title="View and print official Tax Invoice"
-                              >
-                                <Printer className="w-3.5 h-3.5" />
-                                <span>View Invoice</span>
-                              </button>
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedInvoiceForPrint(inv)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FBF7F1] hover:bg-[#EAD8C6] text-[#2B150A] border border-[#BD896E]/30 font-semibold text-xs cursor-pointer"
+                            >
+                              <Printer className="w-3.5 h-3.5" />
+                              <span>View / Print</span>
+                            </button>
                           </td>
                         </tr>
-                      );
-                    })}
+                      ))}
                   </tbody>
                 </table>
               </div>
@@ -843,593 +942,187 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
         )}
 
         {/* ---------------------------------------------------- */}
-        {/* TAB 2: DELIVERY NOTES & PROOF OF DELIVERY (POD)     */}
+        {/* TAB 4: DELIVERY NOTES & PODS                         */}
         {/* ---------------------------------------------------- */}
         {activeTab === 'delivery-notes' && (
-          <div className="bg-[#1A1411] border border-[#2C211B] rounded-2xl p-6 shadow-sm space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="bg-white rounded-3xl border border-[#E8D9CD] p-6 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#E8D9CD]">
               <div>
-                <h2 className="text-lg font-serif font-bold text-white flex items-center gap-2">
-                  <Truck className="w-5 h-5 text-[#C98A5B]" />
-                  <span>Store Delivery Notes & Proof of Delivery</span>
+                <h2 className="font-serif text-xl sm:text-2xl font-bold text-[#2B150A]">
+                  Delivery Notes & Proof of Delivery (POD)
                 </h2>
-                <p className="text-xs text-[#A69385] mt-0.5">
-                  Track bakery shipments en route and inspect signed receiving bay delivery notes.
+                <p className="text-xs text-[#66483B]">
+                  View dispatched bakery consignments and sign digital PODs on your phone or tablet.
                 </p>
-              </div>
-
-              {/* Delivery Filter Pills */}
-              <div className="flex flex-wrap items-center gap-1.5 bg-[#120F0D] p-1 rounded-xl border border-[#2C211B]">
-                <button
-                  onClick={() => setDeliveryStatusFilter('ALL')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    deliveryStatusFilter === 'ALL'
-                      ? 'bg-[#C98A5B] text-[#120F0D] font-bold shadow-xs'
-                      : 'text-[#A69385] hover:text-white'
-                  }`}
-                >
-                  All ({merchantDeliveryNotes.length})
-                </button>
-                <button
-                  onClick={() => setDeliveryStatusFilter('In Transit')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    deliveryStatusFilter === 'In Transit'
-                      ? 'bg-amber-600 text-white font-bold shadow-xs'
-                      : 'text-[#A69385] hover:text-white'
-                  }`}
-                >
-                  In Transit — Unsigned ({inTransitCount})
-                </button>
-                <button
-                  onClick={() => setDeliveryStatusFilter('Delivered')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    deliveryStatusFilter === 'Delivered'
-                      ? 'bg-emerald-600 text-white font-bold shadow-xs'
-                      : 'text-[#A69385] hover:text-white'
-                  }`}
-                >
-                  Delivered — Signed POD ({deliveredCount})
-                </button>
               </div>
             </div>
 
-            {/* Search Bar */}
-            <div className="relative">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8A776B]" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by delivery note # (e.g. DN-2026-0001), invoice ref, driver, or item..."
-                className="w-full pl-10 pr-4 py-2.5 text-xs bg-[#120F0D] border border-[#2C211B] rounded-xl text-white placeholder-[#8A776B] focus:outline-none focus:border-[#C98A5B]"
-              />
-            </div>
-
-            {/* Delivery Notes Table */}
-            {filteredDeliveryNotes.length === 0 ? (
-              <div className="py-16 text-center border border-dashed border-[#2C211B] rounded-xl p-8 space-y-3">
-                <Truck className="w-12 h-12 text-[#8A776B]/40 mx-auto" />
-                <h3 className="text-base font-serif font-bold text-white">
-                  {search ? 'No matching delivery notes found' : 'No Delivery Dispatches Yet'}
-                </h3>
-                <p className="text-xs text-[#A69385] max-w-md mx-auto leading-relaxed">
-                  {search
-                    ? 'Try searching with a different delivery note number or invoice reference.'
-                    : `When Savouré dispatches flatbreads and artisanal pastries for ${customerDisplayName}, you can inspect items en route and view signed Proof of Delivery right here.`}
-                </p>
-                <div className="pt-2">
-                  <a
-                    href={SHOWCASE_CONTACT.whatsappHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-950 text-emerald-300 border border-emerald-800 text-xs font-semibold hover:bg-emerald-900 transition-colors"
-                  >
-                    <MessageCircle className="w-3.5 h-3.5" />
-                    <span>Contact Logistics Desk via WhatsApp</span>
-                  </a>
-                </div>
+            {merchantDeliveryNotes.length === 0 ? (
+              <div className="py-12 text-center text-xs text-[#7A6458]">
+                No delivery notes recorded for your store.
               </div>
             ) : (
-              <div className="overflow-x-auto border border-[#2C211B] rounded-xl">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-[#120F0D] text-[#A69385] uppercase font-serif tracking-wider text-[10px] border-b border-[#2C211B]">
-                    <tr>
-                      <th className="py-3 px-4">Waybill / Note No</th>
-                      <th className="py-3 px-4">Invoice Ref</th>
-                      <th className="py-3 px-4">Dispatch / Delivered Date</th>
-                      <th className="py-3 px-4">Driver & Vehicle</th>
-                      <th className="py-3 px-4">Items Dispatched</th>
-                      <th className="py-3 px-4 text-center">Transit & POD Status</th>
-                      <th className="py-3 px-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#2C211B]">
-                    {filteredDeliveryNotes.map((dn) => {
-                      const isDelivered = dn.status === 'Delivered' || Boolean(dn.podSignature);
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {merchantDeliveryNotes.map((note) => (
+                  <div
+                    key={note.id}
+                    className="p-5 rounded-2xl bg-[#FBF7F1] border border-[#E8D9CD] space-y-3"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-sm font-bold text-[#2B150A]">
+                        {note.deliveryNoteNumber || note.id}
+                      </span>
+                      <span
+                        className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${
+                          note.status === 'Delivered'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-indigo-100 text-indigo-800'
+                        }`}
+                      >
+                        {note.status}
+                      </span>
+                    </div>
 
-                      return (
-                        <tr
-                          key={dn.id}
-                          className="hover:bg-[#221B17]/60 transition-colors cursor-pointer"
-                          onClick={() => setSelectedDeliveryNoteForView(dn)}
+                    <div className="text-xs text-[#66483B] space-y-1">
+                      <div><strong>Date:</strong> {note.deliveryDate}</div>
+                      <div><strong>Items:</strong> {note.items?.length || 0} consignment lines</div>
+                      <div><strong>Driver:</strong> {note.driverName || 'Savouré Dispatch Fleet'}</div>
+                    </div>
+
+                    <div className="pt-2 flex items-center justify-between border-t border-[#E8D9CD]/60">
+                      {note.podSignature ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-emerald-700 font-semibold">
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>POD Signed: {note.podReceivedBy}</span>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPodNote(note);
+                            setRecipientName('');
+                            setPodNotes('');
+                            setPodError(null);
+                            clearCanvas();
+                          }}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#CC8468] hover:bg-[#B86643] text-white font-bold text-xs uppercase tracking-wider cursor-pointer shadow-2xs"
                         >
-                          {/* Waybill / Note No */}
-                          <td className="py-3.5 px-4 font-mono font-bold text-white">
-                            <div className="flex items-center gap-2">
-                              <Truck className="w-3.5 h-3.5 text-[#C98A5B]" />
-                              <span>{dn.deliveryNoteNumber}</span>
-                            </div>
-                            <div className="text-[10px] text-[#8A776B] font-mono mt-0.5">
-                              {dn.branchName || 'Main Branch'}
-                            </div>
-                          </td>
+                          <PenTool className="w-3.5 h-3.5" />
+                          <span>Sign Digital POD</span>
+                        </button>
+                      )}
 
-                          {/* Invoice Ref */}
-                          <td className="py-3.5 px-4 font-mono text-[#EDE6DE]">
-                            <span className="font-semibold text-[#DE9E74]">{dn.invoiceNumber}</span>
-                          </td>
-
-                          {/* Date */}
-                          <td className="py-3.5 px-4 font-mono text-[#A69385]">
-                            <div>
-                              {dn.deliveryDate
-                                ? new Date(dn.deliveryDate).toLocaleDateString('en-ZA')
-                                : dn.dispatchDate
-                                ? new Date(dn.dispatchDate).toLocaleDateString('en-ZA')
-                                : 'Today'}
-                            </div>
-                            <div className="text-[10px] text-stone-500">
-                              {isDelivered && dn.podReceivedAt
-                                ? `Delivered: ${new Date(dn.podReceivedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                                : 'Dispatched'}
-                            </div>
-                          </td>
-
-                          {/* Driver & Vehicle */}
-                          <td className="py-3.5 px-4 text-[#EDE6DE]">
-                            <div className="font-medium text-white flex items-center gap-1.5">
-                              <User className="w-3 h-3 text-[#C98A5B]" />
-                              <span>{dn.driverName || 'Dispatch Driver'}</span>
-                            </div>
-                            {dn.vehicleReg && (
-                              <div className="text-[10px] font-mono text-[#8A776B] mt-0.5">
-                                Reg: {dn.vehicleReg}
-                              </div>
-                            )}
-                          </td>
-
-                          {/* Items Dispatched */}
-                          <td className="py-3.5 px-4 text-[#EDE6DE] max-w-xs">
-                            {dn.items && dn.items.length > 0 ? (
-                              <div className="space-y-0.5">
-                                <span className="font-medium text-white">
-                                  {dn.items.reduce((acc, i) => acc + (Number(i.quantityDelivered) || Number(i.quantityOrdered) || 0), 0)} Units Total
-                                </span>
-                                <div className="text-[11px] text-[#A69385] truncate">
-                                  {dn.items.map((it) => `${it.quantityDelivered || it.quantityOrdered}x ${it.description}`).join(', ')}
-                                </div>
-                              </div>
-                            ) : (
-                              <span className="text-[#8A776B] italic">Artisanal Bakery Order</span>
-                            )}
-                          </td>
-
-                          {/* Transit & POD Status */}
-                          <td className="py-3.5 px-4 text-center">
-                            {isDelivered ? (
-                              <div className="inline-flex flex-col items-center">
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold font-mono uppercase tracking-wider bg-emerald-950 text-emerald-300 border border-emerald-800">
-                                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                                  <span>Delivered (Signed)</span>
-                                </span>
-                                {dn.podReceivedBy && (
-                                  <span className="text-[9px] text-emerald-400 font-mono mt-0.5">
-                                    Rec: {dn.podReceivedBy}
-                                  </span>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="inline-flex flex-col items-center">
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold font-mono uppercase tracking-wider bg-amber-950 text-amber-300 border border-amber-800 animate-pulse">
-                                  <Truck className="w-3 h-3 text-amber-400" />
-                                  <span>In Transit (Unsigned)</span>
-                                </span>
-                                <span className="text-[9px] text-amber-500 font-mono mt-0.5">
-                                  Awaiting store receiving signature
-                                </span>
-                              </div>
-                            )}
-                          </td>
-
-                          {/* Actions */}
-                          <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center justify-end gap-2">
-                              {isDelivered ? (
-                                <>
-                                  <button
-                                    onClick={() => setSelectedDeliveryNoteForView(dn)}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#C98A5B] hover:bg-[#DE9E74] text-[#120F0D] font-bold text-xs transition-colors shadow-xs"
-                                    title="Print official Proof of Delivery (POD) Slip"
-                                  >
-                                    <Printer className="w-3.5 h-3.5" />
-                                    <span>Print POD</span>
-                                  </button>
-                                  <button
-                                    onClick={() => setSelectedDeliveryNoteForView(dn)}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#2C211B] hover:bg-[#3E2C20] text-emerald-300 font-semibold text-xs border border-emerald-700/50 transition-colors shadow-xs"
-                                    title="View official signed Proof of Delivery"
-                                  >
-                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                                    <span>View Signed POD</span>
-                                  </button>
-                                </>
-                              ) : (
-                                <>
-                                  <button
-                                    onClick={() => setSelectedDeliveryNoteForView(dn)}
-                                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#C98A5B]/20 hover:bg-[#C98A5B]/30 text-[#F3D2BF] font-semibold text-xs border border-[#C98A5B]/40 transition-colors shadow-xs"
-                                    title="Print unsigned delivery slip / waybill"
-                                  >
-                                    <Printer className="w-3.5 h-3.5" />
-                                    <span>Print Slip</span>
-                                  </button>
-                                  <button
-                                    onClick={() => openPodModal(dn)}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors shadow-xs"
-                                    title="Sign electronic Proof of Delivery upon driver dropoff"
-                                  >
-                                    <PenTool className="w-3.5 h-3.5" />
-                                    <span>Sign POD</span>
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDeliveryNoteForView(note)}
+                        className="text-xs text-[#8D5037] hover:underline font-semibold"
+                      >
+                        Details →
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
         )}
       </main>
 
-      {/* ---------------------------------------------------- */}
-      {/* PRINTABLE TAX INVOICE MODAL                          */}
-      {/* ---------------------------------------------------- */}
-      {selectedInvoiceForPrint && (
-        <InvoicePrintModal
-          invoice={selectedInvoiceForPrint}
-          onClose={() => setSelectedInvoiceForPrint(null)}
-        />
-      )}
-
-      {/* ---------------------------------------------------- */}
-      {/* DELIVERY NOTE MODAL (SIGNED & UNSIGNED VIEWER)       */}
-      {/* ---------------------------------------------------- */}
-      {selectedDeliveryNoteForView && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="w-full max-w-3xl bg-[#1A1411] border border-[#2C211B] rounded-2xl shadow-2xl my-auto overflow-hidden">
-            {/* Top Toolbar */}
-            <div className="px-6 py-4 border-b border-[#2C211B] flex items-center justify-between no-print bg-[#201814]">
-              <div className="flex items-center gap-2">
-                <Truck className="w-4 h-4 text-[#C98A5B]" />
-                <span className="font-bold text-white text-sm">
-                  Delivery Slip: <span className="font-mono text-[#DE9E74]">{selectedDeliveryNoteForView.deliveryNoteNumber}</span>
-                </span>
-                {selectedDeliveryNoteForView.status === 'Delivered' || selectedDeliveryNoteForView.podSignature ? (
-                  <span className="ml-2 px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-mono font-bold">
-                    ✓ SIGNED & DELIVERED
-                  </span>
-                ) : (
-                  <span className="ml-2 px-2 py-0.5 rounded-full bg-amber-950 text-amber-300 border border-amber-800 text-[10px] font-mono font-bold animate-pulse">
-                    🚚 IN TRANSIT — UNSIGNED
-                  </span>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2">
-                {(!selectedDeliveryNoteForView.podSignature && selectedDeliveryNoteForView.status !== 'Delivered') && (
-                  <button
-                    onClick={() => {
-                      const noteToSign = selectedDeliveryNoteForView;
-                      setSelectedDeliveryNoteForView(null);
-                      openPodModal(noteToSign);
-                    }}
-                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors flex items-center gap-1.5"
-                  >
-                    <PenTool className="w-3.5 h-3.5" />
-                    <span>Sign Electronic POD Now</span>
-                  </button>
-                )}
-                <button
-                  onClick={() => window.print()}
-                  className="px-3 py-1.5 rounded-lg bg-[#C98A5B] hover:bg-[#DE9E74] text-neutral-950 font-semibold text-xs transition-colors flex items-center gap-1.5"
-                >
-                  <Printer className="w-4 h-4" />
-                  <span>Print Slip</span>
-                </button>
-                <button
-                  onClick={() => setSelectedDeliveryNoteForView(null)}
-                  className="p-1 rounded text-neutral-400 hover:text-white"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Printable Waybill Paper Sheet */}
-            <div className="p-4 sm:p-8 bg-[#120F0D]">
-              <div className="print-container bg-white text-neutral-900 rounded-lg p-6 sm:p-8 shadow-xl text-xs font-sans border border-neutral-300">
-                {/* Header */}
-                <div className="flex justify-between items-start border-b-2 border-neutral-900 pb-4 mb-4">
-                  <div className="flex items-start gap-3">
-                    <div className="w-12 h-12 rounded-full bg-[#391E0F] border border-[#C98A5B] flex items-center justify-center text-[#DE9E74] font-serif font-black text-xl shrink-0">
-                      S
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-serif font-bold text-neutral-950">{company.companyName}</h2>
-                      <div className="text-[11px] text-[#9B5D34] font-serif font-semibold italic">{company.tradingName}</div>
-                      <div className="text-[11px] text-neutral-600">{company.address}</div>
-                      <div className="text-[11px] text-neutral-600">Dispatch Desk: {company.phone}</div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="inline-block bg-[#201713] text-white font-extrabold text-xs uppercase px-2.5 py-0.5 tracking-wider mb-1 border-b border-[#C98A5B]">
-                      DELIVERY SLIP / WAYBILL
-                    </div>
-                    <div className="font-mono font-bold text-sm text-neutral-950">
-                      {selectedDeliveryNoteForView.deliveryNoteNumber}
-                    </div>
-                    <div className="text-[10px] text-neutral-500 font-mono">
-                      Invoice Ref: {selectedDeliveryNoteForView.invoiceNumber}
-                    </div>
-                    <div className="text-[10px] text-neutral-500 font-mono">
-                      Date: {new Date(selectedDeliveryNoteForView.dispatchDate || selectedDeliveryNoteForView.createdAt).toLocaleDateString('en-ZA')}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Logistics Breakdown */}
-                <div className="grid grid-cols-2 gap-4 mb-4 pb-4 border-b border-neutral-200 text-[11px]">
-                  <div>
-                    <div className="text-[10px] font-bold uppercase text-neutral-500">Delivered To:</div>
-                    <div className="font-bold text-neutral-900 text-sm">{selectedDeliveryNoteForView.customerName}</div>
-                    <div className="font-medium text-neutral-800">{selectedDeliveryNoteForView.branchName || 'Main Branch'}</div>
-                    <div className="text-neutral-600 leading-tight mt-0.5">
-                      {selectedDeliveryNoteForView.deliveryAddress || 'Commercial Store Delivery Address'}
-                    </div>
-                    {selectedDeliveryNoteForView.recipientPhone && (
-                      <div className="text-neutral-600 font-mono mt-0.5">Contact: {selectedDeliveryNoteForView.recipientPhone}</div>
-                    )}
-                  </div>
-                  <div>
-                    <div className="text-[10px] font-bold uppercase text-neutral-500">Driver & Vehicle:</div>
-                    <div className="text-neutral-900 font-medium text-sm">{selectedDeliveryNoteForView.driverName || 'Dispatch Driver'}</div>
-                    <div className="font-mono text-neutral-700">Vehicle Reg: {selectedDeliveryNoteForView.vehicleReg || 'ND 829-102'}</div>
-                    <div className="text-[10px] text-neutral-600 mt-1">
-                      Instructions: {selectedDeliveryNoteForView.specialInstructions || 'Handle with care. Return delivery crates upon dropoff.'}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Items Checklist Table */}
-                <div className="mb-6">
-                  <table className="w-full text-left border-collapse text-[11px]">
-                    <thead>
-                      <tr className="border-b-2 border-neutral-900 text-[10px] font-bold uppercase text-neutral-700">
-                        <th className="py-1 px-1">SKU</th>
-                        <th className="py-1 px-2">Description</th>
-                        <th className="py-1 px-2">Pack Count</th>
-                        <th className="py-1 px-2 text-right">Ordered</th>
-                        <th className="py-1 px-2 text-right">Delivered</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-neutral-200">
-                      {selectedDeliveryNoteForView.items && selectedDeliveryNoteForView.items.length > 0 ? (
-                        selectedDeliveryNoteForView.items.map((it, idx) => (
-                          <tr key={it.id || idx}>
-                            <td className="py-2 px-1 font-mono text-[10px] text-neutral-600">{it.sku || `ITEM-${idx + 1}`}</td>
-                            <td className="py-2 px-2 font-medium">{it.description}</td>
-                            <td className="py-2 px-2 text-neutral-600">{it.packSize || 'Standard'}</td>
-                            <td className="py-2 px-2 text-right font-mono tabular-nums">{it.quantityOrdered}</td>
-                            <td className="py-2 px-2 text-right font-mono font-bold tabular-nums text-neutral-900">
-                              {it.quantityDelivered || it.quantityOrdered}
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={5} className="py-3 text-center text-neutral-500 italic">
-                            Order items as specified in Tax Invoice {selectedDeliveryNoteForView.invoiceNumber}
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Signature Box Section */}
-                <div className="border-2 border-neutral-300 rounded p-4 grid grid-cols-2 gap-4">
-                  {/* Left: Driver Dispatch Signoff */}
-                  <div>
-                    <div className="text-[10px] font-bold uppercase text-neutral-500 mb-2">Driver Dispatch Sign-off:</div>
-                    <div className="h-20 border-b border-neutral-400 flex flex-col justify-end pb-1 text-neutral-700 font-mono text-[10px]">
-                      <span className="font-serif italic text-neutral-800 text-sm">Dispatched in Good Order</span>
-                      <span>Driver: {selectedDeliveryNoteForView.driverName || 'Dispatch Driver'}</span>
-                    </div>
-                  </div>
-
-                  {/* Right: Proof of Delivery (Signed vs Unsigned) */}
-                  <div>
-                    <div className="text-[10px] font-bold uppercase text-neutral-500 mb-2">
-                      Proof of Delivery (Receiving Bay):
-                    </div>
-                    {selectedDeliveryNoteForView.podSignature ? (
-                      <div className="h-20 flex flex-col justify-end bg-emerald-50/60 p-2 rounded border border-emerald-200">
-                        <img
-                          src={selectedDeliveryNoteForView.podSignature}
-                          alt="POD Signature"
-                          className="h-10 object-contain self-start"
-                        />
-                        <div className="text-[10px] font-mono text-emerald-900 mt-1">
-                          Received by: <span className="font-bold">{selectedDeliveryNoteForView.podReceivedBy}</span>
-                          {selectedDeliveryNoteForView.podReceivedAt && (
-                            <span className="text-neutral-600 block">
-                              Signed: {new Date(selectedDeliveryNoteForView.podReceivedAt).toLocaleString('en-ZA')}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="h-20 border-2 border-dashed border-amber-300 bg-amber-50/50 rounded flex flex-col items-center justify-center p-2 text-center">
-                        <span className="text-[11px] font-bold text-amber-900 uppercase">
-                          UNSIGNED — GOODS IN TRANSIT
-                        </span>
-                        <span className="text-[9px] text-amber-700 mt-0.5">
-                          Store receiving bay clerk must inspect crates and sign electronically upon arrival.
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {selectedDeliveryNoteForView.notes && (
-                  <div className="mt-3 text-[10px] text-neutral-500 font-mono">
-                    Notes / Exceptions: {selectedDeliveryNoteForView.notes}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ---------------------------------------------------- */}
-      {/* DIGITAL POD SIGNATURE MODAL (TOUCH / MOUSE CANVAS)   */}
-      {/* ---------------------------------------------------- */}
+      {/* 4. DIGITAL POD SIGNATURE MODAL */}
       {podNote && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-xs flex items-center justify-center p-3 overflow-y-auto">
-          <div className="w-full max-w-md bg-[#1C1613] border border-[#2C211B] rounded-2xl shadow-2xl p-6 text-white space-y-4">
-            <div className="flex items-center justify-between border-b border-[#2C211B] pb-3">
-              <div className="flex items-center gap-2">
-                <PenTool className="w-4 h-4 text-emerald-400" />
-                <h3 className="font-serif font-bold text-sm text-white">
-                  Electronic Proof of Delivery (POD)
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-[#E8D9CD]">
+              <div>
+                <h3 className="font-serif text-lg font-bold text-[#2B150A]">
+                  Digital Proof of Delivery (POD)
                 </h3>
+                <p className="text-xs text-[#66483B]">Consignment #{podNote.deliveryNoteNumber || podNote.id}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setPodNote(null)}
-                className="text-neutral-400 hover:text-white"
-              >
+              <button onClick={() => setPodNote(null)} className="text-stone-400 hover:text-stone-700">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="text-xs text-[#A69385] space-y-1">
-              <div>
-                Waybill: <strong className="text-white font-mono">{podNote.deliveryNoteNumber}</strong>
-              </div>
-              <div>
-                Invoice: <strong className="text-[#DE9E74] font-mono">{podNote.invoiceNumber}</strong>
-              </div>
-              <div>
-                Store / Consignee: <strong className="text-white">{podNote.customerName}</strong>
-              </div>
-            </div>
-
             {podError && (
-              <div className="p-2.5 rounded-lg bg-rose-950/80 border border-rose-800 text-rose-300 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{podError}</span>
+              <div className="p-3 rounded-xl bg-rose-50 text-rose-800 text-xs border border-rose-200">
+                {podError}
               </div>
             )}
 
-            <div>
-              <label className="block text-xs font-medium text-stone-300 mb-1">
-                Receiving Bay Clerk / Store Manager Name *
-              </label>
-              <input
-                type="text"
-                value={recipientName}
-                onChange={(e) => setRecipientName(e.target.value)}
-                placeholder="e.g. ROOKSHANA / Receiving Manager"
-                className="w-full px-3 py-2 text-xs bg-[#120F0D] border border-[#2C211B] rounded-xl text-white placeholder-stone-500 focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <label className="text-xs font-medium text-stone-300">
-                  Digital Signature (Draw with touch or mouse) *
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-[#75412E] mb-1">
+                  Recipient Name <span className="text-rose-500">*</span>
                 </label>
-                <button
-                  type="button"
-                  onClick={clearCanvas}
-                  className="text-[10px] text-amber-400 hover:text-amber-300 underline"
-                >
-                  Clear Signature
-                </button>
-              </div>
-              <div className="bg-white rounded-xl overflow-hidden border border-stone-300 touch-none">
-                <canvas
-                  ref={canvasRef}
-                  width={380}
-                  height={130}
-                  className="w-full h-32 cursor-crosshair block"
-                  onMouseDown={startDrawing}
-                  onMouseUp={stopDrawing}
-                  onMouseLeave={stopDrawing}
-                  onMouseMove={draw}
-                  onTouchStart={startDrawing}
-                  onTouchEnd={stopDrawing}
-                  onTouchMove={draw}
+                <input
+                  type="text"
+                  required
+                  value={recipientName}
+                  onChange={(e) => setRecipientName(e.target.value)}
+                  placeholder="e.g. Fatima Adams (Receiving Bay Manager)"
+                  className="w-full px-3 py-2 rounded-xl bg-[#FBF7F1] border border-[#BD896E]/30 text-xs text-[#2B150A] focus:outline-hidden focus:border-[#CC8468]"
                 />
               </div>
-              <div className="text-[10px] text-stone-400 text-right mt-1">
-                {hasDrawn ? (
-                  <span className="text-emerald-400 font-semibold">✓ Signature captured</span>
-                ) : (
-                  <span>Please sign within the box above</span>
-                )}
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-[#75412E]">
+                    Digital Signature <span className="text-rose-500">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={clearCanvas}
+                    className="text-[11px] text-[#8D5037] hover:underline"
+                  >
+                    Clear Canvas
+                  </button>
+                </div>
+                <div className="border border-[#BD896E]/40 rounded-2xl bg-white overflow-hidden">
+                  <canvas
+                    ref={canvasRef}
+                    width={440}
+                    height={160}
+                    onMouseDown={startDrawing}
+                    onMouseMove={draw}
+                    onMouseUp={stopDrawing}
+                    onMouseLeave={stopDrawing}
+                    onTouchStart={startDrawing}
+                    onTouchMove={draw}
+                    onTouchEnd={stopDrawing}
+                    className="w-full h-40 bg-white cursor-crosshair touch-none"
+                  />
+                </div>
+                <span className="text-[10px] text-stone-400 block mt-1">Sign with finger or stylus</span>
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-stone-300 mb-1">
-                Receiving Bay Notes / Trays Returned (Optional)
-              </label>
-              <input
-                type="text"
-                value={podNotes}
-                onChange={(e) => setPodNotes(e.target.value)}
-                placeholder="e.g. All 50 trays inspected, verified in pristine condition."
-                className="w-full px-3 py-2 text-xs bg-[#120F0D] border border-[#2C211B] rounded-xl text-white placeholder-stone-500 focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            <div className="pt-3 border-t border-[#2C211B] flex justify-end gap-2">
+            <div className="pt-3 border-t border-[#E8D9CD] flex items-center justify-end gap-3">
               <button
                 type="button"
                 onClick={() => setPodNote(null)}
-                className="px-4 py-2 text-xs text-stone-400 hover:text-white"
+                className="px-4 py-2.5 rounded-full bg-stone-100 text-stone-700 text-xs font-semibold cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={handleSavePOD}
-                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors flex items-center gap-1.5 shadow-md"
+                onClick={handleSavePodSignature}
+                className="px-6 py-2.5 rounded-full bg-[#CC8468] hover:bg-[#B86643] text-white text-xs font-bold uppercase tracking-wider cursor-pointer shadow-xs"
               >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Confirm POD & Mark Delivered</span>
+                Confirm & Submit POD
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Invoice Print Modal */}
+      {selectedInvoiceForPrint && (
+        <InvoicePrintModal
+          invoice={selectedInvoiceForPrint}
+          onClose={() => setSelectedInvoiceForPrint(null)}
+        />
       )}
     </div>
   );

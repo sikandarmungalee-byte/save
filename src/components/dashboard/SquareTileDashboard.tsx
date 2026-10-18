@@ -122,12 +122,70 @@ export const SquareTileDashboard: React.FC<SquareTileDashboardProps> = ({
     return list;
   }, [erp]);
 
+  // Permission check for current user
+  const isModuleAllowed = (moduleId: string): boolean => {
+    if (!currentUser) return true;
+    if (currentUser.role === 'super_admin') return true;
+    const perms = currentUser.permissions;
+    if (!perms) return false;
+
+    switch (moduleId) {
+      case 'dashboard':
+        return true;
+      case 'invoices':
+      case 'invoice-studio':
+        return Boolean(perms.invoices);
+      case 'delivery-notes':
+        return Boolean(perms.deliveryNotes);
+      case 'quotations':
+        return Boolean(perms.quotations);
+      case 'payments':
+        return Boolean(perms.payments);
+      case 'customers':
+        return Boolean(perms.customers);
+      case 'catalog':
+        return Boolean(perms.catalog);
+      case 'stock':
+        return Boolean(perms.stock);
+      case 'barcode-scanner':
+        return Boolean(perms.barcodeScanner ?? (currentUser.role === 'logistics'));
+      case 'merchant-orders':
+        return Boolean(perms.merchantOrders ?? true);
+      case 'website-showcase':
+        return Boolean(perms.websiteShowcase ?? (currentUser.role === 'sales'));
+      case 'payroll':
+        return Boolean(perms.payroll);
+      case 'accounting':
+        return Boolean(perms.accounting);
+      case 'taskeen':
+        return Boolean(perms.taskeenAI ?? true);
+      case 'reports':
+        return Boolean(perms.reports);
+      case 'crm':
+        return Boolean(perms.crmLeads);
+      case 'users':
+        return Boolean(perms.manageUsers);
+      case 'merchants':
+        return Boolean(perms.merchants ?? perms.manageUsers);
+      case 'database':
+        return Boolean(perms.databaseExplorer);
+      case 'settings':
+        return Boolean(perms.companySettings);
+      default:
+        return false;
+    }
+  };
+
+  const allowedModules = useMemo(() => {
+    return ERP_MODULES.filter((m) => isModuleAllowed(m.id));
+  }, [currentUser]);
+
   // Filter modules and subcategories
   const filteredModules = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
-    if (!q) return ERP_MODULES;
+    if (!q) return allowedModules;
 
-    return ERP_MODULES.filter((m) => {
+    return allowedModules.filter((m) => {
       const matchModule =
         m.title.toLowerCase().includes(q) ||
         m.subtitle.toLowerCase().includes(q) ||
@@ -137,7 +195,7 @@ export const SquareTileDashboard: React.FC<SquareTileDashboardProps> = ({
       );
       return matchModule || matchSub;
     });
-  }, [searchQuery]);
+  }, [searchQuery, allowedModules]);
 
   // Matching subcategories for quick jump when search is active
   const matchingSubcategories = useMemo(() => {
@@ -145,7 +203,7 @@ export const SquareTileDashboard: React.FC<SquareTileDashboardProps> = ({
     if (!q) return [];
 
     const matches: { module: ERPModule; subcategory: ModuleSubcategory }[] = [];
-    ERP_MODULES.forEach((mod) => {
+    allowedModules.forEach((mod) => {
       mod.subcategories.forEach((sub) => {
         if (
           sub.title.toLowerCase().includes(q) ||
@@ -157,7 +215,7 @@ export const SquareTileDashboard: React.FC<SquareTileDashboardProps> = ({
       });
     });
     return matches.slice(0, 12);
-  }, [searchQuery]);
+  }, [searchQuery, allowedModules]);
 
   const userName = currentUser?.name || 'Master Admin';
 

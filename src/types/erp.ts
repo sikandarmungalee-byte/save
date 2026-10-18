@@ -9,6 +9,9 @@ export interface UserPermissions {
   customers: boolean;
   catalog: boolean;
   stock?: boolean;
+  barcodeScanner?: boolean;
+  merchantOrders?: boolean;
+  websiteShowcase?: boolean;
   payroll?: boolean;
   accounting?: boolean;
   taskeenAI?: boolean;
@@ -494,6 +497,38 @@ export interface JournalEntry {
   createdAt: string;
 }
 
+export interface MerchantOrderItem {
+  productId: string;
+  productName: string;
+  packSize: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+  notes?: string;
+}
+
+export interface MerchantOrder {
+  id: string;
+  orderNumber: string;
+  merchantId: string;
+  merchantName: string;
+  merchantStoreName?: string;
+  merchantEmail: string;
+  merchantPhone: string;
+  branch: string;
+  deliveryAddress?: string;
+  requestedDeliveryDate: string;
+  status: 'PENDING' | 'ACCEPTED' | 'PREPARING' | 'DISPATCHED' | 'DELIVERED' | 'CANCELLED';
+  items: MerchantOrderItem[];
+  subtotal: number;
+  vat: number;
+  total: number;
+  specialInstructions?: string;
+  createdAt: string;
+  updatedAt: string;
+  invoiceId?: string;
+}
+
 export interface ERPDatabase {
   users: User[];
   company: CompanySettings;
@@ -504,6 +539,8 @@ export interface ERPDatabase {
   deliveryNotes: DeliveryNote[];
   quotations: Quotation[];
   payments: Payment[];
+  merchantOrders?: MerchantOrder[];
+  showcaseProducts?: any[];
   leads: Lead[];
   communications: CommunicationLog[];
   staff?: StaffMember[];

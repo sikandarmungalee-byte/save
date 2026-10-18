@@ -18,10 +18,14 @@ import {
   StockItemStatus,
   StockMovement,
   JournalEntry,
-  UserLoginLog
+  UserLoginLog,
+  MerchantOrder,
+  MerchantOrderItem
 } from '../types/erp';
 import { db } from '../lib/firebase';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { SHOWCASE_COLLECTION, ShowcaseProductItem } from '../components/showcase/showcaseData';
+import { dispatchOrderPushNotification } from '../lib/fcmNotifications';
 
 // Safe API caller for local / server endpoints
 async function safeFetchJson<T = any>(
@@ -354,6 +358,48 @@ export const INITIAL_STOCK_MOVEMENTS: StockMovement[] = [
   },
 ];
 
+export const INITIAL_MERCHANT_ORDERS: MerchantOrder[] = [
+  {
+    id: 'ord_1001',
+    orderNumber: 'ORD-2026-0001',
+    merchantId: 'usr_1791911737847',
+    merchantName: 'Rookshana Banoo Moola',
+    merchantStoreName: 'Moola Halal Gourmet Deli',
+    merchantEmail: 'orders@moolagourmet.co.za',
+    merchantPhone: '071 915 3630',
+    branch: 'Durban Central Deli',
+    deliveryAddress: '42 Commercial Rd, Durban Central, KwaZulu-Natal',
+    requestedDeliveryDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
+    status: 'ACCEPTED',
+    items: [
+      {
+        productId: 'prod_spring_roll',
+        productName: 'Savouré Spring Roll Pastry (20cm / 200g)',
+        packSize: 'Pack of 30 Sheets',
+        quantity: 20,
+        unitPrice: 32.50,
+        lineTotal: 650.00,
+        notes: 'Cold chain dispatch'
+      },
+      {
+        productId: 'prod_samoosa_sheets',
+        productName: 'Savouré Crispy Samoosa Pastry Sheets (500g)',
+        packSize: 'Pack of 50 Strips',
+        quantity: 15,
+        unitPrice: 28.00,
+        lineTotal: 420.00,
+        notes: 'Crispy triangle cut'
+      }
+    ],
+    subtotal: 1070.00,
+    vat: 0.00,
+    total: 1070.00,
+    specialInstructions: 'Please deliver before 10:00 AM on Thursday morning for catering weekend preparation.',
+    createdAt: new Date(Date.now() - 3600000 * 5).toISOString(),
+    updatedAt: new Date(Date.now() - 3600000 * 3).toISOString(),
+  }
+];
+
 interface ERPContextType {
   currentUser: User | null;
   setCurrentUser: (u: User | null) => void;
@@ -465,6 +511,20 @@ interface ERPContextType {
   loginLogs: UserLoginLog[];
   recordLoginLog: (log: Partial<UserLoginLog>) => Promise<void>;
   resetUserPassword: (userId: string, newPassword: string) => Promise<void>;
+
+  // Merchant Orders & Dispatches
+  merchantOrders: MerchantOrder[];
+  createMerchantOrder: (data: Partial<MerchantOrder>) => Promise<MerchantOrder>;
+  updateMerchantOrderStatus: (id: string, status: MerchantOrder['status']) => Promise<MerchantOrder>;
+  deleteMerchantOrder: (id: string) => Promise<void>;
+  convertOrderToInvoice: (orderId: string) => Promise<Invoice>;
+
+  // Website Showcase Products Manager
+  showcaseProducts: ShowcaseProductItem[];
+  addShowcaseProduct: (item: Partial<ShowcaseProductItem>) => Promise<ShowcaseProductItem>;
+  updateShowcaseProduct: (id: string, item: Partial<ShowcaseProductItem>) => Promise<ShowcaseProductItem>;
+  removeShowcaseProduct: (id: string) => Promise<void>;
+  toggleShowcaseProductActive: (id: string) => Promise<boolean>;
   
   // Database & Portability
   purgeMockData: () => Promise<void>;
@@ -585,6 +645,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [stockMovements, setStockMovements] = useState<StockMovement[]>(INITIAL_STOCK_MOVEMENTS);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [loginLogs, setLoginLogs] = useState<UserLoginLog[]>([]);
+  const [merchantOrders, setMerchantOrders] = useState<MerchantOrder[]>(INITIAL_MERCHANT_ORDERS);
+  const [showcaseProducts, setShowcaseProducts] = useState<ShowcaseProductItem[]>(SHOWCASE_COLLECTION);
 
   const [isLocked, setIsLocked] = useState<boolean>(false);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'offline'>('synced');
@@ -605,6 +667,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deliveryNotes,
         quotations,
         payments,
+        merchantOrders,
+        showcaseProducts,
         leads,
         communications,
         staff,
@@ -621,7 +685,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.warn('Cache write warning:', e);
     }
-  }, [users, company, customers, products, categories, invoices, deliveryNotes, quotations, payments, leads, communications, staff, payrollPayouts, stockPurchases, stockItemStatuses, stockMovements, journalEntries, loginLogs]);
+  }, [users, company, customers, products, categories, invoices, deliveryNotes, quotations, payments, merchantOrders, showcaseProducts, leads, communications, staff, payrollPayouts, stockPurchases, stockItemStatuses, stockMovements, journalEntries, loginLogs]);
 
   // Helper to sanitize payload and remove all undefined values recursively for Firestore compatibility
   const sanitizeForCloud = (obj: any): any => {
@@ -707,6 +771,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (parsed.stockMovements) setStockMovements(parsed.stockMovements);
         if (parsed.journalEntries) setJournalEntries(parsed.journalEntries);
         if (parsed.loginLogs) setLoginLogs(parsed.loginLogs);
+        if (Array.isArray(parsed.merchantOrders)) setMerchantOrders(parsed.merchantOrders);
+        if (Array.isArray(parsed.showcaseProducts)) setShowcaseProducts(parsed.showcaseProducts);
 
         let loadedUsers = parsed.users || [];
         if (!loadedUsers.some((u) => u.email.toLowerCase() === 'admin@savoure.co.za')) {
@@ -745,6 +811,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (Array.isArray(srv.stockMovements)) setStockMovements(srv.stockMovements);
         if (Array.isArray(srv.journalEntries)) setJournalEntries(srv.journalEntries);
         if (Array.isArray(srv.loginLogs)) setLoginLogs(srv.loginLogs);
+        if (Array.isArray(srv.merchantOrders)) setMerchantOrders(srv.merchantOrders);
+        if (Array.isArray(srv.showcaseProducts)) setShowcaseProducts(srv.showcaseProducts);
         if (Array.isArray(srv.users) && srv.users.length > 0) {
           let uList = srv.users;
           if (!uList.some((u) => u.email.toLowerCase() === 'admin@savoure.co.za')) {
@@ -790,6 +858,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (Array.isArray(cloudData.deliveryNotes)) setDeliveryNotes(cloudData.deliveryNotes);
         if (Array.isArray(cloudData.quotations)) setQuotations(cloudData.quotations);
         if (Array.isArray(cloudData.payments)) setPayments(cloudData.payments);
+        if (Array.isArray(cloudData.merchantOrders)) setMerchantOrders(cloudData.merchantOrders);
+        if (Array.isArray(cloudData.showcaseProducts)) setShowcaseProducts(cloudData.showcaseProducts);
         if (Array.isArray(cloudData.leads)) setLeads(cloudData.leads);
         if (Array.isArray(cloudData.communications)) setCommunications(cloudData.communications);
         if (Array.isArray(cloudData.staff)) setStaff(cloudData.staff);
@@ -2770,6 +2840,172 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await syncToCloud({ journalEntries: next });
   };
 
+  // ------------------------------------------------------------------
+  // Merchant Orders & Real-time Push Notifications
+  // ------------------------------------------------------------------
+  const createMerchantOrder = async (data: Partial<MerchantOrder>): Promise<MerchantOrder> => {
+    const now = new Date();
+    const orderNumber = data.orderNumber || `ORD-${now.getFullYear()}-${String(merchantOrders.length + 1).padStart(4, '0')}`;
+    const items = data.items || [];
+    const subtotal = items.reduce((acc, it) => acc + (it.lineTotal || (it.quantity * it.unitPrice)), 0);
+    const vat = 0; // South African staple bakery zero-rated/exempt default
+    const total = subtotal + vat;
+
+    const newOrder: MerchantOrder = {
+      id: 'ord_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+      orderNumber,
+      merchantId: data.merchantId || currentUser?.id || 'mch_guest',
+      merchantName: data.merchantName || currentUser?.name || 'Merchant Partner',
+      merchantStoreName: data.merchantStoreName || currentUser?.merchantStoreName || 'Commercial Store',
+      merchantEmail: data.merchantEmail || currentUser?.email || 'orders@savoure.co.za',
+      merchantPhone: data.merchantPhone || (currentUser as any)?.merchantPhone || '061 364 5712',
+      branch: data.branch || currentUser?.branch || 'Main Branch',
+      deliveryAddress: data.deliveryAddress || currentUser?.deliveryAddress || 'Direct Store Delivery',
+      requestedDeliveryDate: data.requestedDeliveryDate || new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
+      status: 'PENDING',
+      items,
+      subtotal,
+      vat,
+      total,
+      specialInstructions: data.specialInstructions || '',
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    };
+
+    const nextOrders = [newOrder, ...merchantOrders];
+    setMerchantOrders(nextOrders);
+    persistToLocal({ merchantOrders: nextOrders });
+    await syncToCloud({ merchantOrders: nextOrders });
+
+    // Trigger Real-time Push Notification (FCM, Mobile Haptic, Sound Chime, Server)
+    try {
+      await dispatchOrderPushNotification(newOrder);
+    } catch (e) {
+      console.warn('Push notification trigger notice:', e);
+    }
+
+    return newOrder;
+  };
+
+  const updateMerchantOrderStatus = async (id: string, status: MerchantOrder['status']): Promise<MerchantOrder> => {
+    let updated: MerchantOrder | null = null;
+    const nextOrders = merchantOrders.map((o) => {
+      if (o.id === id) {
+        updated = { ...o, status, updatedAt: new Date().toISOString() };
+        return updated;
+      }
+      return o;
+    });
+    setMerchantOrders(nextOrders);
+    persistToLocal({ merchantOrders: nextOrders });
+    await syncToCloud({ merchantOrders: nextOrders });
+    return updated || (merchantOrders.find((o) => o.id === id)!);
+  };
+
+  const deleteMerchantOrder = async (id: string): Promise<void> => {
+    const nextOrders = merchantOrders.filter((o) => o.id !== id);
+    setMerchantOrders(nextOrders);
+    persistToLocal({ merchantOrders: nextOrders });
+    await syncToCloud({ merchantOrders: nextOrders });
+  };
+
+  const convertOrderToInvoice = async (orderId: string): Promise<Invoice> => {
+    const order = merchantOrders.find((o) => o.id === orderId);
+    if (!order) throw new Error('Order not found');
+
+    const inv = await createInvoice({
+      customerId: order.merchantId,
+      customerName: order.merchantStoreName || order.merchantName,
+      customerTradingName: order.merchantStoreName,
+      billingAddress: order.deliveryAddress,
+      deliveryAddress: order.deliveryAddress,
+      branch: order.branch,
+      items: order.items.map((it) => ({
+        description: it.productName,
+        packSize: it.packSize,
+        quantity: it.quantity,
+        unitPrice: it.unitPrice,
+        amount: it.lineTotal,
+      })),
+      notes: `Generated from Merchant Order ${order.orderNumber}. ${order.specialInstructions || ''}`.trim(),
+      merchantId: order.merchantId,
+      merchantName: order.merchantName,
+      merchantEmail: order.merchantEmail,
+    });
+
+    // Link invoice to order & set accepted status
+    const nextOrders = merchantOrders.map((o) => o.id === orderId ? { ...o, status: 'ACCEPTED' as const, invoiceId: inv.id, updatedAt: new Date().toISOString() } : o);
+    setMerchantOrders(nextOrders);
+    persistToLocal({ merchantOrders: nextOrders });
+    await syncToCloud({ merchantOrders: nextOrders });
+
+    return inv;
+  };
+
+  // ------------------------------------------------------------------
+  // Website Showcase Products Manager
+  // ------------------------------------------------------------------
+  const addShowcaseProduct = async (item: Partial<ShowcaseProductItem>): Promise<ShowcaseProductItem> => {
+    const newProduct: ShowcaseProductItem = {
+      id: item.id || 'showcase_' + Date.now(),
+      name: item.name || 'New Specialty',
+      detail: item.detail || 'Artisanal Batch',
+      tone: (item.tone as any) || 'roti',
+      mark: (item.mark || (item.name || 'CRAFT').toUpperCase()),
+      category: item.category || 'Bakery Specialty',
+      tagline: item.tagline || 'Handcrafted fresh daily',
+      description: item.description || 'Authentic traditional recipe with unbleached flour.',
+      image: item.image || '/showcase/savoure-roti.png',
+      packSpec: item.packSpec || 'Commercial Packs & Crates',
+      sizeSpec: item.sizeSpec || 'Standard',
+      tags: item.tags || ['Halal', 'Made with care'],
+      highlights: item.highlights || ['Generational traditional recipe', '100% Halal certified'],
+    };
+
+    const nextShowcase = [...showcaseProducts, newProduct];
+    setShowcaseProducts(nextShowcase);
+    persistToLocal({ showcaseProducts: nextShowcase });
+    await syncToCloud({ showcaseProducts: nextShowcase });
+    return newProduct;
+  };
+
+  const updateShowcaseProduct = async (id: string, item: Partial<ShowcaseProductItem>): Promise<ShowcaseProductItem> => {
+    let updated: ShowcaseProductItem | null = null;
+    const nextShowcase = showcaseProducts.map((p) => {
+      if (p.id === id) {
+        updated = { ...p, ...item };
+        return updated;
+      }
+      return p;
+    });
+    setShowcaseProducts(nextShowcase);
+    persistToLocal({ showcaseProducts: nextShowcase });
+    await syncToCloud({ showcaseProducts: nextShowcase });
+    return updated || (showcaseProducts.find((p) => p.id === id)!);
+  };
+
+  const removeShowcaseProduct = async (id: string): Promise<void> => {
+    const nextShowcase = showcaseProducts.filter((p) => p.id !== id);
+    setShowcaseProducts(nextShowcase);
+    persistToLocal({ showcaseProducts: nextShowcase });
+    await syncToCloud({ showcaseProducts: nextShowcase });
+  };
+
+  const toggleShowcaseProductActive = async (id: string): Promise<boolean> => {
+    const exists = showcaseProducts.some((p) => p.id === id);
+    if (exists) {
+      await removeShowcaseProduct(id);
+      return false;
+    } else {
+      const defaultItem = SHOWCASE_COLLECTION.find((p) => p.id === id);
+      if (defaultItem) {
+        await addShowcaseProduct(defaultItem);
+        return true;
+      }
+      return false;
+    }
+  };
+
   return (
     <ERPContext.Provider
       value={{
@@ -2788,6 +3024,16 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deliveryNotes,
         quotations,
         payments,
+        merchantOrders,
+        createMerchantOrder,
+        updateMerchantOrderStatus,
+        deleteMerchantOrder,
+        convertOrderToInvoice,
+        showcaseProducts,
+        addShowcaseProduct,
+        updateShowcaseProduct,
+        removeShowcaseProduct,
+        toggleShowcaseProductActive,
         leads,
         communications,
         staff,

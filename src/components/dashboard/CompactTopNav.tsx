@@ -16,7 +16,8 @@ import {
   RefreshCw,
   X,
   Layers,
-  ArrowRight
+  ArrowRight,
+  Cloud
 } from 'lucide-react';
 
 interface CompactTopNavProps {
@@ -41,7 +42,7 @@ export const CompactTopNav: React.FC<CompactTopNavProps> = ({
   onGoToWebsite,
 }) => {
   const erp = useERP();
-  const { currentUser, lockApp, logout, refreshData, syncStatus } = erp;
+  const { currentUser, lockApp, logout, refreshData, syncStatus, lastSynced } = erp;
 
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showModuleSwitcher, setShowModuleSwitcher] = useState(false);
@@ -52,9 +53,64 @@ export const CompactTopNav: React.FC<CompactTopNavProps> = ({
 
   const ModuleIcon = currentModule.icon;
 
+  const isModuleAllowed = (moduleId: string): boolean => {
+    if (!currentUser) return true;
+    if (currentUser.role === 'super_admin') return true;
+    const perms = currentUser.permissions;
+    if (!perms) return false;
+
+    switch (moduleId) {
+      case 'dashboard':
+        return true;
+      case 'invoices':
+      case 'invoice-studio':
+        return Boolean(perms.invoices);
+      case 'delivery-notes':
+        return Boolean(perms.deliveryNotes);
+      case 'quotations':
+        return Boolean(perms.quotations);
+      case 'payments':
+        return Boolean(perms.payments);
+      case 'customers':
+        return Boolean(perms.customers);
+      case 'catalog':
+        return Boolean(perms.catalog);
+      case 'stock':
+        return Boolean(perms.stock);
+      case 'barcode-scanner':
+        return Boolean(perms.barcodeScanner ?? (currentUser.role === 'logistics'));
+      case 'merchant-orders':
+        return Boolean(perms.merchantOrders ?? true);
+      case 'website-showcase':
+        return Boolean(perms.websiteShowcase ?? (currentUser.role === 'sales'));
+      case 'payroll':
+        return Boolean(perms.payroll);
+      case 'accounting':
+        return Boolean(perms.accounting);
+      case 'taskeen':
+        return Boolean(perms.taskeenAI ?? true);
+      case 'reports':
+        return Boolean(perms.reports);
+      case 'crm':
+        return Boolean(perms.crmLeads);
+      case 'users':
+        return Boolean(perms.manageUsers);
+      case 'merchants':
+        return Boolean(perms.merchants ?? perms.manageUsers);
+      case 'database':
+        return Boolean(perms.databaseExplorer);
+      case 'settings':
+        return Boolean(perms.companySettings);
+      default:
+        return false;
+    }
+  };
+
+  const allowedModules = ERP_MODULES.filter((m) => isModuleAllowed(m.id));
+
   // Search filtered modules & subcategories
   const searchResults = searchQuery
-    ? ERP_MODULES.flatMap((mod) =>
+    ? allowedModules.flatMap((mod) =>
         mod.subcategories
           .filter(
             (sub) =>
@@ -101,7 +157,7 @@ export const CompactTopNav: React.FC<CompactTopNavProps> = ({
                   Switch Module
                 </div>
                 <div className="space-y-0.5 mt-1">
-                  {ERP_MODULES.map((mod) => {
+                  {allowedModules.map((mod) => {
                     const Icon = mod.icon;
                     const isActive = mod.id === currentModule.id;
                     return (
@@ -210,14 +266,31 @@ export const CompactTopNav: React.FC<CompactTopNavProps> = ({
             )}
           </div>
 
-          {/* Sync Button */}
-          <button
-            onClick={() => refreshData()}
-            className="p-1.5 rounded-xl bg-white hover:bg-stone-50 text-[#391E0F] border border-stone-200 transition-colors hidden sm:flex shadow-2xs"
-            title="Refresh Data"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 text-[#CC8468] ${syncStatus === 'syncing' ? 'animate-spin' : ''}`} />
-          </button>
+          {/* Cloud Sync Status & Refresh Button */}
+          <div className="flex items-center gap-1 sm:gap-1.5 p-1 sm:px-2.5 sm:py-1 rounded-xl bg-white border border-stone-200 shadow-2xs">
+            <span
+              className={`w-2 h-2 rounded-full shrink-0 ${
+                syncStatus === 'syncing'
+                  ? 'bg-amber-500 animate-ping'
+                  : syncStatus === 'offline'
+                  ? 'bg-stone-400'
+                  : 'bg-emerald-500'
+              }`}
+            />
+            <div className="hidden sm:flex items-center gap-1">
+              <Cloud className="w-3.5 h-3.5 text-[#75412e]" />
+              <span className="text-[11px] font-semibold text-[#391E0F]">
+                {syncStatus === 'syncing' ? 'Syncing...' : 'Cloud Live'}
+              </span>
+            </div>
+            <button
+              onClick={() => refreshData()}
+              className="p-1 rounded-lg hover:bg-stone-100 text-[#75412e] transition-colors"
+              title={lastSynced ? `Google Cloud Firestore Connected. Last synced at ${lastSynced}. Click to refresh.` : 'Google Cloud Firestore Connected. Click to sync.'}
+            >
+              <RefreshCw className={`w-3 h-3 text-[#CC8468] ${syncStatus === 'syncing' ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
 
           {/* Public Website Button */}
           {onGoToWebsite && (

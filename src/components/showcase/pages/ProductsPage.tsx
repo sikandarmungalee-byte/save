@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowRight, Check } from 'lucide-react';
 import { SHOWCASE_COLLECTION, ShowcaseProductItem } from '../showcaseData';
+import { useERP } from '../../../context/ERPContext';
 
 interface ProductsPageProps {
   onNavigate: (page: string) => void;
@@ -8,6 +9,8 @@ interface ProductsPageProps {
 }
 
 export const ProductsPage: React.FC<ProductsPageProps> = ({ onNavigate, onOpenEnquiryModal }) => {
+  const { showcaseProducts } = useERP();
+  const productList = (showcaseProducts && showcaseProducts.length > 0) ? showcaseProducts : SHOWCASE_COLLECTION;
   // Tone-specific soft ambient backdrops to blend products seamlessly into the site
   const toneBackdrops: Record<string, string> = {
     roti: 'from-[#fcf6f0] via-[#faebd9] to-[#ebd0ba]',
@@ -44,7 +47,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onNavigate, onOpenEn
 
         {/* Products Grid (Integrated product canvas, zero prices, each tile has "Enquire now") */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8 lg:gap-10">
-          {SHOWCASE_COLLECTION.map((product, idx) => (
+          {productList.map((product, idx) => (
             <article
               key={product.id}
               className="bg-white rounded-3xl border border-[#bd896e]/30 overflow-hidden flex flex-col group shadow-sm hover:shadow-md transition-all"

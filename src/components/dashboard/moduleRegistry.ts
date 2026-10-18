@@ -51,7 +51,9 @@ import {
   Camera,
   Barcode,
   ArrowRightLeft,
-  Globe
+  Globe,
+  Bell,
+  Smartphone
 } from 'lucide-react';
 import {
   Invoice,
@@ -67,7 +69,8 @@ import {
   StockMovement,
   Lead,
   User,
-  CompanySettings
+  CompanySettings,
+  MerchantOrder
 } from '../../types/erp';
 
 export interface ERPContextState {
@@ -86,6 +89,8 @@ export interface ERPContextState {
   leads: Lead[];
   users: User[];
   company: CompanySettings;
+  merchantOrders?: MerchantOrder[];
+  showcaseProducts?: any[];
 }
 
 export interface ModuleSubcategory {
@@ -1410,6 +1415,158 @@ export const ERP_MODULES: ERPModule[] = [
         icon: Building2,
         actionType: 'view',
         targetConfig: { initialSection: 'address' }
+      }
+    ]
+  },
+
+  // 19. Website Showcase Products Management
+  {
+    id: 'website-showcase',
+    number: 19,
+    title: 'Website Showcase Management',
+    shortTitle: 'Website Showcase',
+    subtitle: 'Add & Remove Products on Website',
+    description: 'Directly manage the products presented on the public Savouré website showcase, upload images, set badges, and configure WhatsApp lead routing.',
+    icon: Globe,
+    badge: (erp) => `${erp.showcaseProducts?.length || 4} live`,
+    subcategories: [
+      {
+        id: 'showcase-catalog',
+        title: 'Live Website Products',
+        subtitle: 'Review all products currently visible on public site',
+        icon: Globe,
+        actionType: 'view',
+        targetConfig: { view: 'catalog' }
+      },
+      {
+        id: 'showcase-add',
+        title: 'Add New Product to Website',
+        subtitle: 'Publish new roti, wrap, samosa, or roll pack',
+        icon: Plus,
+        actionType: 'modal',
+        targetConfig: { openAdd: true }
+      },
+      {
+        id: 'showcase-hero-features',
+        title: 'Featured Hero Specials',
+        subtitle: 'Select items highlighted on website home carousel',
+        icon: Sparkles,
+        actionType: 'view',
+        targetConfig: { filter: 'featured' }
+      },
+      {
+        id: 'showcase-preview',
+        title: 'Launch Live Public Site',
+        subtitle: 'Experience customer view with warm aesthetic',
+        icon: Globe,
+        actionType: 'view',
+        targetConfig: { action: 'preview' }
+      }
+    ]
+  },
+
+  // 20. Merchant B2B Orders & FCM Push Dispatch
+  {
+    id: 'merchant-orders',
+    number: 20,
+    title: 'Merchant Orders & FCM Push',
+    shortTitle: 'Merchant Orders',
+    subtitle: 'B2B Orders, Notifications & Invoicing',
+    description: 'Central queue for merchant wholesale orders, Firebase Cloud Messaging push alerts to phones and desktops, kitchen preparation, and 1-click tax invoice generation.',
+    icon: ShoppingBag,
+    badge: (erp) => {
+      const pending = (erp.merchantOrders || []).filter((o: any) => o.status === 'PENDING').length;
+      return pending > 0 ? `${pending} pending` : undefined;
+    },
+    subcategories: [
+      {
+        id: 'orders-all',
+        title: 'All Commercial Orders',
+        subtitle: 'Full list of merchant wholesale requisitions',
+        icon: ShoppingBag,
+        actionType: 'view',
+        targetConfig: { initialStatusFilter: 'ALL' }
+      },
+      {
+        id: 'orders-pending',
+        title: 'Pending Bakery Approval',
+        subtitle: 'Incoming orders awaiting bakery acceptance',
+        icon: Clock,
+        actionType: 'filter',
+        badge: (erp) => {
+          const count = (erp.merchantOrders || []).filter((o: any) => o.status === 'PENDING').length;
+          return count > 0 ? `${count}` : undefined;
+        },
+        targetConfig: { initialStatusFilter: 'PENDING' }
+      },
+      {
+        id: 'orders-preparing',
+        title: 'In Bakery Oven Production',
+        subtitle: 'Batches currently being rolled and baked',
+        icon: Layers,
+        actionType: 'filter',
+        targetConfig: { initialStatusFilter: 'PREPARING' }
+      },
+      {
+        id: 'orders-dispatched',
+        title: 'Dispatched & Out for Delivery',
+        subtitle: 'Van fleet dispatches en route to merchant stores',
+        icon: Truck,
+        actionType: 'filter',
+        targetConfig: { initialStatusFilter: 'DISPATCHED' }
+      },
+      {
+        id: 'orders-fcm-push',
+        title: 'FCM Push Notifications Test',
+        subtitle: 'Trigger push alert & chime across web and mobile',
+        icon: Bell,
+        actionType: 'modal',
+        targetConfig: { testFCM: true }
+      }
+    ]
+  },
+
+  // 21. GS1 Barcode & Camera Scanner
+  {
+    id: 'barcode-scanner',
+    number: 21,
+    title: 'GS1 Barcode Scanner & Tracking',
+    shortTitle: 'Barcode Scanner',
+    subtitle: 'Camera, EAN-13 & Stock Slips',
+    description: 'Mobile and desktop GS1 camera scanner, South African 600-prefix EAN-13 validation, live stock inventory lookup, and barcode label sheet printing.',
+    icon: Barcode,
+    subcategories: [
+      {
+        id: 'scanner-camera',
+        title: 'Interactive Camera Scanner',
+        subtitle: 'Scan packaging barcodes via mobile or webcam',
+        icon: Camera,
+        actionType: 'modal',
+        targetConfig: { openScanner: true }
+      },
+      {
+        id: 'scanner-manual',
+        title: 'Manual Barcode & SKU Lookup',
+        subtitle: 'Search GS1 EAN-13 numbers directly in bakery catalog',
+        icon: Search,
+        actionType: 'view',
+        targetConfig: { mode: 'manual' }
+      },
+      {
+        id: 'scanner-print-sheet',
+        title: 'Print South African Barcode Sheets',
+        subtitle: 'Generate printable barcode labels for retail packaging',
+        icon: Printer,
+        actionType: 'modal',
+        targetConfig: { printLabels: true }
+      },
+      {
+        id: 'scanner-audit',
+        title: 'Barcode Stock Movement Logs',
+        subtitle: 'Audit trail of all scanned stock movements',
+        icon: CheckCircle2,
+        actionType: 'view',
+        targetConfig: { view: 'audit' }
       }
     ]
   }
