@@ -23,6 +23,8 @@ import { MerchantsManagementView } from './components/MerchantsManagementView';
 import { WebsiteShowcaseView } from './components/WebsiteShowcaseView';
 import { MerchantOrdersView } from './components/MerchantOrdersView';
 import { BarcodeScannerModuleView } from './components/BarcodeScannerModuleView';
+import { POSModuleView } from './components/POSModuleView';
+import { ProductionLineModuleView } from './components/ProductionLineModuleView';
 import { ShowcaseApp } from './components/showcase/ShowcaseApp';
 import { News24Ticker } from './components/News24Ticker';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -128,6 +130,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ onGoToWebsite }) => {
         return Boolean(perms.manageUsers);
       case 'merchants':
         return Boolean(perms.merchants ?? perms.manageUsers);
+      case 'pos':
+        return Boolean(perms.pos ?? true);
+      case 'production-line':
+        return Boolean(perms.productionLine ?? true);
       case 'database':
         return Boolean(perms.databaseExplorer);
       case 'settings':
@@ -338,6 +344,22 @@ const MainLayout: React.FC<MainLayoutProps> = ({ onGoToWebsite }) => {
         return (
           <BarcodeScannerModuleView
             key={currentSubcategoryId || 'barcode-scanner'}
+          />
+        );
+
+      case 'pos':
+        return (
+          <POSModuleView
+            key={currentSubcategoryId || 'pos'}
+            initialSubcategoryId={currentSubcategoryId}
+          />
+        );
+
+      case 'production-line':
+        return (
+          <ProductionLineModuleView
+            key={currentSubcategoryId || 'production-line'}
+            initialSubcategoryId={currentSubcategoryId}
           />
         );
 

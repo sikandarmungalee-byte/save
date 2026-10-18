@@ -35,6 +35,7 @@ import {
   Store,
   Barcode,
   Globe,
+  Factory,
 } from 'lucide-react';
 import { MerchantsManagementView } from './MerchantsManagementView';
 
@@ -446,6 +447,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
     { key: 'catalog', label: 'Bakery & Product Catalog', desc: 'Maintain SKU codes, pack counts, unit prices, and margins', icon: Package },
     { key: 'stock', label: 'Stock Capturing & Purchase Slips', desc: 'Capture raw ingredient slips, photograph receipts, and track finished stock', icon: ShoppingBag },
     { key: 'barcodeScanner', label: 'Barcode Scanner & SKU Lookup', desc: 'Camera and GS1 South Africa EAN-13 barcode inventory scanner', icon: Barcode },
+    { key: 'pos', label: 'Point of Sale (POS) Counter Till', desc: 'Process walk-in counter checkout, cash drawer reconciliation, and thermal slips', icon: Receipt },
+    { key: 'productionLine', label: 'Factory Production Lines', desc: 'Supervise bakery factory machinery, dough lamination, and QC inspection gates', icon: Factory },
     { key: 'merchantOrders', label: 'Merchant Orders & Push Alerts', desc: 'Receive real-time push orders from delis, supermarkets, and restaurants', icon: Store },
     { key: 'websiteShowcase', label: 'Website Showcase Products', desc: 'Add, remove, and manage craft specialties featured on the public site', icon: Globe },
     { key: 'merchants', label: 'Merchant Partners & Branches', desc: 'Manage commercial merchant accounts, order history, and access', icon: Store },

@@ -65,7 +65,8 @@ export const BarcodeScannerModuleView: React.FC = () => {
 
   const handleExecuteMovement = async () => {
     if (!manualBarcode.trim()) {
-      alert('Please scan or enter a barcode first');
+      setBannerMessage('⚠️ Please scan or enter a barcode first');
+      setTimeout(() => setBannerMessage(null), 3000);
       return;
     }
 
@@ -88,55 +89,13 @@ export const BarcodeScannerModuleView: React.FC = () => {
       setBannerMessage(`✅ Successfully recorded ${quickQty} units of "${prodName}" as ${movementType.replace('_', ' ')}.`);
       setTimeout(() => setBannerMessage(null), 5000);
     } catch (err: any) {
-      alert(err.message || 'Failed to record stock movement');
+      setBannerMessage(err.message || 'Failed to record stock movement');
+      setTimeout(() => setBannerMessage(null), 4000);
     }
   };
 
   const handlePrintBarcodeLabels = () => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-
-    const barcodesToPrint = SAMPLE_SOUTH_AFRICAN_BARCODES;
-
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Savouré South Africa GS1 Barcode Labels</title>
-        <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 20px; color: #1E0F07; }
-          .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
-          .label { border: 2px dashed #CC8468; padding: 15px; border-radius: 12px; text-align: center; background: #fff; page-break-inside: avoid; }
-          .brand { font-size: 11px; text-transform: uppercase; font-weight: bold; color: #8D5037; letter-spacing: 0.15em; }
-          .title { font-size: 15px; font-weight: bold; margin: 4px 0; color: #1E0F07; }
-          .sku { font-family: monospace; font-size: 12px; color: #66483B; }
-          .barcode-bars { height: 50px; background: repeating-linear-gradient(90deg, #1E0F07 0px, #1E0F07 3px, #fff 3px, #fff 6px, #1E0F07 6px, #1E0F07 8px, #fff 8px, #fff 12px); margin: 12px 0 6px; }
-          .code { font-family: monospace; font-size: 14px; font-weight: bold; letter-spacing: 2px; }
-          .stamp { font-size: 9px; color: #2e7d32; font-weight: bold; text-transform: uppercase; margin-top: 4px; }
-        </style>
-      </head>
-      <body>
-        <h2 style="text-align: center; margin-bottom: 20px;">Savouré GS1 South Africa Official Barcode Sheet</h2>
-        <div class="grid">
-          ${barcodesToPrint.map((b) => `
-            <div class="label">
-              <div class="brand">Savouré — A Taste of Tradition</div>
-              <div class="title">${b.name}</div>
-              <div class="sku">${b.category} · ${b.unit}</div>
-              <div class="barcode-bars"></div>
-              <div class="code">${b.barcode}</div>
-              <div class="stamp">100% Halal Certified · GS1 South Africa Verified</div>
-            </div>
-          `).join('')}
-        </div>
-      </body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-      printWindow.print();
-    }, 300);
+    setIsPrintModalOpen(true);
   };
 
   return (
@@ -476,6 +435,66 @@ export const BarcodeScannerModuleView: React.FC = () => {
           }}
           onClose={() => setIsScannerModalOpen(false)}
         />
+      )}
+
+      {/* PRINT BARCODE LABELS MODAL */}
+      {isPrintModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
+          <div className="w-full max-w-3xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="bg-[#301610] text-[#FFF9F0] px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Printer className="w-6 h-6 text-[#D7A77C]" />
+                <div>
+                  <h3 className="font-serif font-bold text-lg text-white">GS1 South Africa Barcode Labels Sheet</h3>
+                  <p className="text-xs text-[#F5E8D5]/70">Official EAN-13 barcodes ready for printing on standard label stock</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPrintModalOpen(false)}
+                className="p-2 rounded-xl text-white/80 hover:text-white hover:bg-white/10"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {SAMPLE_SOUTH_AFRICAN_BARCODES.map((item) => (
+                  <div key={item.barcode} className="border-2 border-dashed border-[#CC8468] p-4 rounded-xl text-center bg-[#FFFDFB]">
+                    <div className="text-[10px] uppercase font-bold tracking-widest text-[#8D5037]">Savouré — A Taste of Tradition</div>
+                    <div className="text-sm font-bold text-[#1E0F07] mt-1">{item.name}</div>
+                    <div className="text-xs font-mono text-[#66483B]">{item.category} · {item.unit}</div>
+                    <div className="h-12 my-2 bg-[repeating-linear-gradient(90deg,#1E0F07_0px,#1E0F07_3px,#fff_3px,#fff_6px,#1E0F07_6px,#1E0F07_8px,#fff_8px,#fff_12px)] rounded-xs" />
+                    <div className="font-mono text-sm font-bold tracking-widest text-[#1E0F07]">{item.barcode}</div>
+                    <div className="text-[9px] text-emerald-700 font-bold uppercase mt-1">100% Halal Certified · GS1 South Africa Verified</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-stone-200 bg-stone-50 flex items-center justify-between">
+              <span className="text-xs text-stone-500">Includes 6 official GS1 SA pastry SKUs</span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPrintModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-stone-300 text-stone-700 text-xs font-bold hover:bg-stone-100"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-5 py-2 rounded-xl bg-[#301610] hover:bg-[#4a241b] text-white text-xs font-bold flex items-center gap-1.5 shadow-md"
+                >
+                  <Printer className="w-4 h-4 text-[#D7A77C]" />
+                  Print Labels
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

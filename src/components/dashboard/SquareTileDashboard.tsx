@@ -167,6 +167,10 @@ export const SquareTileDashboard: React.FC<SquareTileDashboardProps> = ({
         return Boolean(perms.manageUsers);
       case 'merchants':
         return Boolean(perms.merchants ?? perms.manageUsers);
+      case 'pos':
+        return Boolean(perms.pos ?? true);
+      case 'production-line':
+        return Boolean(perms.productionLine ?? true);
       case 'database':
         return Boolean(perms.databaseExplorer);
       case 'settings':

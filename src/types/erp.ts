@@ -16,6 +16,8 @@ export interface UserPermissions {
   accounting?: boolean;
   taskeenAI?: boolean;
   merchants?: boolean;
+  pos?: boolean;
+  productionLine?: boolean;
   reports: boolean;
   crmLeads: boolean;
   databaseExplorer: boolean;
@@ -175,8 +177,19 @@ export interface Product {
   barcode?: string; // South African EAN-13 (prefix 600/601) or SKU
   showcase?: boolean; // Featured on public showcase website
   description?: string; // Showcase display description
-  badge?: string; // Highlight badge (e.g. "Best Seller", "Signature")
   packagingType?: 'dozen' | 'pack' | 'carton';
+  sizes?: ProductSizeOption[];
+}
+
+export interface ProductSizeOption {
+  id: string;
+  name: string; // e.g. "Standard Restaurant (20cm × 20cm)"
+  shortName: string; // e.g. "Standard (20cm)"
+  dimensions: string; // e.g. "20cm × 20cm"
+  packSpec: string; // e.g. "30 Sheets / 200g"
+  price: number; // e.g. 42.50
+  badge?: string; // e.g. "Popular", "Best Value", "Bulk"
+  isDefault?: boolean;
 }
 
 export interface LineItem {
@@ -529,6 +542,173 @@ export interface MerchantOrder {
   invoiceId?: string;
 }
 
+// ----------------------------------------------------
+// Merchant Reports & Historical Statements
+// ----------------------------------------------------
+export type MerchantReportPeriod = 'WEEKLY' | 'MONTHLY' | '3_MONTHS' | '6_MONTHS' | 'YEARLY' | 'CUSTOM';
+
+export interface MerchantReportProductSummary {
+  productId: string;
+  productName: string;
+  packSize: string;
+  totalQuantity: number;
+  unitPrice: number;
+  totalSpend: number;
+}
+
+export interface MerchantReport {
+  id: string;
+  reportNumber: string;
+  merchantId: string;
+  merchantName: string;
+  merchantStoreName: string;
+  merchantEmail?: string;
+  merchantPhone?: string;
+  branch: string;
+  deliveryAddress?: string;
+  period: MerchantReportPeriod;
+  periodLabel: string;
+  startDate: string;
+  endDate: string;
+  generatedAt: string;
+  // Summary Metrics
+  totalOrderSpend: number;
+  totalInvoiced: number;
+  totalPaid: number;
+  balanceDue: number;
+  ordersCount: number;
+  totalPacksOrdered: number;
+  deliveredOrdersCount: number;
+  pendingOrdersCount: number;
+  fulfillmentRate: number; // e.g. 98.5%
+  avgOrderValue: number;
+  // Detail collections
+  orders: MerchantOrder[];
+  invoices: Invoice[];
+  productSummaries: MerchantReportProductSummary[];
+  notes?: string;
+}
+
+// ----------------------------------------------------
+// POS (Point of Sale) Interfaces
+// ----------------------------------------------------
+export interface POSCartItem {
+  productId: string;
+  productName: string;
+  sku: string;
+  barcode?: string;
+  category: string;
+  packSize?: string;
+  unitPrice: number;
+  quantity: number;
+  discountPercent: number;
+  vatApplicable?: boolean;
+  lineTotal: number;
+}
+
+export interface POSSession {
+  id: string;
+  sessionNumber: string;
+  cashierId: string;
+  cashierName: string;
+  branch: string;
+  openedAt: string;
+  closedAt?: string;
+  openingFloat: number;
+  closingFloat?: number;
+  cashSales: number;
+  cardSales: number;
+  eftSales: number;
+  totalSales: number;
+  transactionCount: number;
+  status: 'OPEN' | 'CLOSED';
+  notes?: string;
+}
+
+export interface POSTransaction {
+  id: string;
+  receiptNumber: string;
+  sessionId?: string;
+  cashierId: string;
+  cashierName: string;
+  branch: string;
+  customerId?: string;
+  customerName?: string;
+  items: POSCartItem[];
+  subtotal: number;
+  discountTotal: number;
+  vat: number;
+  total: number;
+  paymentMethod: 'CASH' | 'CARD' | 'EFT' | 'SPLIT' | 'ON_ACCOUNT';
+  amountTendered: number;
+  changeDue: number;
+  cardReference?: string;
+  notes?: string;
+  invoiceId?: string;
+  status: 'COMPLETED' | 'REFUNDED' | 'VOIDED';
+  createdAt: string;
+}
+
+// ----------------------------------------------------
+// Factory Production Line Interfaces
+// ----------------------------------------------------
+export interface ProductionLine {
+  id: string;
+  code: string;
+  name: string;
+  section: 'Extrusion & Sheeting' | 'Lamination' | 'Folding & Shaping' | 'Baking & Griddling' | 'Packaging & Dispatch';
+  status: 'RUNNING' | 'IDLE' | 'MAINTENANCE' | 'CLEANING';
+  supervisor: string;
+  capacityPerHour: string;
+  targetProductSku?: string;
+}
+
+export interface ProductionIngredientUsage {
+  ingredientId: string;
+  ingredientName: string;
+  sku: string;
+  quantityUsed: number;
+  unit: string;
+  costPerUnit: number;
+}
+
+export interface ProductionQualityCheck {
+  visualAppearance: 'Pass' | 'Fail' | 'Marginal';
+  thicknessMm: number;
+  targetWeightGrams: number;
+  actualSampleWeightGrams: number;
+  moisturePercent: number;
+  metalDetectorChecked: boolean;
+  sealIntegrityChecked: boolean;
+  inspectorName: string;
+  notes?: string;
+}
+
+export interface ProductionBatch {
+  id: string;
+  batchNumber: string;
+  lineId: string;
+  lineName: string;
+  targetProductId: string;
+  targetProductName: string;
+  targetSku: string;
+  plannedQuantity: number;
+  actualYield: number;
+  rejectedQuantity: number;
+  status: 'PLANNED' | 'DOUGH_MIXING' | 'SHEETING_LAMINATION' | 'FORMING_CUTTING' | 'BAKING_COOLING' | 'QUALITY_CONTROL' | 'PACKAGING' | 'COMPLETED' | 'CANCELLED';
+  ingredients: ProductionIngredientUsage[];
+  qc: ProductionQualityCheck;
+  operatorName: string;
+  supervisorName: string;
+  startTime: string;
+  endTime?: string;
+  expiryDate: string;
+  lotCode: string;
+  notes?: string;
+  stockUpdated: boolean;
+  createdAt: string;
+}
+
 export interface ERPDatabase {
   users: User[];
   company: CompanySettings;
@@ -541,6 +721,10 @@ export interface ERPDatabase {
   payments: Payment[];
   merchantOrders?: MerchantOrder[];
   showcaseProducts?: any[];
+  posTransactions?: POSTransaction[];
+  posSessions?: POSSession[];
+  productionLines?: ProductionLine[];
+  productionBatches?: ProductionBatch[];
   leads: Lead[];
   communications: CommunicationLog[];
   staff?: StaffMember[];

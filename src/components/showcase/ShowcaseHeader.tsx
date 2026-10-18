@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { ArrowRight, Search, X, Menu } from 'lucide-react';
+import { ArrowRight, Search, X, Menu, ShieldCheck } from 'lucide-react';
 
 interface ShowcaseHeaderProps {
   currentPage: string;
   onNavigate: (page: string) => void;
   onOpenMerchantLogin: () => void;
   onOpenEnquiryModal: () => void;
+  onOpenAdmin?: () => void;
 }
 
 export const ShowcaseHeader: React.FC<ShowcaseHeaderProps> = ({
@@ -13,6 +14,7 @@ export const ShowcaseHeader: React.FC<ShowcaseHeaderProps> = ({
   onNavigate,
   onOpenMerchantLogin,
   onOpenEnquiryModal,
+  onOpenAdmin,
 }) => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -93,6 +95,19 @@ export const ShowcaseHeader: React.FC<ShowcaseHeaderProps> = ({
           >
             <Search className="w-4 h-4" />
           </button>
+
+          {/* Admin ERP Direct Switch */}
+          {onOpenAdmin && (
+            <button
+              type="button"
+              onClick={onOpenAdmin}
+              className="hidden sm:inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] bg-[#3d2117] hover:bg-[#2b150a] text-[#fff8f0] px-3.5 py-2 rounded-full transition-all cursor-pointer shadow-2xs hover:scale-105"
+              title="Access Savouré Enterprise ERP Dashboard"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-[#d89368]" />
+              <span>Admin ERP</span>
+            </button>
+          )}
 
           {/* Merchant Portal */}
           <button
@@ -176,6 +191,18 @@ export const ShowcaseHeader: React.FC<ShowcaseHeaderProps> = ({
             >
               Merchant Portal
             </button>
+            {onOpenAdmin && (
+              <button
+                onClick={() => {
+                  onOpenAdmin();
+                  setIsMobileMenuOpen(false);
+                }}
+                className="text-left py-2 text-[#3d2117] font-extrabold flex items-center gap-2"
+              >
+                <ShieldCheck className="w-4 h-4 text-[#b86643]" />
+                <span>Admin ERP System</span>
+              </button>
+            )}
           </div>
         </div>
       )}

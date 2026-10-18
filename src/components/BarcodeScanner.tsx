@@ -144,6 +144,8 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
 }) => {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const containerId = useRef(`barcode-reader-${Math.random().toString(36).substring(2, 9)}`).current;
+  const lastScannedBarcodeRef = useRef<{ code: string; time: number }>({ code: '', time: 0 });
+  const barcodeDetectorIntervalRef = useRef<any>(null);
 
   // Camera & Device State
   const [cameras, setCameras] = useState<Array<{ id: string; label: string }>>([]);
@@ -192,11 +194,21 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
     }
   }, [audioFeedback]);
 
-  // Handle successful barcode scan
+  // Handle successful barcode scan with cooldown
   const handleBarcodeDetected = useCallback(
     (decodedText: string) => {
       const trimmed = decodedText.trim();
       if (!trimmed) return;
+
+      const now = Date.now();
+      // Cooldown for identical barcode: prevent 10 fires in 1 second
+      if (
+        trimmed === lastScannedBarcodeRef.current.code &&
+        now - lastScannedBarcodeRef.current.time < 1400
+      ) {
+        return;
+      }
+      lastScannedBarcodeRef.current = { code: trimmed, time: now };
 
       const metadata = parseBarcodeMetadata(trimmed);
       setLastScannedResult(metadata);
@@ -222,6 +234,45 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
     },
     [onScan, onClose, autoCloseOnScan, playScanBeep]
   );
+
+  // Global USB / Bluetooth Handheld Barcode Scanner Wedge Listener
+  useEffect(() => {
+    let keyBuffer = '';
+    let lastKeyTime = Date.now();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if user is actively typing in a standard text input
+      const activeEl = document.activeElement;
+      const isInput = activeEl?.tagName === 'INPUT' || activeEl?.tagName === 'TEXTAREA';
+
+      const now = Date.now();
+      const diff = now - lastKeyTime;
+      lastKeyTime = now;
+
+      if (e.key === 'Enter') {
+        if (keyBuffer.length >= 6 && /^\d+$/.test(keyBuffer)) {
+          handleBarcodeDetected(keyBuffer);
+          keyBuffer = '';
+          if (!isInput) e.preventDefault();
+        } else {
+          keyBuffer = '';
+        }
+        return;
+      }
+
+      // Barcode scanners output characters very rapidly (< 35ms between keys)
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (diff > 120) {
+          keyBuffer = e.key;
+        } else {
+          keyBuffer += e.key;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleBarcodeDetected]);
 
   // Initialize and list available cameras
   useEffect(() => {
@@ -281,39 +332,125 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
             Html5QrcodeSupportedFormats.QR_CODE,
           ],
           verbose: false,
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true,
+          },
         });
 
         scannerRef.current = html5QrCode;
 
-        // Camera config: prioritize back camera
-        const cameraConfig = cameraId
-          ? cameraId
-          : { facingMode: 'environment' };
+        // Camera config with resilient fallbacks
+        const scanConfig = {
+          fps: 25,
+          qrbox: (viewfinderWidth: number, viewfinderHeight: number) => ({
+            width: Math.min(Math.floor(viewfinderWidth * 0.98), 800),
+            height: Math.min(Math.floor(viewfinderHeight * 0.95), 600),
+          }),
+          aspectRatio: 1.333333,
+        };
 
-        await html5QrCode.start(
-          cameraConfig,
-          {
-            fps: 15,
-            qrbox: (viewfinderWidth, viewfinderHeight) => {
-              // Wide rectangular box tailored for South African EAN-13 barcodes
-              const minDimension = Math.min(viewfinderWidth, viewfinderHeight);
-              return {
-                width: Math.floor(minDimension * 0.85),
-                height: Math.floor(minDimension * 0.55),
-              };
-            },
-            aspectRatio: 1.333333,
-          },
-          (decodedText) => {
-            handleBarcodeDetected(decodedText);
-          },
-          () => {
-            // Frame scanner heartbeat - ignore normal non-detection frames
+        const onScanSuccess = (decodedText: string) => {
+          handleBarcodeDetected(decodedText);
+        };
+
+        const onScanFailure = () => {
+          // ignore normal non-detection frames
+        };
+
+        // Try environment camera first, then user camera if environment fails
+        try {
+          const primaryConfig = cameraId || { facingMode: { ideal: 'environment' } };
+          await html5QrCode.start(primaryConfig, scanConfig, onScanSuccess, onScanFailure);
+        } catch (initialErr) {
+          console.warn('Primary camera config failed, attempting fallback:', initialErr);
+          try {
+            await html5QrCode.start({ facingMode: 'user' }, scanConfig, onScanSuccess, onScanFailure);
+          } catch (secondaryErr) {
+            // Last resort: any video device
+            await html5QrCode.start(true as any, scanConfig, onScanSuccess, onScanFailure);
           }
-        );
+        }
 
         setIsScanning(true);
         setHasPermission(true);
+
+        // Hardware-accelerated native BarcodeDetector loop on raw video element with dual-orientation support
+        if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+          try {
+            let formatsToUse = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'qr_code'];
+            if (typeof (window as any).BarcodeDetector.getSupportedFormats === 'function') {
+              try {
+                const supported: string[] = await (window as any).BarcodeDetector.getSupportedFormats();
+                formatsToUse = formatsToUse.filter((f) => supported.includes(f));
+              } catch {
+                // Keep default formats
+              }
+            }
+
+            const detector = new (window as any).BarcodeDetector(
+              formatsToUse.length > 0 ? { formats: formatsToUse } : undefined
+            );
+
+            // Offscreen rotation canvas for barcodes held vertically
+            const rotCanvas = document.createElement('canvas');
+            const rotCtx = rotCanvas.getContext('2d');
+
+            const attachNativeScanner = () => {
+              const containerEl = document.getElementById(containerId);
+              const videoEl = containerEl?.querySelector('video');
+              if (videoEl && videoEl.readyState >= 2) {
+                if (barcodeDetectorIntervalRef.current) {
+                  clearInterval(barcodeDetectorIntervalRef.current);
+                }
+                let tick = 0;
+                barcodeDetectorIntervalRef.current = setInterval(async () => {
+                  if (!videoEl || videoEl.paused || videoEl.ended || videoEl.readyState < 2) return;
+                  tick++;
+                  try {
+                    // Direct frame detection
+                    const detected = await detector.detect(videoEl);
+                    if (detected && detected.length > 0) {
+                      const code = detected[0].rawValue;
+                      if (code) {
+                        handleBarcodeDetected(code);
+                        return;
+                      }
+                    }
+
+                    // Every 2nd tick (~120ms), test 90-degree rotated frame for vertical barcodes
+                    if (tick % 2 === 0 && rotCtx && videoEl.videoWidth > 0) {
+                      const vw = videoEl.videoWidth;
+                      const vh = videoEl.videoHeight;
+                      rotCanvas.width = vh;
+                      rotCanvas.height = vw;
+                      rotCtx.save();
+                      rotCtx.translate(vh / 2, vw / 2);
+                      rotCtx.rotate((90 * Math.PI) / 180);
+                      rotCtx.drawImage(videoEl, -vw / 2, -vh / 2);
+                      rotCtx.restore();
+
+                      const rotDetected = await detector.detect(rotCanvas);
+                      if (rotDetected && rotDetected.length > 0) {
+                        const code = rotDetected[0].rawValue;
+                        if (code) {
+                          handleBarcodeDetected(code);
+                          return;
+                        }
+                      }
+                    }
+                  } catch {
+                    // Ignore non-barcode frames
+                  }
+                }, 60);
+              } else if (containerEl) {
+                setTimeout(attachNativeScanner, 150);
+              }
+            };
+            setTimeout(attachNativeScanner, 200);
+          } catch (e) {
+            console.warn('Native BarcodeDetector setup note:', e);
+          }
+        }
 
         // Check torch capability
         try {
@@ -339,6 +476,10 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
 
   // Stop scanning
   const stopCamera = useCallback(async () => {
+    if (barcodeDetectorIntervalRef.current) {
+      clearInterval(barcodeDetectorIntervalRef.current);
+      barcodeDetectorIntervalRef.current = null;
+    }
     if (scannerRef.current) {
       try {
         if (scannerRef.current.isScanning) {
@@ -550,19 +691,19 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
               {isScanning && (
                 <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
                   {/* Viewfinder Target Frame */}
-                  <div className="w-[85%] h-[55%] border-2 border-[#B96F48] rounded-xl relative shadow-[0_0_15px_rgba(185,111,72,0.4)]">
+                  <div className="w-[90%] h-[72%] border-2 border-[#B96F48] rounded-xl relative shadow-[0_0_20px_rgba(185,111,72,0.4)]">
                     {/* Corner accent markers */}
-                    <div className="absolute -top-1 -left-1 w-5 h-5 border-t-4 border-l-4 border-emerald-400 rounded-tl-sm" />
-                    <div className="absolute -top-1 -right-1 w-5 h-5 border-t-4 border-r-4 border-emerald-400 rounded-tr-sm" />
-                    <div className="absolute -bottom-1 -left-1 w-5 h-5 border-b-4 border-l-4 border-emerald-400 rounded-bl-sm" />
-                    <div className="absolute -bottom-1 -right-1 w-5 h-5 border-b-4 border-r-4 border-emerald-400 rounded-br-sm" />
+                    <div className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-emerald-400 rounded-tl-sm" />
+                    <div className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-emerald-400 rounded-tr-sm" />
+                    <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 border-emerald-400 rounded-bl-sm" />
+                    <div className="absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 border-emerald-400 rounded-br-sm" />
 
                     {/* Animated horizontal red/copper laser line */}
-                    <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-red-500 to-transparent shadow-[0_0_8px_#ef4444] animate-pulse top-1/2 transform -translate-y-1/2" />
+                    <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-red-500 to-transparent shadow-[0_0_10px_#ef4444] animate-pulse top-1/2 transform -translate-y-1/2" />
 
                     <div className="absolute bottom-2 inset-x-0 text-center">
-                      <span className="text-[10px] tracking-widest font-mono text-emerald-300 bg-black/70 px-2 py-0.5 rounded-full border border-emerald-500/30">
-                        ALIGN SOUTH AFRICAN BARCODE HERE
+                      <span className="text-[10px] tracking-wider font-mono text-emerald-300 bg-black/75 px-3 py-1 rounded-full border border-emerald-500/30">
+                        HOLD BARCODE 10-25 CM FROM LENS
                       </span>
                     </div>
                   </div>

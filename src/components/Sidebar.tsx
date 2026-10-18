@@ -24,6 +24,7 @@ import {
   Store,
   Globe,
   Barcode,
+  Factory,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -52,6 +53,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     users,
     stockItemStatuses,
     staff,
+    activePOSSession,
+    productionBatches,
   } = useERP();
 
   const isSuperAdmin = currentUser?.role === 'super_admin';
@@ -134,6 +137,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: Barcode,
       allowed: isSuperAdmin ? true : Boolean(perms?.barcodeScanner ?? (currentUser?.role === 'logistics')),
       highlight: true,
+    },
+    {
+      id: 'pos',
+      label: 'Point of Sale (POS Till)',
+      icon: Store,
+      allowed: isSuperAdmin ? true : Boolean(perms?.pos ?? true),
+      highlight: true,
+      badge: activePOSSession ? 'Till Open' : undefined,
+    },
+    {
+      id: 'production-line',
+      label: 'Factory Production Lines',
+      icon: Factory,
+      allowed: isSuperAdmin ? true : Boolean(perms?.productionLine ?? true),
+      highlight: true,
+      badge:
+        (productionBatches || []).filter((b) => b.status !== 'COMPLETED' && b.status !== 'CANCELLED').length > 0
+          ? `${(productionBatches || []).filter((b) => b.status !== 'COMPLETED' && b.status !== 'CANCELLED').length} active`
+          : undefined,
     },
     {
       id: 'merchant-orders',

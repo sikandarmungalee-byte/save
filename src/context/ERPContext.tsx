@@ -6,6 +6,7 @@ import {
   Customer,
   Product,
   Invoice,
+  LineItem,
   DeliveryNote,
   Quotation,
   Payment,
@@ -20,7 +21,14 @@ import {
   JournalEntry,
   UserLoginLog,
   MerchantOrder,
-  MerchantOrderItem
+  MerchantOrderItem,
+  POSTransaction,
+  POSSession,
+  POSCartItem,
+  ProductionLine,
+  ProductionBatch,
+  ProductionIngredientUsage,
+  ProductionQualityCheck
 } from '../types/erp';
 import { db } from '../lib/firebase';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
@@ -177,9 +185,9 @@ export const INITIAL_SAVOURE_PRODUCTS: Product[] = [
   {
     id: 'prod_spring_roll',
     sku: 'SAV-SPR-001',
-    name: 'Savouré Spring Roll Pastry (20cm / 200g)',
+    name: 'Savouré Spring Roll Pastry Sheets',
     category: 'Pastry Sheets',
-    packSize: 'Pack of 30 Sheets',
+    packSize: 'Pack of 30 Sheets (20cm / 200g)',
     physicalSize: 'Standard 20cm',
     unitPrice: 42.50,
     costPrice: 22.00,
@@ -190,13 +198,52 @@ export const INITIAL_SAVOURE_PRODUCTS: Product[] = [
     description: 'Ultra-thin, non-porous crispy pastry sheets engineered for restaurant-grade spring rolls. Crisps to a golden amber finish without absorbing grease.',
     badge: 'Chef Favorite',
     packagingType: 'dozen',
+    sizes: [
+      {
+        id: 'size_spr_15',
+        name: 'Cocktail / Bite-Size (15cm × 15cm)',
+        shortName: 'Cocktail 15cm',
+        dimensions: '15cm × 15cm',
+        packSpec: '30 Sheets / 150g pack',
+        price: 34.00,
+        badge: 'Cocktail / Bites',
+      },
+      {
+        id: 'size_spr_20',
+        name: 'Standard Restaurant (20cm × 20cm)',
+        shortName: 'Standard 20cm',
+        dimensions: '20cm × 20cm',
+        packSpec: '30 Sheets / 200g pack',
+        price: 42.50,
+        badge: 'Most Popular',
+        isDefault: true,
+      },
+      {
+        id: 'size_spr_25',
+        name: 'Large Deli Sheet (25cm × 25cm)',
+        shortName: 'Large Deli 25cm',
+        dimensions: '25cm × 25cm',
+        packSpec: '40 Sheets / 350g pack',
+        price: 58.00,
+        badge: 'Deli Size',
+      },
+      {
+        id: 'size_spr_bulk',
+        name: 'Commercial Bulk Catering Box',
+        shortName: 'Catering Box 250s',
+        dimensions: '20cm × 20cm',
+        packSpec: '250 Sheets Master Box (2.0kg)',
+        price: 295.00,
+        badge: 'Wholesale Bulk Save',
+      },
+    ],
   },
   {
     id: 'prod_samoosa_pastry',
     sku: 'SAV-SAM-002',
-    name: 'Savouré Crispy Samoosa Pastry Sheets (500g)',
+    name: 'Savouré Crispy Samoosa Pastry Sheets',
     category: 'Pastry Sheets',
-    packSize: 'Pack of 50 Strips',
+    packSize: 'Pack of 50 Strips (7x25cm / 500g)',
     physicalSize: 'Standard 7x25cm',
     unitPrice: 48.00,
     costPrice: 24.50,
@@ -207,13 +254,52 @@ export const INITIAL_SAVOURE_PRODUCTS: Product[] = [
     description: 'Traditional tissue-thin folded samoosa leaves. Separates effortlessly, holds fillings securely, and achieves an unforgettable flaky crackle.',
     badge: 'Best Seller',
     packagingType: 'dozen',
+    sizes: [
+      {
+        id: 'size_sam_mini',
+        name: 'Cocktail Mini Strips (5cm × 20cm)',
+        shortName: 'Mini Cocktail 5×20cm',
+        dimensions: '5cm × 20cm',
+        packSpec: '60 Strips / 400g pack',
+        price: 42.00,
+        badge: 'Cocktail & Canapés',
+      },
+      {
+        id: 'size_sam_std',
+        name: 'Standard Golden Strips (7cm × 25cm)',
+        shortName: 'Standard 7×25cm',
+        dimensions: '7cm × 25cm',
+        packSpec: '50 Strips / 500g pack',
+        price: 48.00,
+        badge: 'Best Seller',
+        isDefault: true,
+      },
+      {
+        id: 'size_sam_king',
+        name: 'King Size Triangles (9cm × 30cm)',
+        shortName: 'King Size 9×30cm',
+        dimensions: '9cm × 30cm',
+        packSpec: '50 Strips / 750g pack',
+        price: 65.00,
+        badge: 'Deli Master',
+      },
+      {
+        id: 'size_sam_bulk',
+        name: 'Commercial Foodservice Master Carton',
+        shortName: 'Master Carton 500s',
+        dimensions: '7cm × 25cm',
+        packSpec: '500 Strips Master Box (5.0kg)',
+        price: 440.00,
+        badge: 'Wholesale Bulk Save',
+      },
+    ],
   },
   {
     id: 'prod_flaky_roti',
     sku: 'SAV-ROT-003',
-    name: 'Savouré Hand-Rolled Flaky Roti (Pack of 6)',
+    name: 'Savouré Hand-Rolled Flaky Roti',
     category: 'Artisanal Roti',
-    packSize: 'Pack of 6 Rotis',
+    packSize: 'Pack of 6 Rotis (22cm)',
     physicalSize: '22cm Round',
     unitPrice: 38.00,
     costPrice: 19.00,
@@ -224,13 +310,52 @@ export const INITIAL_SAVOURE_PRODUCTS: Product[] = [
     description: 'Authentic layered Cape Malay & Durban style flaky rotis. Hand-stretched with pure clarified butter for extraordinary tender layers.',
     badge: 'Artisanal Classic',
     packagingType: 'dozen',
+    sizes: [
+      {
+        id: 'size_rot_buffet',
+        name: 'Cocktail / Buffet Roti (15cm Round)',
+        shortName: 'Buffet 15cm',
+        dimensions: '15cm Round',
+        packSpec: 'Pack of 10 Rotis / 450g',
+        price: 36.00,
+        badge: 'Buffet Size',
+      },
+      {
+        id: 'size_rot_std',
+        name: 'Classic Table Roti (22cm Round)',
+        shortName: 'Classic 22cm',
+        dimensions: '22cm Round',
+        packSpec: 'Pack of 6 Rotis / 500g',
+        price: 38.00,
+        badge: 'Artisanal Classic',
+        isDefault: true,
+      },
+      {
+        id: 'size_rot_family',
+        name: 'Family Value Pack (22cm Round)',
+        shortName: 'Family Pack of 12',
+        dimensions: '22cm Round',
+        packSpec: 'Pack of 12 Rotis / 1.0kg',
+        price: 68.00,
+        badge: 'Value Pack',
+      },
+      {
+        id: 'size_rot_crate',
+        name: 'Catering Bulk Crate (22cm Round)',
+        shortName: 'Catering Crate 50s',
+        dimensions: '22cm Round',
+        packSpec: '50 Layered Rotis / 4.2kg',
+        price: 265.00,
+        badge: 'Foodservice Master',
+      },
+    ],
   },
   {
     id: 'prod_tortilla_wraps',
     sku: 'SAV-TOR-004',
-    name: 'Savouré Stone-Ground Tortilla Wraps 30cm (Pack of 12)',
+    name: 'Savouré Stone-Ground Tortilla Wraps',
     category: 'Tortillas & Wraps',
-    packSize: 'Pack of 12 Wraps',
+    packSize: 'Pack of 12 Wraps (30cm)',
     physicalSize: 'Large 30cm',
     unitPrice: 54.00,
     costPrice: 28.00,
@@ -241,6 +366,45 @@ export const INITIAL_SAVOURE_PRODUCTS: Product[] = [
     description: 'Soft-fold stone-ground flour tortillas. Roll tight without cracking or tearing, perfect for Mexican dining, shawarmas, and deli wraps.',
     badge: 'Wholesale Hero',
     packagingType: 'pack',
+    sizes: [
+      {
+        id: 'size_tor_med',
+        name: 'Medium Taco / Street Food (20cm / 8")',
+        shortName: 'Medium 8-inch',
+        dimensions: '20cm / 8-inch',
+        packSpec: 'Pack of 12 Wraps / 480g',
+        price: 42.00,
+        badge: 'Taco Size',
+      },
+      {
+        id: 'size_tor_deli',
+        name: 'Large Burrito / Deli (25cm / 10")',
+        shortName: 'Large 10-inch',
+        dimensions: '25cm / 10-inch',
+        packSpec: 'Pack of 12 Wraps / 650g',
+        price: 48.00,
+        badge: 'Burrito & Wraps',
+      },
+      {
+        id: 'size_tor_jumbo',
+        name: 'Jumbo Shawarma (30cm / 12")',
+        shortName: 'Jumbo 12-inch',
+        dimensions: '30cm / 12-inch',
+        packSpec: 'Pack of 12 Wraps / 850g',
+        price: 54.00,
+        badge: 'Wholesale Hero',
+        isDefault: true,
+      },
+      {
+        id: 'size_tor_bulk',
+        name: 'Foodservice Master Case (30cm)',
+        shortName: 'Master Case 100s',
+        dimensions: '30cm / 12-inch',
+        packSpec: '100 Wraps Foodservice Case (7.2kg)',
+        price: 375.00,
+        badge: 'Commercial Master Case',
+      },
+    ],
   },
 ];
 
@@ -400,6 +564,190 @@ export const INITIAL_MERCHANT_ORDERS: MerchantOrder[] = [
   }
 ];
 
+export const INITIAL_POS_SESSIONS: POSSession[] = [
+  {
+    id: 'pos_ses_001',
+    sessionNumber: 'POS-SES-0001',
+    cashierId: 'usr_master_admin',
+    cashierName: 'Master Admin',
+    branch: 'Main Bakery Counter',
+    openedAt: new Date(Date.now() - 3600000 * 8).toISOString(),
+    openingFloat: 500.00,
+    cashSales: 1450.00,
+    cardSales: 2180.00,
+    eftSales: 0.00,
+    totalSales: 3630.00,
+    transactionCount: 8,
+    status: 'OPEN',
+    notes: 'Morning shift retail & walk-in till',
+  }
+];
+
+export const INITIAL_POS_TRANSACTIONS: POSTransaction[] = [
+  {
+    id: 'pos_tx_001',
+    receiptNumber: 'REC-2026-0001',
+    sessionId: 'pos_ses_001',
+    cashierId: 'usr_master_admin',
+    cashierName: 'Master Admin',
+    branch: 'Main Bakery Counter',
+    customerName: 'Walk-in Retail Customer',
+    items: [
+      {
+        productId: 'prod_spring_roll',
+        productName: 'Savouré Spring Roll Pastry (20cm / 200g)',
+        sku: 'SAV-SPR-001',
+        barcode: '6009800123012',
+        category: 'Pastry Sheets',
+        packSize: 'Pack of 30 Sheets',
+        unitPrice: 42.50,
+        quantity: 3,
+        discountPercent: 0,
+        lineTotal: 127.50,
+      },
+      {
+        productId: 'prod_flaky_roti',
+        productName: 'Savouré Hand-Rolled Flaky Roti (Pack of 6)',
+        sku: 'SAV-ROT-003',
+        barcode: '6009612345671',
+        category: 'Artisanal Roti',
+        packSize: 'Pack of 6 Rotis',
+        unitPrice: 38.00,
+        quantity: 2,
+        discountPercent: 0,
+        lineTotal: 76.00,
+      }
+    ],
+    subtotal: 203.50,
+    discountTotal: 0.00,
+    vat: 0.00,
+    total: 203.50,
+    paymentMethod: 'CASH',
+    amountTendered: 220.00,
+    changeDue: 16.50,
+    status: 'COMPLETED',
+    createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
+  }
+];
+
+export const INITIAL_PRODUCTION_LINES: ProductionLine[] = [
+  {
+    id: 'line_01',
+    code: 'LINE-01',
+    name: 'High-Speed Pastry Sheeter & Auto-Laminator',
+    section: 'Extrusion & Sheeting',
+    status: 'RUNNING',
+    supervisor: 'Yusuf Patel',
+    capacityPerHour: '1,200 sheets/hr',
+    targetProductSku: 'SAV-SPR-001',
+  },
+  {
+    id: 'line_02',
+    code: 'LINE-02',
+    name: 'Triangle Samoosa Precision Cut & Folding Line',
+    section: 'Folding & Shaping',
+    status: 'RUNNING',
+    supervisor: 'Amina Dawood',
+    capacityPerHour: '3,200 units/hr',
+    targetProductSku: 'SAV-SAM-002',
+  },
+  {
+    id: 'line_03',
+    code: 'LINE-03',
+    name: 'Artisanal Cape Malay Flaky Roti Hot-Griddle Line',
+    section: 'Baking & Griddling',
+    status: 'RUNNING',
+    supervisor: 'Farouk Adams',
+    capacityPerHour: '850 rotis/hr',
+    targetProductSku: 'SAV-ROT-003',
+  },
+  {
+    id: 'line_04',
+    code: 'LINE-04',
+    name: 'Stone-Ground Tortilla Press, Oven Tunnel & Cooling System',
+    section: 'Extrusion & Sheeting',
+    status: 'IDLE',
+    supervisor: 'Tariq Moosa',
+    capacityPerHour: '1,500 wraps/hr',
+    targetProductSku: 'SAV-TOR-004',
+  },
+];
+
+export const INITIAL_PRODUCTION_BATCHES: ProductionBatch[] = [
+  {
+    id: 'batch_101',
+    batchNumber: 'BATCH-20261018-001',
+    lineId: 'line_01',
+    lineName: 'High-Speed Pastry Sheeter & Auto-Laminator',
+    targetProductId: 'prod_spring_roll',
+    targetProductName: 'Savouré Spring Roll Pastry (20cm / 200g)',
+    targetSku: 'SAV-SPR-001',
+    plannedQuantity: 500,
+    actualYield: 485,
+    rejectedQuantity: 15,
+    status: 'PACKAGING',
+    ingredients: [
+      { ingredientId: 'ing_flour', ingredientName: 'Supreme Unbleached Pastry Flour', sku: 'RAW-FLR-001', quantityUsed: 100, unit: 'kg', costPerUnit: 14.50 },
+      { ingredientId: 'ing_oil', ingredientName: 'Pure Sunflower Laminating Oil', sku: 'RAW-OIL-002', quantityUsed: 15, unit: 'litres', costPerUnit: 26.00 },
+      { ingredientId: 'ing_salt', ingredientName: 'Refined Sea Salt', sku: 'RAW-SLT-003', quantityUsed: 2.5, unit: 'kg', costPerUnit: 8.00 },
+    ],
+    qc: {
+      visualAppearance: 'Pass',
+      thicknessMm: 0.85,
+      targetWeightGrams: 200,
+      actualSampleWeightGrams: 201.5,
+      moisturePercent: 12.4,
+      metalDetectorChecked: true,
+      sealIntegrityChecked: true,
+      inspectorName: 'Zainab Cassim (QC Officer)',
+      notes: 'Excellent golden hue, consistent sheet elasticity and non-porous structure.'
+    },
+    operatorName: 'Sipho Ndlovu',
+    supervisorName: 'Yusuf Patel',
+    startTime: new Date(Date.now() - 3600000 * 4).toISOString(),
+    expiryDate: new Date(Date.now() + 86400000 * 60).toISOString().split('T')[0],
+    lotCode: 'LOT-20261018-SPR01',
+    notes: 'Standard morning pastry extrusion for restaurant orders',
+    stockUpdated: false,
+    createdAt: new Date(Date.now() - 3600000 * 5).toISOString(),
+  },
+  {
+    id: 'batch_102',
+    batchNumber: 'BATCH-20261018-002',
+    lineId: 'line_02',
+    lineName: 'Triangle Samoosa Precision Cut & Folding Line',
+    targetProductId: 'prod_samoosa_pastry',
+    targetProductName: 'Savouré Crispy Samoosa Pastry Sheets (500g)',
+    targetSku: 'SAV-SAM-002',
+    plannedQuantity: 650,
+    actualYield: 640,
+    rejectedQuantity: 10,
+    status: 'FORMING_CUTTING',
+    ingredients: [
+      { ingredientId: 'ing_flour', ingredientName: 'Supreme Unbleached Pastry Flour', sku: 'RAW-FLR-001', quantityUsed: 130, unit: 'kg', costPerUnit: 14.50 },
+      { ingredientId: 'ing_oil', ingredientName: 'Pure Sunflower Laminating Oil', sku: 'RAW-OIL-002', quantityUsed: 18, unit: 'litres', costPerUnit: 26.00 },
+    ],
+    qc: {
+      visualAppearance: 'Pass',
+      thicknessMm: 0.65,
+      targetWeightGrams: 500,
+      actualSampleWeightGrams: 502,
+      moisturePercent: 11.8,
+      metalDetectorChecked: true,
+      sealIntegrityChecked: false,
+      inspectorName: 'Pending Final Pack Inspection',
+    },
+    operatorName: 'Bongani Khumalo',
+    supervisorName: 'Amina Dawood',
+    startTime: new Date(Date.now() - 3600000 * 2).toISOString(),
+    expiryDate: new Date(Date.now() + 86400000 * 60).toISOString().split('T')[0],
+    lotCode: 'LOT-20261018-SAM02',
+    notes: 'Crispy triangle folding run',
+    stockUpdated: false,
+    createdAt: new Date(Date.now() - 3600000 * 3).toISOString(),
+  }
+];
+
 interface ERPContextType {
   currentUser: User | null;
   setCurrentUser: (u: User | null) => void;
@@ -525,6 +873,24 @@ interface ERPContextType {
   updateShowcaseProduct: (id: string, item: Partial<ShowcaseProductItem>) => Promise<ShowcaseProductItem>;
   removeShowcaseProduct: (id: string) => Promise<void>;
   toggleShowcaseProductActive: (id: string) => Promise<boolean>;
+
+  // Point of Sale (POS) & Counter Till
+  posTransactions: POSTransaction[];
+  posSessions: POSSession[];
+  activePOSSession: POSSession | null;
+  openPOSSession: (openingFloat: number, notes?: string) => Promise<POSSession>;
+  closePOSSession: (closingFloat: number, notes?: string) => Promise<POSSession>;
+  createPOSTransaction: (data: Omit<POSTransaction, 'id' | 'receiptNumber' | 'createdAt'>) => Promise<POSTransaction>;
+  refundPOSTransaction: (id: string, reason?: string) => Promise<void>;
+
+  // Factory Production Lines & Bakery Runs
+  productionLines: ProductionLine[];
+  productionBatches: ProductionBatch[];
+  updateProductionLineStatus: (id: string, status: ProductionLine['status']) => Promise<void>;
+  createProductionBatch: (data: Partial<ProductionBatch>) => Promise<ProductionBatch>;
+  updateProductionBatchStatus: (batchId: string, status: ProductionBatch['status'], updates?: Partial<ProductionBatch>) => Promise<void>;
+  completeProductionBatch: (batchId: string, actualYield: number, rejectedQuantity: number, qcNotes?: string) => Promise<void>;
+  deleteProductionBatch: (batchId: string) => Promise<void>;
   
   // Database & Portability
   purgeMockData: () => Promise<void>;
@@ -647,6 +1013,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [loginLogs, setLoginLogs] = useState<UserLoginLog[]>([]);
   const [merchantOrders, setMerchantOrders] = useState<MerchantOrder[]>(INITIAL_MERCHANT_ORDERS);
   const [showcaseProducts, setShowcaseProducts] = useState<ShowcaseProductItem[]>(SHOWCASE_COLLECTION);
+  const [posTransactions, setPosTransactions] = useState<POSTransaction[]>(INITIAL_POS_TRANSACTIONS);
+  const [posSessions, setPosSessions] = useState<POSSession[]>(INITIAL_POS_SESSIONS);
+  const [productionLines, setProductionLines] = useState<ProductionLine[]>(INITIAL_PRODUCTION_LINES);
+  const [productionBatches, setProductionBatches] = useState<ProductionBatch[]>(INITIAL_PRODUCTION_BATCHES);
 
   const [isLocked, setIsLocked] = useState<boolean>(false);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'offline'>('synced');
@@ -669,6 +1039,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         payments,
         merchantOrders,
         showcaseProducts,
+        posTransactions,
+        posSessions,
+        productionLines,
+        productionBatches,
         leads,
         communications,
         staff,
@@ -685,7 +1059,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.warn('Cache write warning:', e);
     }
-  }, [users, company, customers, products, categories, invoices, deliveryNotes, quotations, payments, merchantOrders, showcaseProducts, leads, communications, staff, payrollPayouts, stockPurchases, stockItemStatuses, stockMovements, journalEntries, loginLogs]);
+  }, [users, company, customers, products, categories, invoices, deliveryNotes, quotations, payments, merchantOrders, showcaseProducts, posTransactions, posSessions, productionLines, productionBatches, leads, communications, staff, payrollPayouts, stockPurchases, stockItemStatuses, stockMovements, journalEntries, loginLogs]);
 
   // Helper to sanitize payload and remove all undefined values recursively for Firestore compatibility
   const sanitizeForCloud = (obj: any): any => {
@@ -773,6 +1147,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (parsed.loginLogs) setLoginLogs(parsed.loginLogs);
         if (Array.isArray(parsed.merchantOrders)) setMerchantOrders(parsed.merchantOrders);
         if (Array.isArray(parsed.showcaseProducts)) setShowcaseProducts(parsed.showcaseProducts);
+        if (Array.isArray(parsed.posTransactions)) setPosTransactions(parsed.posTransactions);
+        if (Array.isArray(parsed.posSessions)) setPosSessions(parsed.posSessions);
+        if (Array.isArray(parsed.productionLines)) setProductionLines(parsed.productionLines);
+        if (Array.isArray(parsed.productionBatches)) setProductionBatches(parsed.productionBatches);
 
         let loadedUsers = parsed.users || [];
         if (!loadedUsers.some((u) => u.email.toLowerCase() === 'admin@savoure.co.za')) {
@@ -813,6 +1191,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (Array.isArray(srv.loginLogs)) setLoginLogs(srv.loginLogs);
         if (Array.isArray(srv.merchantOrders)) setMerchantOrders(srv.merchantOrders);
         if (Array.isArray(srv.showcaseProducts)) setShowcaseProducts(srv.showcaseProducts);
+        if (Array.isArray(srv.posTransactions)) setPosTransactions(srv.posTransactions);
+        if (Array.isArray(srv.posSessions)) setPosSessions(srv.posSessions);
+        if (Array.isArray(srv.productionLines)) setProductionLines(srv.productionLines);
+        if (Array.isArray(srv.productionBatches)) setProductionBatches(srv.productionBatches);
         if (Array.isArray(srv.users) && srv.users.length > 0) {
           let uList = srv.users;
           if (!uList.some((u) => u.email.toLowerCase() === 'admin@savoure.co.za')) {
@@ -860,6 +1242,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (Array.isArray(cloudData.payments)) setPayments(cloudData.payments);
         if (Array.isArray(cloudData.merchantOrders)) setMerchantOrders(cloudData.merchantOrders);
         if (Array.isArray(cloudData.showcaseProducts)) setShowcaseProducts(cloudData.showcaseProducts);
+        if (Array.isArray(cloudData.posTransactions)) setPosTransactions(cloudData.posTransactions);
+        if (Array.isArray(cloudData.posSessions)) setPosSessions(cloudData.posSessions);
+        if (Array.isArray(cloudData.productionLines)) setProductionLines(cloudData.productionLines);
+        if (Array.isArray(cloudData.productionBatches)) setProductionBatches(cloudData.productionBatches);
         if (Array.isArray(cloudData.leads)) setLeads(cloudData.leads);
         if (Array.isArray(cloudData.communications)) setCommunications(cloudData.communications);
         if (Array.isArray(cloudData.staff)) setStaff(cloudData.staff);
@@ -3006,6 +3392,316 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // ------------------------------------------------------------------
+  // Point of Sale (POS) & Till Management
+  // ------------------------------------------------------------------
+  const activePOSSession = posSessions.find((s) => s.status === 'OPEN') || null;
+
+  const openPOSSession = async (openingFloat: number, notes?: string): Promise<POSSession> => {
+    const seq = posSessions.length + 1;
+    const sessionNumber = `POS-SES-${String(seq).padStart(4, '0')}`;
+    const newSession: POSSession = {
+      id: `pos_ses_${Date.now()}`,
+      sessionNumber,
+      cashierId: currentUser?.id || 'usr_master_admin',
+      cashierName: currentUser?.name || 'Master Admin',
+      branch: currentUser?.branch || 'Main Bakery Counter',
+      openedAt: new Date().toISOString(),
+      openingFloat,
+      cashSales: 0,
+      cardSales: 0,
+      eftSales: 0,
+      totalSales: 0,
+      transactionCount: 0,
+      status: 'OPEN',
+      notes,
+    };
+    const nextSessions = [newSession, ...posSessions];
+    setPosSessions(nextSessions);
+    persistToLocal({ posSessions: nextSessions });
+    await syncToCloud({ posSessions: nextSessions });
+    return newSession;
+  };
+
+  const closePOSSession = async (closingFloat: number, notes?: string): Promise<POSSession> => {
+    if (!activePOSSession) throw new Error('No active POS session to close');
+    const closed: POSSession = {
+      ...activePOSSession,
+      status: 'CLOSED',
+      closedAt: new Date().toISOString(),
+      closingFloat,
+      notes: notes || activePOSSession.notes,
+    };
+    const nextSessions = posSessions.map((s) => (s.id === closed.id ? closed : s));
+    setPosSessions(nextSessions);
+    persistToLocal({ posSessions: nextSessions });
+    await syncToCloud({ posSessions: nextSessions });
+    return closed;
+  };
+
+  const createPOSTransaction = async (
+    data: Omit<POSTransaction, 'id' | 'receiptNumber' | 'createdAt'>
+  ): Promise<POSTransaction> => {
+    const seq = posTransactions.length + 1;
+    const year = new Date().getFullYear();
+    const receiptNumber = `REC-${year}-${String(seq).padStart(4, '0')}`;
+
+    const invNumber = getNextInvoiceNumber();
+    const invoiceCustomer = data.customerName || 'Walk-in Retail Customer';
+
+    const invoiceItems: LineItem[] = data.items.map((item) => {
+      const lineSubtotal = item.unitPrice * item.quantity;
+      const lineVat = item.vatApplicable ? lineSubtotal * 0.15 : 0;
+      return {
+        id: `inv_item_${Math.random().toString(36).substring(2, 9)}`,
+        productId: item.productId,
+        sku: item.sku || 'SKU-POS',
+        description: item.productName,
+        packSize: 'Standard Pack',
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        vatRate: item.vatApplicable ? 15 : 0,
+        discountPercent: 0,
+        subtotal: lineSubtotal,
+        vatAmount: lineVat,
+        total: item.lineTotal,
+      };
+    });
+
+    const newInvoice: Invoice = {
+      id: `inv_pos_${Date.now()}`,
+      invoiceNumber: invNumber,
+      issueDate: new Date().toISOString().split('T')[0],
+      dueDate: new Date().toISOString().split('T')[0],
+      date: new Date().toISOString().split('T')[0],
+      customerId: data.customerId || 'cust_walk_in',
+      customerName: invoiceCustomer,
+      customerTradingName: invoiceCustomer,
+      deliveryAddress: 'POS Retail Counter - Over the Counter Sale',
+      customerVat: '',
+      items: invoiceItems,
+      subtotal: data.subtotal,
+      vatTotal: data.vat,
+      discountTotal: data.discountTotal || 0,
+      grandTotal: data.total,
+      amountPaid: data.paymentMethod === 'ON_ACCOUNT' ? 0 : data.total,
+      balanceDue: data.paymentMethod === 'ON_ACCOUNT' ? data.total : 0,
+      status: data.paymentMethod === 'ON_ACCOUNT' ? 'Sent' : 'Paid',
+      notes: `POS Counter Receipt: ${receiptNumber} (${data.paymentMethod})`,
+      createdAt: new Date().toISOString(),
+      createdBy: currentUser?.name || 'POS Cashier',
+    };
+
+    const newTx: POSTransaction = {
+      ...data,
+      id: `pos_tx_${Date.now()}`,
+      receiptNumber,
+      invoiceId: newInvoice.id,
+      createdAt: new Date().toISOString(),
+    };
+
+    const nextTxs = [newTx, ...posTransactions];
+    const nextInvoices = [newInvoice, ...invoices];
+
+    let nextSessions = posSessions;
+    if (activePOSSession) {
+      const updatedSession: POSSession = {
+        ...activePOSSession,
+        transactionCount: activePOSSession.transactionCount + 1,
+        totalSales: activePOSSession.totalSales + data.total,
+        cashSales: data.paymentMethod === 'CASH' ? activePOSSession.cashSales + data.total : activePOSSession.cashSales,
+        cardSales: data.paymentMethod === 'CARD' ? activePOSSession.cardSales + data.total : activePOSSession.cardSales,
+        eftSales: data.paymentMethod === 'EFT' ? activePOSSession.eftSales + data.total : activePOSSession.eftSales,
+      };
+      nextSessions = posSessions.map((s) => (s.id === updatedSession.id ? updatedSession : s));
+      setPosSessions(nextSessions);
+    }
+
+    let updatedProducts = [...products];
+    for (const item of data.items) {
+      const pIdx = updatedProducts.findIndex((p) => p.id === item.productId || p.sku === item.sku);
+      if (pIdx >= 0) {
+        const prod = updatedProducts[pIdx];
+        const newStock = Math.max(0, (prod.stockOnHand || 0) - item.quantity);
+        updatedProducts[pIdx] = { ...prod, stockOnHand: newStock };
+      }
+    }
+
+    setPosTransactions(nextTxs);
+    setInvoices(nextInvoices);
+    setProducts(updatedProducts);
+
+    const payload = {
+      posTransactions: nextTxs,
+      posSessions: nextSessions,
+      invoices: nextInvoices,
+      products: updatedProducts,
+    };
+    persistToLocal(payload);
+    await syncToCloud(payload);
+    return newTx;
+  };
+
+  const refundPOSTransaction = async (id: string, reason?: string): Promise<void> => {
+    const nextTxs = posTransactions.map((tx) =>
+      tx.id === id
+        ? {
+            ...tx,
+            status: 'REFUNDED' as const,
+            notes: `${tx.notes ? tx.notes + ' | ' : ''}Refunded: ${reason || 'Customer return'}`,
+          }
+        : tx
+    );
+    setPosTransactions(nextTxs);
+    persistToLocal({ posTransactions: nextTxs });
+    await syncToCloud({ posTransactions: nextTxs });
+  };
+
+  // ------------------------------------------------------------------
+  // Factory Production Lines & Bakery Runs
+  // ------------------------------------------------------------------
+  const updateProductionLineStatus = async (
+    id: string,
+    status: ProductionLine['status']
+  ): Promise<void> => {
+    const nextLines = productionLines.map((l) => (l.id === id ? { ...l, status } : l));
+    setProductionLines(nextLines);
+    persistToLocal({ productionLines: nextLines });
+    await syncToCloud({ productionLines: nextLines });
+  };
+
+  const createProductionBatch = async (data: Partial<ProductionBatch>): Promise<ProductionBatch> => {
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const seq = productionBatches.length + 1;
+    const batchNumber = data.batchNumber || `BATCH-${dateStr}-${String(seq).padStart(3, '0')}`;
+
+    const newBatch: ProductionBatch = {
+      id: `batch_${Date.now()}`,
+      batchNumber,
+      lineId: data.lineId || 'line_01',
+      lineName: data.lineName || 'High-Speed Pastry Sheeter & Auto-Laminator',
+      targetProductId: data.targetProductId || 'prod_spring_roll',
+      targetProductName: data.targetProductName || 'Savouré Spring Roll Pastry (20cm / 200g)',
+      targetSku: data.targetSku || 'SAV-SPR-001',
+      plannedQuantity: data.plannedQuantity || 500,
+      actualYield: data.actualYield || 0,
+      rejectedQuantity: data.rejectedQuantity || 0,
+      status: data.status || 'PLANNED',
+      ingredients: data.ingredients || [
+        { ingredientId: 'ing_flour', ingredientName: 'Supreme Unbleached Pastry Flour', sku: 'RAW-FLR-001', quantityUsed: 100, unit: 'kg', costPerUnit: 14.50 },
+        { ingredientId: 'ing_oil', ingredientName: 'Pure Sunflower Laminating Oil', sku: 'RAW-OIL-002', quantityUsed: 15, unit: 'litres', costPerUnit: 26.00 },
+      ],
+      qc: data.qc || {
+        visualAppearance: 'Pass',
+        thicknessMm: 0.8,
+        targetWeightGrams: 200,
+        actualSampleWeightGrams: 200,
+        moisturePercent: 12,
+        metalDetectorChecked: true,
+        sealIntegrityChecked: true,
+        inspectorName: currentUser?.name || 'QC Officer',
+      },
+      operatorName: data.operatorName || currentUser?.name || 'Operator',
+      supervisorName: data.supervisorName || 'Yusuf Patel',
+      startTime: data.startTime || new Date().toISOString(),
+      expiryDate: data.expiryDate || new Date(Date.now() + 86400000 * 60).toISOString().split('T')[0],
+      lotCode: data.lotCode || `LOT-${dateStr}-${String(seq).padStart(2, '0')}`,
+      notes: data.notes || '',
+      stockUpdated: false,
+      createdAt: new Date().toISOString(),
+    };
+
+    const nextBatches = [newBatch, ...productionBatches];
+    setProductionBatches(nextBatches);
+    persistToLocal({ productionBatches: nextBatches });
+    await syncToCloud({ productionBatches: nextBatches });
+    return newBatch;
+  };
+
+  const updateProductionBatchStatus = async (
+    batchId: string,
+    status: ProductionBatch['status'],
+    updates?: Partial<ProductionBatch>
+  ): Promise<void> => {
+    const nextBatches = productionBatches.map((b) =>
+      b.id === batchId ? { ...b, status, ...(updates || {}) } : b
+    );
+    setProductionBatches(nextBatches);
+    persistToLocal({ productionBatches: nextBatches });
+    await syncToCloud({ productionBatches: nextBatches });
+  };
+
+  const completeProductionBatch = async (
+    batchId: string,
+    actualYield: number,
+    rejectedQuantity: number,
+    qcNotes?: string
+  ): Promise<void> => {
+    const target = productionBatches.find((b) => b.id === batchId);
+    if (!target) return;
+
+    const updatedBatch: ProductionBatch = {
+      ...target,
+      status: 'COMPLETED',
+      actualYield,
+      rejectedQuantity,
+      stockUpdated: true,
+      endTime: new Date().toISOString(),
+      qc: {
+        ...target.qc,
+        notes: qcNotes || target.qc.notes,
+        inspectorName: target.qc.inspectorName || currentUser?.name || 'QC Lead',
+      },
+    };
+
+    const nextBatches = productionBatches.map((b) => (b.id === batchId ? updatedBatch : b));
+    setProductionBatches(nextBatches);
+
+    const updatedProducts = products.map((p) => {
+      if (p.id === target.targetProductId || p.sku === target.targetSku) {
+        return { ...p, stockOnHand: (p.stockOnHand || 0) + actualYield };
+      }
+      return p;
+    });
+    setProducts(updatedProducts);
+
+    const newMovement: StockMovement = {
+      id: `sm_${Date.now()}`,
+      movementNumber: `SM-PROD-${Date.now().toString().slice(-4)}`,
+      timestamp: new Date().toISOString(),
+      type: 'STOCK_IN',
+      barcode: target.lotCode || target.targetSku || '6009800123014',
+      sku: target.targetSku,
+      productName: target.targetProductName,
+      category: 'Pastry Sheets',
+      quantity: actualYield,
+      unit: 'packs',
+      sourceBranch: `Production (${target.lineName})`,
+      destinationBranch: 'Main Bakery Warehouse',
+      batchNumber: target.batchNumber,
+      reason: `Completed Production Run (${actualYield} packs produced, ${rejectedQuantity} scrap)`,
+      recordedBy: currentUser?.name || 'Production Supervisor',
+      isSouthAfricanBarcode: true,
+    };
+    const nextMovements = [newMovement, ...stockMovements];
+    setStockMovements(nextMovements);
+
+    const payload = {
+      productionBatches: nextBatches,
+      products: updatedProducts,
+      stockMovements: nextMovements,
+    };
+    persistToLocal(payload);
+    await syncToCloud(payload);
+  };
+
+  const deleteProductionBatch = async (batchId: string): Promise<void> => {
+    const nextBatches = productionBatches.filter((b) => b.id !== batchId);
+    setProductionBatches(nextBatches);
+    persistToLocal({ productionBatches: nextBatches });
+    await syncToCloud({ productionBatches: nextBatches });
+  };
+
   return (
     <ERPContext.Provider
       value={{
@@ -3034,6 +3730,20 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateShowcaseProduct,
         removeShowcaseProduct,
         toggleShowcaseProductActive,
+        posTransactions,
+        posSessions,
+        activePOSSession,
+        openPOSSession,
+        closePOSSession,
+        createPOSTransaction,
+        refundPOSTransaction,
+        productionLines,
+        productionBatches,
+        updateProductionLineStatus,
+        createProductionBatch,
+        updateProductionBatchStatus,
+        completeProductionBatch,
+        deleteProductionBatch,
         leads,
         communications,
         staff,

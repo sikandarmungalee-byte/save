@@ -53,7 +53,9 @@ import {
   ArrowRightLeft,
   Globe,
   Bell,
-  Smartphone
+  Smartphone,
+  Factory,
+  Cpu
 } from 'lucide-react';
 import {
   Invoice,
@@ -70,7 +72,11 @@ import {
   Lead,
   User,
   CompanySettings,
-  MerchantOrder
+  MerchantOrder,
+  POSTransaction,
+  POSSession,
+  ProductionLine,
+  ProductionBatch
 } from '../../types/erp';
 
 export interface ERPContextState {
@@ -83,6 +89,10 @@ export interface ERPContextState {
   categories: string[];
   stockPurchases: StockPurchase[];
   stockItemStatuses: StockItemStatus[];
+  posTransactions?: POSTransaction[];
+  posSessions?: POSSession[];
+  productionLines?: ProductionLine[];
+  productionBatches?: ProductionBatch[];
   stockMovements: StockMovement[];
   staff: StaffMember[];
   payrollPayouts: PayrollPayout[];
@@ -1567,6 +1577,104 @@ export const ERP_MODULES: ERPModule[] = [
         icon: CheckCircle2,
         actionType: 'view',
         targetConfig: { view: 'audit' }
+      }
+    ]
+  },
+
+  // 22. Point of Sale (POS) & Counter Till
+  {
+    id: 'pos',
+    number: 22,
+    title: 'Point of Sale (POS) & Counter Till',
+    shortTitle: 'POS & Counter Till',
+    subtitle: 'Cash Register, Quick Scan & Thermal Slips',
+    description: 'Fast walk-in counter sales, product barcode scanning, cash drawer float management, change calculation, and instant thermal receipt printing.',
+    icon: Store,
+    badge: (ctx) => {
+      const activeSession = (ctx.posSessions || []).find((s) => s.status === 'OPEN');
+      return activeSession ? 'TILL OPEN' : undefined;
+    },
+    subcategories: [
+      {
+        id: 'pos-register',
+        title: 'Active Sales Register',
+        subtitle: 'Product catalog picker, live cart & checkout',
+        icon: Store,
+        actionType: 'view',
+        targetConfig: { tab: 'till' }
+      },
+      {
+        id: 'pos-scan',
+        title: 'Quick Barcode Scanner',
+        subtitle: 'Scan product packaging directly into cart',
+        icon: Barcode,
+        actionType: 'modal',
+        targetConfig: { openScanner: true }
+      },
+      {
+        id: 'pos-receipts',
+        title: 'Sales Receipts & Slips',
+        subtitle: 'Reprint thermal receipts and handle refunds',
+        icon: Receipt,
+        actionType: 'view',
+        targetConfig: { tab: 'history' }
+      },
+      {
+        id: 'pos-session',
+        title: 'Till Float & Z-Report',
+        subtitle: 'Open morning float and close day register balance',
+        icon: Clock,
+        actionType: 'view',
+        targetConfig: { tab: 'session' }
+      }
+    ]
+  },
+
+  // 23. Factory Production Line & Bakery Runs
+  {
+    id: 'production-line',
+    number: 23,
+    title: 'Factory Production Lines',
+    shortTitle: 'Production Lines',
+    subtitle: 'Dough Sheeting, Samosa Folding & Griddles',
+    description: 'Supervise bakery factory machinery, dough lamination runs, samosa folding lines, bill of materials (BOM), QC thickness checks, and finished goods stock transfer.',
+    icon: Factory,
+    badge: (ctx) => {
+      const activeBatches = (ctx.productionBatches || []).filter((b) => b.status !== 'COMPLETED' && b.status !== 'CANCELLED');
+      return activeBatches.length > 0 ? `${activeBatches.length} RUNS` : undefined;
+    },
+    subcategories: [
+      {
+        id: 'production-overview',
+        title: 'Machinery & Line Status',
+        subtitle: 'Pastry sheeter, folding lines & griddle operations',
+        icon: Cpu,
+        actionType: 'view',
+        targetConfig: { tab: 'lines' }
+      },
+      {
+        id: 'production-batches',
+        title: 'Active Batch Work Orders',
+        subtitle: 'Track dough mixing, lamination, and packaging runs',
+        icon: Layers,
+        actionType: 'view',
+        targetConfig: { tab: 'batches' }
+      },
+      {
+        id: 'production-schedule',
+        title: 'Schedule New Batch Run',
+        subtitle: 'Assign recipe BOM, line capacity, and shift supervisor',
+        icon: Plus,
+        actionType: 'modal',
+        targetConfig: { openNewBatch: true }
+      },
+      {
+        id: 'production-yield',
+        title: 'Completed Yield & Lot Archive',
+        subtitle: 'Finished goods stock receipts and GS1 carton labels',
+        icon: CheckCircle2,
+        actionType: 'view',
+        targetConfig: { tab: 'completed' }
       }
     ]
   }
