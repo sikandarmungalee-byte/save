@@ -115,19 +115,29 @@ export const MerchantOrdersView: React.FC<MerchantOrdersViewProps> = ({
     setConvertingId(orderId);
     try {
       const inv = await convertOrderToInvoice(orderId);
-      alert(`🎉 Tax Invoice ${inv.invoiceNumber} successfully created and linked to this order!`);
+      setNotificationStatus(`🎉 Tax Invoice ${inv.invoiceNumber} successfully created and linked to this order!`);
+      setTimeout(() => setNotificationStatus(null), 6000);
     } catch (err: any) {
-      alert(err?.message || 'Failed to generate invoice');
+      setNotificationStatus(err?.message || 'Failed to generate invoice');
+      setTimeout(() => setNotificationStatus(null), 6000);
     } finally {
       setConvertingId(null);
     }
   };
 
   const handlePrintOrder = (order: MerchantOrder) => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentWindow?.document;
+    if (!doc) return;
 
-    printWindow.document.write(`
+    doc.write(`
       <!DOCTYPE html>
       <html>
       <head>
@@ -194,11 +204,12 @@ export const MerchantOrdersView: React.FC<MerchantOrdersViewProps> = ({
       </body>
       </html>
     `);
-    printWindow.document.close();
-    printWindow.focus();
+    doc.close();
+    iframe.contentWindow?.focus();
     setTimeout(() => {
-      printWindow.print();
-    }, 300);
+      iframe.contentWindow?.print();
+      document.body.removeChild(iframe);
+    }, 400);
   };
 
   const statusBadge = (status: MerchantOrder['status']) => {

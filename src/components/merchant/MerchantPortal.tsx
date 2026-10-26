@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { useERP } from '../../context/ERPContext';
-import { Invoice, DeliveryNote, MerchantOrderItem } from '../../types/erp';
+import { Invoice, DeliveryNote, MerchantOrderItem, Product, ProductSizeOption } from '../../types/erp';
 import {
   Store,
   FileText,
@@ -32,10 +32,46 @@ import {
   ShoppingBag,
   Bell,
   Sparkles,
-  Send
+  Send,
+  BarChart3,
+  Check,
+  Trash2,
+  SlidersHorizontal,
+  ChevronDown,
+  Info
 } from 'lucide-react';
 import { InvoicePrintModal } from '../InvoicePrintModal';
 import { SHOWCASE_CONTACT } from '../showcase/showcaseData';
+import { MerchantReportsTab } from './MerchantReportsTab';
+
+// Helper to retrieve all size options for any bakery product
+export function getProductSizes(prod: Product): ProductSizeOption[] {
+  if (prod.sizes && prod.sizes.length > 0) {
+    return prod.sizes;
+  }
+  const basePrice = prod.unitPrice || 35.00;
+  return [
+    {
+      id: `${prod.id}_std`,
+      name: `${prod.name} (Standard Pack)`,
+      shortName: 'Standard Pack',
+      dimensions: prod.physicalSize || 'Standard 20cm',
+      packSpec: prod.packSize || 'Commercial Pack',
+      price: basePrice,
+      isDefault: true,
+      badge: 'Standard',
+    },
+    {
+      id: `${prod.id}_bulk`,
+      name: `${prod.name} (Bulk Catering Box)`,
+      shortName: 'Catering Box (12s)',
+      dimensions: prod.physicalSize || 'Standard 20cm',
+      packSpec: `12 × (${prod.packSize || 'Commercial Pack'})`,
+      price: Math.round(basePrice * 12 * 0.90 * 100) / 100,
+      badge: '10% Wholesale Save',
+    },
+  ];
+}
 
 interface MerchantPortalProps {
   onBackToWebsite: () => void;
@@ -52,11 +88,14 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
     logout,
     customers,
     company,
-    savePOD
+    savePOD,
+    merchantReports,
+    saveMerchantReport,
+    deleteMerchantReport
   } = useERP();
 
-  // Navigation tab: 'place-order' | 'my-orders' | 'invoices' | 'delivery-notes'
-  const [activeTab, setActiveTab] = useState<'place-order' | 'my-orders' | 'invoices' | 'delivery-notes'>('place-order');
+  // Navigation tab: 'place-order' | 'my-orders' | 'reports' | 'invoices' | 'delivery-notes'
+  const [activeTab, setActiveTab] = useState<'place-order' | 'my-orders' | 'reports' | 'invoices' | 'delivery-notes'>('place-order');
 
   // Search & filter states
   const [search, setSearch] = useState('');
@@ -78,9 +117,14 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
   const [hasDrawn, setHasDrawn] = useState(false);
 
   // ------------------------------------------------------------------
-  // NEW ORDER FORM STATE
+  // NEW ORDER FORM STATE (WITH DYNAMIC SIZE PICKER & SPECIFICATIONS)
   // ------------------------------------------------------------------
   const [orderQuantities, setOrderQuantities] = useState<Record<string, number>>({});
+  const [selectedSizePerProduct, setSelectedSizePerProduct] = useState<Record<string, string>>({});
+  const [catalogSearch, setCatalogSearch] = useState<string>('');
+  const [catalogCategory, setCatalogCategory] = useState<string>('ALL');
+  const [orderNotice, setOrderNotice] = useState<string | null>(null);
+  const [showAllSizesMap, setShowAllSizesMap] = useState<Record<string, boolean>>({});
   const [requestedDeliveryDate, setRequestedDeliveryDate] = useState<string>(() => {
     const d = new Date(Date.now() + 86400000 * 2);
     return d.toISOString().split('T')[0];
@@ -198,21 +242,61 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
     return (products || []).filter((p) => p.unitPrice > 0 || p.showcase !== false);
   }, [products]);
 
-  // Calculate order items and total
+  // Helper to determine currently active size option for a product card
+  const getSelectedSizeForProduct = (prod: Product): ProductSizeOption => {
+    const sizes = getProductSizes(prod);
+    const selectedId = selectedSizePerProduct[prod.id];
+    if (selectedId) {
+      const found = sizes.find((s) => s.id === selectedId);
+      if (found) return found;
+    }
+    return sizes.find((s) => s.isDefault) || sizes[0];
+  };
+
+  const handleSelectSize = (prodId: string, sizeId: string) => {
+    setSelectedSizePerProduct((prev) => ({ ...prev, [prodId]: sizeId }));
+  };
+
+  const toggleShowAllSizes = (prodId: string) => {
+    setShowAllSizesMap((prev) => ({ ...prev, [prodId]: !prev[prodId] }));
+  };
+
+  // Filter products by category & search query
+  const filteredCatalogProducts = useMemo(() => {
+    return orderableProducts.filter((p) => {
+      const matchCat = catalogCategory === 'ALL' || p.category === catalogCategory;
+      const q = catalogSearch.toLowerCase().trim();
+      const sizes = getProductSizes(p);
+      const matchSearch =
+        !q ||
+        p.name.toLowerCase().includes(q) ||
+        (p.category && p.category.toLowerCase().includes(q)) ||
+        (p.description && p.description.toLowerCase().includes(q)) ||
+        sizes.some((s) => s.name.toLowerCase().includes(q) || s.dimensions.toLowerCase().includes(q) || s.packSpec.toLowerCase().includes(q));
+      return matchCat && matchSearch;
+    });
+  }, [orderableProducts, catalogCategory, catalogSearch]);
+
+  // Calculate order items and total with precise size specifications
   const selectedOrderItems: MerchantOrderItem[] = useMemo(() => {
     const list: MerchantOrderItem[] = [];
-    Object.entries(orderQuantities).forEach(([prodId, qty]) => {
+    Object.entries(orderQuantities).forEach(([itemKey, qty]) => {
       if (qty > 0) {
+        const [prodId, sizeId] = itemKey.includes('___') ? itemKey.split('___') : [itemKey, ''];
         const prod = orderableProducts.find((p) => p.id === prodId);
         if (prod) {
-          const unitPrice = prod.unitPrice || 35.00;
+          const sizes = getProductSizes(prod);
+          const size = sizes.find((s) => s.id === sizeId) || sizes.find((s) => s.isDefault) || sizes[0];
+          const unitPrice = size ? size.price : (prod.unitPrice || 35.00);
+          const packSize = size ? `${size.shortName || size.name} [${size.packSpec}]` : (prod.packSize || 'Commercial Pack');
           list.push({
             productId: prod.id,
             productName: prod.name,
-            packSize: prod.packSize || '12-Pack / Catering Box',
+            packSize,
             quantity: qty,
             unitPrice,
             lineTotal: qty * unitPrice,
+            notes: size?.dimensions ? `Size: ${size.dimensions}` : undefined,
           });
         }
       }
@@ -223,23 +307,33 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
   const orderSubtotal = selectedOrderItems.reduce((acc, it) => acc + it.lineTotal, 0);
   const orderTotal = orderSubtotal; // Zero-rated / staple exemption default
 
-  const handleQtyChange = (prodId: string, delta: number) => {
+  const handleQtyChange = (prodId: string, sizeId: string, delta: number) => {
+    const itemKey = `${prodId}___${sizeId}`;
     setOrderQuantities((prev) => {
-      const cur = prev[prodId] || 0;
+      const cur = prev[itemKey] || 0;
       const next = Math.max(0, cur + delta);
       if (next === 0) {
         const copy = { ...prev };
-        delete copy[prodId];
+        delete copy[itemKey];
         return copy;
       }
-      return { ...prev, [prodId]: next };
+      return { ...prev, [itemKey]: next };
+    });
+  };
+
+  const handleRemoveOrderItem = (itemKey: string) => {
+    setOrderQuantities((prev) => {
+      const copy = { ...prev };
+      delete copy[itemKey];
+      return copy;
     });
   };
 
   const handlePlaceOrderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedOrderItems.length === 0) {
-      alert('Please select at least one bakery product to place an order.');
+      setOrderNotice('Please select at least one bakery product and choose a size to place an order.');
+      setTimeout(() => setOrderNotice(null), 5000);
       return;
     }
 
@@ -269,7 +363,8 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
       setActiveTab('my-orders');
       setTimeout(() => setOrderSuccessBanner(null), 8000);
     } catch (err: any) {
-      alert(err?.message || 'Failed to submit order. Please try again or WhatsApp dispatch.');
+      setOrderNotice(err?.message || 'Failed to submit order. Please try again or WhatsApp dispatch.');
+      setTimeout(() => setOrderNotice(null), 6000);
     } finally {
       setIsSubmittingOrder(false);
     }
@@ -401,6 +496,7 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
             {[
               { id: 'place-order', label: 'Place New Order', icon: ShoppingBag, badge: 'Direct Desk' },
               { id: 'my-orders', label: 'My Orders', icon: Package, badge: myOrdersList.length ? String(myOrdersList.length) : undefined },
+              { id: 'reports', label: 'Reports & Statements', icon: BarChart3, badge: merchantReports.length ? String(merchantReports.length) : 'New' },
               { id: 'invoices', label: 'Invoices & Statements', icon: FileText, badge: merchantInvoices.length ? String(merchantInvoices.length) : undefined },
               { id: 'delivery-notes', label: 'Delivery Notes & PODs', icon: Truck, badge: merchantDeliveryNotes.length ? String(merchantDeliveryNotes.length) : undefined },
             ].map((tab) => {
@@ -495,20 +591,20 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
         </div>
 
         {/* ---------------------------------------------------- */}
-        {/* TAB 1: PLACE NEW ORDER                               */}
+        {/* TAB 1: PLACE NEW ORDER (WITH PICK SIZE SELECTOR)     */}
         {/* ---------------------------------------------------- */}
         {activeTab === 'place-order' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             {/* Left: Product Selector Grid */}
             <div className="lg:col-span-8 space-y-4">
-              <div className="bg-white rounded-3xl border border-[#E8D9CD] p-6 shadow-sm">
+              <div className="bg-white rounded-3xl border border-[#E8D9CD] p-6 shadow-sm space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#E8D9CD]">
                   <div>
                     <h2 className="font-serif text-xl sm:text-2xl font-bold text-[#2B150A]">
-                      Bakery Order Catalog
+                      Bakery Wholesale Order Catalog
                     </h2>
                     <p className="text-xs text-[#66483B] mt-0.5">
-                      Select daily pastry batches, rotis, tortilla wraps, and sheet quantities for wholesale dispatch.
+                      Select your desired bakery product, pick your exact packaging size & dimension, and set wholesale pack quantities.
                     </p>
                   </div>
 
@@ -519,75 +615,297 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                   </div>
                 </div>
 
-                {/* Product List */}
-                <div className="divide-y divide-[#E8D9CD]/60 mt-4">
-                  {orderableProducts.map((prod) => {
-                    const curQty = orderQuantities[prod.id] || 0;
-                    const unitPrice = prod.unitPrice || 35.00;
+                {/* Search & Category Filter Bar */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 text-[#8D5037] absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Search bakery products, dimensions, or pack sizes..."
+                      value={catalogSearch}
+                      onChange={(e) => setCatalogSearch(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#FBF7F1] border border-[#BD896E]/30 text-xs text-[#2B150A] focus:outline-hidden focus:border-[#CC8468]"
+                    />
+                  </div>
 
-                    return (
-                      <div
-                        key={prod.id}
-                        className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-[#FBF7F1]/50 p-2 rounded-2xl transition-colors"
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+                    {['ALL', 'Pastry Sheets', 'Artisanal Roti', 'Tortillas & Wraps'].map((cat) => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setCatalogCategory(cat)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                          catalogCategory === cat
+                            ? 'bg-[#CC8468] text-[#1E0F07]'
+                            : 'bg-[#FBF7F1] text-[#66483B] hover:text-[#1E0F07]'
+                        }`}
                       >
-                        <div className="flex items-start gap-4">
-                          <div className="w-16 h-16 rounded-2xl bg-[#EAD8C6]/50 border border-[#BD896E]/30 flex items-center justify-center p-2 shrink-0">
-                            <Package className="w-8 h-8 text-[#8D5037]" />
-                          </div>
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <h3 className="font-serif text-base font-bold text-[#2B150A]">
-                                {prod.name}
-                              </h3>
-                              {prod.badge && (
-                                <span className="text-[10px] px-2 py-0.2 rounded-full bg-[#CC8468]/20 text-[#8D5037] font-semibold">
-                                  {prod.badge}
+                        {cat === 'ALL' ? 'All Products' : cat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Validation Notice if any */}
+                {orderNotice && (
+                  <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-medium flex items-center justify-between gap-2 shadow-2xs animate-fade-in">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>{orderNotice}</span>
+                    </div>
+                    <button onClick={() => setOrderNotice(null)} className="text-amber-700 hover:text-amber-900">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Product List with Pick Size */}
+                <div className="divide-y divide-[#E8D9CD]/60 mt-2">
+                  {filteredCatalogProducts.length === 0 ? (
+                    <div className="py-12 text-center text-xs text-[#7A6458] space-y-2">
+                      <Package className="w-10 h-10 text-stone-300 mx-auto" />
+                      <p>No products match your search or filter.</p>
+                      <button
+                        onClick={() => {
+                          setCatalogSearch('');
+                          setCatalogCategory('ALL');
+                        }}
+                        className="text-xs font-bold text-[#8D5037] underline"
+                      >
+                        Clear filters
+                      </button>
+                    </div>
+                  ) : (
+                    filteredCatalogProducts.map((prod) => {
+                      const sizes = getProductSizes(prod);
+                      const activeSize = getSelectedSizeForProduct(prod);
+                      const curQtyForActiveSize = orderQuantities[`${prod.id}___${activeSize.id}`] || 0;
+                      const showAllSizes = showAllSizesMap[prod.id] || false;
+
+                      // Count total quantity across all sizes for this product
+                      const totalProdQty = sizes.reduce(
+                        (acc, s) => acc + (orderQuantities[`${prod.id}___${s.id}`] || 0),
+                        0
+                      );
+
+                      return (
+                        <div
+                          key={prod.id}
+                          className="py-5 space-y-3.5 hover:bg-[#FBF7F1]/40 p-3 rounded-2xl transition-colors"
+                        >
+                          {/* Product Header */}
+                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                            <div className="flex items-start gap-3.5">
+                              <div className="w-14 h-14 rounded-2xl bg-[#EAD8C6]/50 border border-[#BD896E]/30 flex items-center justify-center p-2 shrink-0">
+                                <Package className="w-7 h-7 text-[#8D5037]" />
+                              </div>
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h3 className="font-serif text-base font-bold text-[#2B150A]">
+                                    {prod.name}
+                                  </h3>
+                                  {prod.badge && (
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#CC8468]/20 text-[#8D5037] font-semibold">
+                                      {prod.badge}
+                                    </span>
+                                  )}
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#EAD8C6] text-[#75412E] font-medium">
+                                    {prod.category}
+                                  </span>
+                                </div>
+                                {prod.description && (
+                                  <p className="text-xs text-[#66483B] max-w-xl line-clamp-2">
+                                    {prod.description}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Badge if already added to cart */}
+                            {totalProdQty > 0 && (
+                              <div className="self-start sm:self-center shrink-0">
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold font-mono">
+                                  <Check className="w-3.5 h-3.5" />
+                                  <span>{totalProdQty} in order</span>
                                 </span>
-                              )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* -------------------------------------------------- */}
+                          {/* PICK SIZE SELECTOR (Clear dimensions & specifications) */}
+                          {/* -------------------------------------------------- */}
+                          <div className="bg-[#FBF7F1] p-3.5 rounded-2xl border border-[#BD896E]/30 space-y-2.5">
+                            <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-[#75412E]">
+                              <div className="flex items-center gap-1.5">
+                                <SlidersHorizontal className="w-3.5 h-3.5 text-[#8D5037]" />
+                                <span>Pick Size & Packaging Specification:</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => toggleShowAllSizes(prod.id)}
+                                className="text-[10px] text-[#8D5037] hover:underline flex items-center gap-1 cursor-pointer font-semibold lowercase"
+                              >
+                                {showAllSizes ? 'Collapse sizes view' : 'Quick multi-size table'}
+                              </button>
                             </div>
-                            <div className="text-xs text-[#7A6458] flex flex-wrap items-center gap-2">
-                              <span>Spec: {prod.packSize || 'Commercial Pack'}</span>
-                              <span>·</span>
-                              <span className="font-mono text-emerald-800 font-bold">R {unitPrice.toFixed(2)} / pack</span>
+
+                            {/* Visual Size Selection Options */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
+                              {sizes.map((size) => {
+                                const isSelected = activeSize.id === size.id;
+                                const sizeInCart = orderQuantities[`${prod.id}___${size.id}`] || 0;
+
+                                return (
+                                  <button
+                                    key={size.id}
+                                    type="button"
+                                    onClick={() => handleSelectSize(prod.id, size.id)}
+                                    className={`p-2.5 rounded-xl text-left transition-all cursor-pointer border relative flex flex-col justify-between ${
+                                      isSelected
+                                        ? 'bg-white border-[#CC8468] ring-2 ring-[#CC8468]/30 shadow-xs'
+                                        : 'bg-white/80 border-[#BD896E]/20 hover:border-[#CC8468]/60 hover:bg-white'
+                                    }`}
+                                  >
+                                    <div>
+                                      <div className="flex items-center justify-between gap-1">
+                                        <span className="font-bold text-xs text-[#1E0F07]">
+                                          {size.shortName || size.name}
+                                        </span>
+                                        {size.badge && (
+                                          <span className="text-[9px] px-1.5 py-0.2 rounded-full font-semibold bg-[#EAD8C6] text-[#75412E]">
+                                            {size.badge}
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      <div className="text-[10px] text-[#7A6458] mt-1 space-y-0.5">
+                                        <div className="font-semibold text-[#66483B]">{size.dimensions}</div>
+                                        <div className="text-[10px] text-[#8D5037]">{size.packSpec}</div>
+                                      </div>
+                                    </div>
+
+                                    <div className="mt-2 pt-1.5 border-t border-[#E8D9CD] flex items-center justify-between">
+                                      <span className="font-mono font-bold text-xs text-[#1E0F07]">
+                                        R {size.price.toFixed(2)}
+                                      </span>
+                                      {sizeInCart > 0 ? (
+                                        <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded-md">
+                                          {sizeInCart} in cart
+                                        </span>
+                                      ) : isSelected ? (
+                                        <span className="text-[10px] text-[#CC8468] font-bold">Selected</span>
+                                      ) : null}
+                                    </div>
+                                  </button>
+                                );
+                              })}
                             </div>
-                            {prod.description && (
-                              <p className="text-[11px] text-[#66483B] line-clamp-1 max-w-md">
-                                {prod.description}
-                              </p>
+
+                            {/* Active Size Details & Direct Quantity Counter */}
+                            <div className="pt-2 border-t border-[#BD896E]/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/70 p-3 rounded-xl">
+                              <div className="space-y-0.5">
+                                <div className="text-xs text-[#1E0F07]">
+                                  Selected Size: <strong className="font-bold text-[#8D5037]">{activeSize.name}</strong>
+                                </div>
+                                <div className="text-[11px] text-[#7A6458]">
+                                  Specification: <span className="font-medium">{activeSize.dimensions}</span> · <span>{activeSize.packSpec}</span> · <span className="font-mono font-bold text-emerald-800">R {activeSize.price.toFixed(2)} / pack</span>
+                                </div>
+                              </div>
+
+                              {/* Direct Quantity Counter */}
+                              <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                                <div className="flex items-center border border-[#BD896E]/40 rounded-full bg-white p-1 shadow-2xs">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQtyChange(prod.id, activeSize.id, -1)}
+                                    disabled={curQtyForActiveSize === 0}
+                                    className="w-8 h-8 rounded-full flex items-center justify-center text-[#2B150A] hover:bg-[#EAD8C6] disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer transition-colors"
+                                    title="Decrease quantity"
+                                  >
+                                    <Minus className="w-3.5 h-3.5" />
+                                  </button>
+                                  <span className="w-12 text-center font-mono font-bold text-xs tabular-nums text-[#2B150A]">
+                                    {curQtyForActiveSize}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQtyChange(prod.id, activeSize.id, 1)}
+                                    className="w-8 h-8 rounded-full flex items-center justify-center bg-[#CC8468] hover:bg-[#B86643] text-white cursor-pointer transition-colors shadow-2xs"
+                                    title="Increase quantity"
+                                  >
+                                    <Plus className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+
+                                <div className="w-24 text-right font-mono font-bold text-xs text-[#2B150A]">
+                                  R {(curQtyForActiveSize * activeSize.price).toFixed(2)}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Optional All-Sizes Multi-Quantity Table */}
+                            {showAllSizes && (
+                              <div className="mt-2 pt-2 border-t border-[#BD896E]/30 overflow-x-auto animate-fade-in">
+                                <table className="w-full text-left text-xs border-collapse">
+                                  <thead>
+                                    <tr className="text-[10px] text-[#75412E] font-bold uppercase border-b border-[#E8D9CD]">
+                                      <th className="py-1.5 px-2">Size Option</th>
+                                      <th className="py-1.5 px-2">Dimensions & Pack Specification</th>
+                                      <th className="py-1.5 px-2 text-right">Price</th>
+                                      <th className="py-1.5 px-2 text-center">Quantity</th>
+                                      <th className="py-1.5 px-2 text-right">Subtotal</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-[#E8D9CD]/50">
+                                    {sizes.map((s) => {
+                                      const q = orderQuantities[`${prod.id}___${s.id}`] || 0;
+                                      return (
+                                        <tr key={s.id} className="hover:bg-white/60">
+                                          <td className="py-2 px-2 font-semibold text-[#1E0F07]">
+                                            {s.name}
+                                          </td>
+                                          <td className="py-2 px-2 text-[#66483B]">
+                                            {s.dimensions} · {s.packSpec}
+                                          </td>
+                                          <td className="py-2 px-2 text-right font-mono text-[#1E0F07]">
+                                            R {s.price.toFixed(2)}
+                                          </td>
+                                          <td className="py-2 px-2 text-center">
+                                            <div className="inline-flex items-center border border-[#BD896E]/30 rounded-full bg-white px-1 py-0.5">
+                                              <button
+                                                type="button"
+                                                onClick={() => handleQtyChange(prod.id, s.id, -1)}
+                                                disabled={q === 0}
+                                                className="w-5 h-5 flex items-center justify-center text-xs disabled:opacity-30"
+                                              >
+                                                -
+                                              </button>
+                                              <span className="w-8 text-center font-mono font-bold text-xs">{q}</span>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleQtyChange(prod.id, s.id, 1)}
+                                                className="w-5 h-5 flex items-center justify-center text-xs text-[#CC8468] font-bold"
+                                              >
+                                                +
+                                              </button>
+                                            </div>
+                                          </td>
+                                          <td className="py-2 px-2 text-right font-mono font-bold text-[#1E0F07]">
+                                            R {(q * s.price).toFixed(2)}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
                             )}
                           </div>
                         </div>
-
-                        {/* Quantity Counter */}
-                        <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
-                          <div className="flex items-center border border-[#BD896E]/40 rounded-full bg-white p-1 shadow-2xs">
-                            <button
-                              type="button"
-                              onClick={() => handleQtyChange(prod.id, -1)}
-                              disabled={curQty === 0}
-                              className="w-8 h-8 rounded-full flex items-center justify-center text-[#2B150A] hover:bg-[#EAD8C6] disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer transition-colors"
-                            >
-                              <Minus className="w-3.5 h-3.5" />
-                            </button>
-                            <span className="w-10 text-center font-mono font-bold text-xs tabular-nums text-[#2B150A]">
-                              {curQty}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => handleQtyChange(prod.id, 1)}
-                              className="w-8 h-8 rounded-full flex items-center justify-center bg-[#CC8468] hover:bg-[#B86643] text-white cursor-pointer transition-colors shadow-2xs"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-
-                          <div className="w-20 text-right font-mono font-bold text-xs text-[#2B150A]">
-                            R {(curQty * unitPrice).toFixed(2)}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  )}
                 </div>
               </div>
             </div>
@@ -600,7 +918,7 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                   <span>Order Summary</span>
                 </h3>
                 <span className="text-xs font-mono font-bold text-[#8D5037]">
-                  {selectedOrderItems.length} items
+                  {selectedOrderItems.length} {selectedOrderItems.length === 1 ? 'size line' : 'size lines'}
                 </span>
               </div>
 
@@ -608,27 +926,70 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                 <div className="py-8 text-center text-xs text-[#7A6458] space-y-2">
                   <Package className="w-10 h-10 text-stone-300 mx-auto" />
                   <p>Your order is empty.</p>
-                  <p className="text-[11px] text-[#A69385]">Add packs using the plus (+) buttons.</p>
+                  <p className="text-[11px] text-[#A69385]">Pick a size on any product and add packs.</p>
                 </div>
               ) : (
-                <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
-                  {selectedOrderItems.map((it) => (
-                    <div key={it.productId} className="flex items-center justify-between text-xs py-1.5 border-b border-[#FBF7F1]">
-                      <div>
-                        <div className="font-semibold text-[#2B150A]">{it.productName}</div>
-                        <div className="text-[10px] text-[#7A6458] font-mono">
-                          {it.quantity} × R {it.unitPrice.toFixed(2)} ({it.packSize})
+                <div className="space-y-3 max-h-64 overflow-y-auto pr-1 divide-y divide-[#FBF7F1]">
+                  {Object.entries(orderQuantities).map(([itemKey, qty]) => {
+                    if (qty <= 0) return null;
+                    const [prodId, sizeId] = itemKey.includes('___') ? itemKey.split('___') : [itemKey, ''];
+                    const prod = (products || []).find((p) => p.id === prodId);
+                    if (!prod) return null;
+                    const sizes = getProductSizes(prod);
+                    const size = sizes.find((s) => s.id === sizeId) || sizes.find((s) => s.isDefault) || sizes[0];
+                    const unitPrice = size ? size.price : (prod.unitPrice || 35.00);
+
+                    return (
+                      <div key={itemKey} className="pt-2 text-xs flex items-start justify-between gap-2">
+                        <div className="space-y-0.5 flex-1">
+                          <div className="font-semibold text-[#2B150A] leading-tight">
+                            {prod.name}
+                          </div>
+                          <div className="text-[11px] text-[#8D5037] font-medium font-mono">
+                            Size: {size?.name || 'Standard'} ({size?.dimensions})
+                          </div>
+                          <div className="text-[10px] text-[#7A6458]">
+                            {qty} × R {unitPrice.toFixed(2)} / pack
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          <div className="font-mono font-bold text-[#2B150A]">
+                            R {(qty * unitPrice).toFixed(2)}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleQtyChange(prod.id, size?.id || '', -1)}
+                              className="w-5 h-5 rounded-full bg-[#FBF7F1] hover:bg-[#EAD8C6] flex items-center justify-center font-mono font-bold text-xs cursor-pointer"
+                            >
+                              -
+                            </button>
+                            <span className="font-mono text-xs font-bold px-1">{qty}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleQtyChange(prod.id, size?.id || '', 1)}
+                              className="w-5 h-5 rounded-full bg-[#CC8468] text-white flex items-center justify-center font-mono font-bold text-xs cursor-pointer"
+                            >
+                              +
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveOrderItem(itemKey)}
+                              className="w-5 h-5 ml-1 text-stone-400 hover:text-rose-600 flex items-center justify-center cursor-pointer"
+                              title="Remove item"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
                       </div>
-                      <div className="font-mono font-bold text-[#2B150A]">
-                        R {it.lineTotal.toFixed(2)}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
-              {/* Delivery Settings */}
+              {/* Delivery Settings & Checkout Form */}
               <form onSubmit={handlePlaceOrderSubmit} className="space-y-4 pt-3 border-t border-[#E8D9CD]">
                 <div>
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-[#75412E] mb-1">
@@ -680,7 +1041,7 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                 <div className="pt-3 border-t border-[#E8D9CD] space-y-1.5 text-xs">
                   <div className="flex justify-between text-[#66483B]">
                     <span>Items Subtotal</span>
-                    <span className="font-mono">R {orderSubtotal.toFixed(2)}</span>
+                    <span className="font-mono font-semibold">R {orderSubtotal.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-[#66483B]">
                     <span>Delivery (Cold Chain Nationwide)</span>
@@ -707,6 +1068,24 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
               </form>
             </div>
           </div>
+        )}
+
+        {/* ---------------------------------------------------- */}
+        {/* TAB 1.5: REPORTS & AUDIT STATEMENTS (WEEKLY, MONTHLY, */}
+        {/* 3-MONTH, 6-MONTH, YEARLY, AND PAST ARCHIVES)         */}
+        {/* ---------------------------------------------------- */}
+        {activeTab === 'reports' && (
+          <MerchantReportsTab
+            currentUser={currentUser}
+            customerDisplayName={customerDisplayName}
+            currentBranch={currentBranch}
+            company={company}
+            myOrdersList={myOrdersList}
+            merchantInvoices={merchantInvoices}
+            merchantReports={merchantReports}
+            saveMerchantReport={saveMerchantReport}
+            deleteMerchantReport={deleteMerchantReport}
+          />
         )}
 
         {/* ---------------------------------------------------- */}

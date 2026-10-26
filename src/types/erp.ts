@@ -177,6 +177,7 @@ export interface Product {
   barcode?: string; // South African EAN-13 (prefix 600/601) or SKU
   showcase?: boolean; // Featured on public showcase website
   description?: string; // Showcase display description
+  badge?: string; // Highlight badge (e.g. "Best Seller", "Signature")
   packagingType?: 'dozen' | 'pack' | 'carton';
   sizes?: ProductSizeOption[];
 }
@@ -720,6 +721,7 @@ export interface ERPDatabase {
   quotations: Quotation[];
   payments: Payment[];
   merchantOrders?: MerchantOrder[];
+  merchantReports?: MerchantReport[];
   showcaseProducts?: any[];
   posTransactions?: POSTransaction[];
   posSessions?: POSSession[];
