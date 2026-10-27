@@ -1753,6 +1753,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (Array.isArray(srv.journalEntries)) setJournalEntries(srv.journalEntries);
         if (Array.isArray(srv.loginLogs)) setLoginLogs(srv.loginLogs);
         if (Array.isArray(srv.merchantOrders)) setMerchantOrders(srv.merchantOrders);
+        if (Array.isArray(srv.merchantReports)) setMerchantReports(srv.merchantReports);
+        if (Array.isArray(srv.categories)) setCategories(srv.categories);
         if (Array.isArray(srv.showcaseProducts)) setShowcaseProducts(srv.showcaseProducts);
         if (Array.isArray(srv.posTransactions)) setPosTransactions(srv.posTransactions);
         if (Array.isArray(srv.posSessions)) setPosSessions(srv.posSessions);
@@ -1768,23 +1770,37 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }).catch(() => {});
 
-    // 2. Real-time Firestore subscription
+    // 2. Real-time Cloud Firestore subscription
     setSyncStatus('syncing');
     const unsub = onSnapshot(doc(db, 'erp', 'main'), (snapshot) => {
       if (snapshot.exists()) {
         const cloudData = snapshot.data() as Partial<ERPDatabase>;
         
         if (cloudData.company) setCompany(cloudData.company);
-        if (Array.isArray(cloudData.products)) {
+        
+        if (Array.isArray(cloudData.products) && cloudData.products.length > 0) {
           setProducts(cloudData.products.map((p, i) => normalizeProduct(p, i)));
+        } else if (!cloudData.products || cloudData.products.length === 0) {
+          setProducts(INITIAL_SAVOURE_PRODUCTS);
         }
-        if (Array.isArray(cloudData.customers)) setCustomers(cloudData.customers);
-        if (Array.isArray(cloudData.categories)) setCategories(cloudData.categories);
+
+        if (Array.isArray(cloudData.customers) && cloudData.customers.length > 0) {
+          setCustomers(cloudData.customers);
+        } else if (!cloudData.customers || cloudData.customers.length === 0) {
+          setCustomers([INITIAL_CUSTOMER_SOUTHERN_AMBISION]);
+        }
+
+        if (Array.isArray(cloudData.categories) && cloudData.categories.length > 0) {
+          setCategories(cloudData.categories);
+        }
 
         let cloudUsers = cloudData.users || [];
         if (Array.isArray(cloudData.users) && cloudData.users.length > 0) {
           if (!cloudUsers.some((u) => u.email.toLowerCase() === 'admin@savoure.co.za')) {
             cloudUsers = [MASTER_ADMIN_USER, ...cloudUsers];
+          }
+          if (!cloudUsers.some((u) => u.email.toLowerCase() === 'rookshanal@icloud.com')) {
+            cloudUsers = [...cloudUsers, INITIAL_ROOKSHANA_USER];
           }
           setUsers(cloudUsers);
         }
@@ -1803,7 +1819,19 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (Array.isArray(cloudData.deliveryNotes)) setDeliveryNotes(cloudData.deliveryNotes);
         if (Array.isArray(cloudData.quotations)) setQuotations(cloudData.quotations);
         if (Array.isArray(cloudData.payments)) setPayments(cloudData.payments);
-        if (Array.isArray(cloudData.merchantOrders)) setMerchantOrders(cloudData.merchantOrders);
+        
+        if (Array.isArray(cloudData.merchantOrders) && cloudData.merchantOrders.length > 0) {
+          setMerchantOrders(cloudData.merchantOrders);
+        } else if (!cloudData.merchantOrders || cloudData.merchantOrders.length === 0) {
+          setMerchantOrders(INITIAL_MERCHANT_ORDERS);
+        }
+
+        if (Array.isArray(cloudData.merchantReports) && cloudData.merchantReports.length > 0) {
+          setMerchantReports(cloudData.merchantReports);
+        } else if (!cloudData.merchantReports || cloudData.merchantReports.length === 0) {
+          setMerchantReports(INITIAL_MERCHANT_REPORTS);
+        }
+
         if (Array.isArray(cloudData.showcaseProducts)) setShowcaseProducts(cloudData.showcaseProducts);
         if (Array.isArray(cloudData.posTransactions)) setPosTransactions(cloudData.posTransactions);
         if (Array.isArray(cloudData.posSessions)) setPosSessions(cloudData.posSessions);
@@ -1812,6 +1840,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (Array.isArray(cloudData.leads)) setLeads(cloudData.leads);
         if (Array.isArray(cloudData.communications)) setCommunications(cloudData.communications);
         if (Array.isArray(cloudData.staff)) setStaff(cloudData.staff);
+        if (Array.isArray(cloudData.payrollPayouts)) setPayrollPayouts(cloudData.payrollPayouts);
         if (cloudData.stockPurchases) setStockPurchases(cloudData.stockPurchases);
         if (Array.isArray(cloudData.stockItemStatuses)) setStockItemStatuses(cloudData.stockItemStatuses);
         if (Array.isArray(cloudData.stockMovements)) setStockMovements(cloudData.stockMovements);
@@ -1828,14 +1857,17 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } else {
         // Initialize cloud database with initial Master Admin and company settings
         const initialPayload = {
-          users: [MASTER_ADMIN_USER],
+          users: [MASTER_ADMIN_USER, INITIAL_ROOKSHANA_USER],
           company: INITIAL_COMPANY,
-          products: [],
-          customers: [],
+          products: INITIAL_SAVOURE_PRODUCTS,
+          customers: [INITIAL_CUSTOMER_SOUTHERN_AMBISION],
+          categories: ['Pastry Sheets', 'Artisanal Roti', 'Tortillas & Wraps', 'Ready Savouries'],
           invoices: [],
           deliveryNotes: [],
           quotations: [],
           payments: [],
+          merchantOrders: INITIAL_MERCHANT_ORDERS,
+          merchantReports: INITIAL_MERCHANT_REPORTS,
           leads: [],
           communications: [],
           lastUpdated: new Date().toISOString(),
@@ -1844,11 +1876,49 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSyncStatus('synced');
       }
     }, (error) => {
-      console.warn('Firestore real-time subscription error:', error);
+      console.warn('Firestore real-time subscription notice:', error);
       setSyncStatus('synced');
     });
 
-    return () => unsub();
+    // 3. Resilient Periodic Background Heartbeat & Cross-Device Reconnect
+    const heartbeatInterval = setInterval(() => {
+      safeFetchJson<ERPDatabase>('/api/sync').then((res) => {
+        if (res.ok && res.data) {
+          const srv = res.data;
+          if (Array.isArray(srv.merchantOrders) && srv.merchantOrders.length > 0) {
+            setMerchantOrders(srv.merchantOrders);
+          }
+          if (Array.isArray(srv.merchantReports) && srv.merchantReports.length > 0) {
+            setMerchantReports(srv.merchantReports);
+          }
+          if (Array.isArray(srv.invoices)) setInvoices(srv.invoices);
+          if (Array.isArray(srv.deliveryNotes)) setDeliveryNotes(srv.deliveryNotes);
+          if (Array.isArray(srv.payments)) setPayments(srv.payments);
+          setLastSynced(new Date().toLocaleTimeString());
+        }
+      }).catch(() => {});
+    }, 12000);
+
+    const handleFocusSync = () => {
+      refreshData();
+    };
+    const handleVisibilitySync = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        refreshData();
+      }
+    };
+
+    window.addEventListener('focus', handleFocusSync);
+    window.addEventListener('online', handleFocusSync);
+    document.addEventListener('visibilitychange', handleVisibilitySync);
+
+    return () => {
+      unsub();
+      clearInterval(heartbeatInterval);
+      window.removeEventListener('focus', handleFocusSync);
+      window.removeEventListener('online', handleFocusSync);
+      document.removeEventListener('visibilitychange', handleVisibilitySync);
+    };
   }, []);
 
   // Manual refresh trigger
@@ -1859,14 +1929,18 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const res = await safeFetchJson<ERPDatabase>('/api/sync');
       if (res.ok && res.data) {
         const srv = res.data;
+        if (srv.company) setCompany(srv.company);
         if (srv.products && Array.isArray(srv.products) && srv.products.length > 0) {
           setProducts(srv.products.map((p, i) => normalizeProduct(p, i)));
         }
+        if (Array.isArray(srv.categories) && srv.categories.length > 0) setCategories(srv.categories);
         if (srv.customers && srv.customers.length > 0) setCustomers(srv.customers);
         if (srv.invoices && srv.invoices.length > 0) setInvoices(srv.invoices);
         if (srv.deliveryNotes && srv.deliveryNotes.length > 0) setDeliveryNotes(srv.deliveryNotes);
         if (srv.quotations && srv.quotations.length > 0) setQuotations(srv.quotations);
         if (srv.payments && srv.payments.length > 0) setPayments(srv.payments);
+        if (srv.merchantOrders && srv.merchantOrders.length > 0) setMerchantOrders(srv.merchantOrders);
+        if (srv.merchantReports && srv.merchantReports.length > 0) setMerchantReports(srv.merchantReports);
         if (srv.leads && srv.leads.length > 0) setLeads(srv.leads);
         if (srv.users && srv.users.length > 0) setUsers(srv.users);
       }
@@ -1875,14 +1949,18 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const snap = await getDoc(doc(db, 'erp', 'main'));
       if (snap.exists()) {
         const cloudData = snap.data() as Partial<ERPDatabase>;
+        if (cloudData.company) setCompany(cloudData.company);
         if (cloudData.products && Array.isArray(cloudData.products) && cloudData.products.length > 0) {
           setProducts(cloudData.products.map((p, i) => normalizeProduct(p, i)));
         }
+        if (Array.isArray(cloudData.categories) && cloudData.categories.length > 0) setCategories(cloudData.categories);
         if (cloudData.customers && cloudData.customers.length > 0) setCustomers(cloudData.customers);
         if (cloudData.invoices && cloudData.invoices.length > 0) setInvoices(cloudData.invoices);
         if (cloudData.deliveryNotes && cloudData.deliveryNotes.length > 0) setDeliveryNotes(cloudData.deliveryNotes);
         if (cloudData.quotations && cloudData.quotations.length > 0) setQuotations(cloudData.quotations);
         if (cloudData.payments && cloudData.payments.length > 0) setPayments(cloudData.payments);
+        if (cloudData.merchantOrders && cloudData.merchantOrders.length > 0) setMerchantOrders(cloudData.merchantOrders);
+        if (cloudData.merchantReports && cloudData.merchantReports.length > 0) setMerchantReports(cloudData.merchantReports);
         if (cloudData.leads && cloudData.leads.length > 0) setLeads(cloudData.leads);
         if (cloudData.users && cloudData.users.length > 0) setUsers(cloudData.users);
       }

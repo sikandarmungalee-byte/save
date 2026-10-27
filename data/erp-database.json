@@ -234,9 +234,14 @@
       "barcode": "6002100987650"
     }
   ],
-  "categories": [],
+  "categories": [
+    "Pastry Sheets",
+    "Artisanal Roti",
+    "Tortillas & Wraps",
+    "Ready Savouries"
+  ],
   "loginLogs": [],
-  "lastUpdated": "2026-10-14T07:31:59.540Z",
+  "lastUpdated": "2026-10-26T13:26:28.259Z",
   "stockMovements": [
     {
       "id": "sm_init_1",
@@ -272,6 +277,594 @@
       "reason": "Inter-branch stock rebalancing order",
       "recordedBy": "Master Admin",
       "isSouthAfricanBarcode": true
+    }
+  ],
+  "merchantOrders": [
+    {
+      "id": "ord_1001",
+      "orderNumber": "ORD-2026-0001",
+      "merchantId": "usr_1791911737847",
+      "merchantName": "Rookshana Banoo Moola",
+      "merchantStoreName": "Moola Halal Gourmet Deli",
+      "merchantEmail": "orders@moolagourmet.co.za",
+      "merchantPhone": "071 915 3630",
+      "branch": "Durban Central Deli",
+      "deliveryAddress": "42 Commercial Rd, Durban Central, KwaZulu-Natal",
+      "requestedDeliveryDate": "2026-10-28",
+      "status": "ACCEPTED",
+      "items": [
+        {
+          "productId": "prod_spring_roll",
+          "productName": "Savouré Spring Roll Pastry Sheets",
+          "packSize": "Standard Restaurant (20cm × 20cm)",
+          "quantity": 20,
+          "unitPrice": 42.5,
+          "lineTotal": 850,
+          "notes": "Cold chain dispatch"
+        },
+        {
+          "productId": "prod_samoosa_pastry",
+          "productName": "Savouré Crispy Samoosa Pastry Sheets",
+          "packSize": "Standard Golden Strips (7cm × 25cm)",
+          "quantity": 15,
+          "unitPrice": 48,
+          "lineTotal": 720,
+          "notes": "Crispy triangle cut"
+        }
+      ],
+      "subtotal": 1570,
+      "vat": 0,
+      "total": 1570,
+      "specialInstructions": "Please deliver before 10:00 AM on Thursday morning for catering weekend preparation.",
+      "createdAt": "2026-10-26T08:26:28.257Z",
+      "updatedAt": "2026-10-26T10:26:28.257Z"
+    },
+    {
+      "id": "ord_1002",
+      "orderNumber": "ORD-2026-0002",
+      "merchantId": "usr_1791911737847",
+      "merchantName": "Rookshana Banoo Moola",
+      "merchantStoreName": "Moola Halal Gourmet Deli",
+      "merchantEmail": "orders@moolagourmet.co.za",
+      "merchantPhone": "071 915 3630",
+      "branch": "Durban Central Deli",
+      "deliveryAddress": "42 Commercial Rd, Durban Central, KwaZulu-Natal",
+      "requestedDeliveryDate": "2026-10-24",
+      "status": "DELIVERED",
+      "items": [
+        {
+          "productId": "prod_flaky_roti",
+          "productName": "Savouré Hand-Rolled Flaky Roti",
+          "packSize": "Classic Table Roti (22cm Round)",
+          "quantity": 25,
+          "unitPrice": 38,
+          "lineTotal": 950
+        },
+        {
+          "productId": "prod_tortilla_wraps",
+          "productName": "Savouré Stone-Ground Tortilla Wraps",
+          "packSize": "Jumbo Shawarma (30cm / 12\")",
+          "quantity": 15,
+          "unitPrice": 54,
+          "lineTotal": 810
+        }
+      ],
+      "subtotal": 1760,
+      "vat": 0,
+      "total": 1760,
+      "specialInstructions": "Early morning delivery for deli counter stock.",
+      "createdAt": "2026-10-23T13:26:28.257Z",
+      "updatedAt": "2026-10-24T13:26:28.257Z"
+    },
+    {
+      "id": "ord_1003",
+      "orderNumber": "ORD-2026-0003",
+      "merchantId": "usr_1791911737847",
+      "merchantName": "Rookshana Banoo Moola",
+      "merchantStoreName": "Moola Halal Gourmet Deli",
+      "merchantEmail": "orders@moolagourmet.co.za",
+      "merchantPhone": "071 915 3630",
+      "branch": "Durban Central Deli",
+      "deliveryAddress": "42 Commercial Rd, Durban Central, KwaZulu-Natal",
+      "requestedDeliveryDate": "2026-10-16",
+      "status": "DELIVERED",
+      "items": [
+        {
+          "productId": "prod_spring_roll",
+          "productName": "Savouré Spring Roll Pastry Sheets",
+          "packSize": "Commercial Bulk Catering Box",
+          "quantity": 6,
+          "unitPrice": 295,
+          "lineTotal": 1770
+        },
+        {
+          "productId": "prod_samoosa_pastry",
+          "productName": "Savouré Crispy Samoosa Pastry Sheets",
+          "packSize": "Standard Golden Strips (7cm × 25cm)",
+          "quantity": 20,
+          "unitPrice": 48,
+          "lineTotal": 960
+        }
+      ],
+      "subtotal": 2730,
+      "vat": 0,
+      "total": 2730,
+      "specialInstructions": "Mid-month catering replenishment.",
+      "createdAt": "2026-10-14T13:26:28.257Z",
+      "updatedAt": "2026-10-16T13:26:28.257Z"
+    },
+    {
+      "id": "ord_1004",
+      "orderNumber": "ORD-2026-0004",
+      "merchantId": "usr_1791911737847",
+      "merchantName": "Rookshana Banoo Moola",
+      "merchantStoreName": "Moola Halal Gourmet Deli",
+      "merchantEmail": "orders@moolagourmet.co.za",
+      "merchantPhone": "071 915 3630",
+      "branch": "Durban Central Deli",
+      "deliveryAddress": "42 Commercial Rd, Durban Central, KwaZulu-Natal",
+      "requestedDeliveryDate": "2026-10-02",
+      "status": "DELIVERED",
+      "items": [
+        {
+          "productId": "prod_flaky_roti",
+          "productName": "Savouré Hand-Rolled Flaky Roti",
+          "packSize": "Catering Bulk Crate (22cm Round)",
+          "quantity": 8,
+          "unitPrice": 265,
+          "lineTotal": 2120
+        },
+        {
+          "productId": "prod_tortilla_wraps",
+          "productName": "Savouré Stone-Ground Tortilla Wraps",
+          "packSize": "Large Burrito / Deli (25cm / 10\")",
+          "quantity": 25,
+          "unitPrice": 48,
+          "lineTotal": 1200
+        }
+      ],
+      "subtotal": 3320,
+      "vat": 0,
+      "total": 3320,
+      "createdAt": "2026-09-30T13:26:28.257Z",
+      "updatedAt": "2026-10-02T13:26:28.258Z"
+    },
+    {
+      "id": "ord_1005",
+      "orderNumber": "ORD-2026-0005",
+      "merchantId": "usr_1791911737847",
+      "merchantName": "Rookshana Banoo Moola",
+      "merchantStoreName": "Moola Halal Gourmet Deli",
+      "merchantEmail": "orders@moolagourmet.co.za",
+      "merchantPhone": "071 915 3630",
+      "branch": "Durban Central Deli",
+      "deliveryAddress": "42 Commercial Rd, Durban Central, KwaZulu-Natal",
+      "requestedDeliveryDate": "2026-09-06",
+      "status": "DELIVERED",
+      "items": [
+        {
+          "productId": "prod_spring_roll",
+          "productName": "Savouré Spring Roll Pastry Sheets",
+          "packSize": "Standard Restaurant (20cm × 20cm)",
+          "quantity": 40,
+          "unitPrice": 42.5,
+          "lineTotal": 1700
+        },
+        {
+          "productId": "prod_samoosa_pastry",
+          "productName": "Savouré Crispy Samoosa Pastry Sheets",
+          "packSize": "Commercial Foodservice Master Carton",
+          "quantity": 5,
+          "unitPrice": 440,
+          "lineTotal": 2200
+        }
+      ],
+      "subtotal": 3900,
+      "vat": 0,
+      "total": 3900,
+      "createdAt": "2026-09-04T13:26:28.258Z",
+      "updatedAt": "2026-09-06T13:26:28.258Z"
+    },
+    {
+      "id": "ord_1006",
+      "orderNumber": "ORD-2026-0006",
+      "merchantId": "usr_1791911737847",
+      "merchantName": "Rookshana Banoo Moola",
+      "merchantStoreName": "Moola Halal Gourmet Deli",
+      "merchantEmail": "orders@moolagourmet.co.za",
+      "merchantPhone": "071 915 3630",
+      "branch": "Durban Central Deli",
+      "deliveryAddress": "42 Commercial Rd, Durban Central, KwaZulu-Natal",
+      "requestedDeliveryDate": "2026-08-02",
+      "status": "DELIVERED",
+      "items": [
+        {
+          "productId": "prod_flaky_roti",
+          "productName": "Savouré Hand-Rolled Flaky Roti",
+          "packSize": "Classic Table Roti (22cm Round)",
+          "quantity": 50,
+          "unitPrice": 38,
+          "lineTotal": 1900
+        },
+        {
+          "productId": "prod_tortilla_wraps",
+          "productName": "Savouré Stone-Ground Tortilla Wraps",
+          "packSize": "Foodservice Master Case (30cm)",
+          "quantity": 6,
+          "unitPrice": 375,
+          "lineTotal": 2250
+        }
+      ],
+      "subtotal": 4150,
+      "vat": 0,
+      "total": 4150,
+      "createdAt": "2026-07-30T13:26:28.258Z",
+      "updatedAt": "2026-08-02T13:26:28.258Z"
+    },
+    {
+      "id": "ord_1007",
+      "orderNumber": "ORD-2026-0007",
+      "merchantId": "usr_1791911737847",
+      "merchantName": "Rookshana Banoo Moola",
+      "merchantStoreName": "Moola Halal Gourmet Deli",
+      "merchantEmail": "orders@moolagourmet.co.za",
+      "merchantPhone": "071 915 3630",
+      "branch": "Durban Central Deli",
+      "deliveryAddress": "42 Commercial Rd, Durban Central, KwaZulu-Natal",
+      "requestedDeliveryDate": "2026-06-08",
+      "status": "DELIVERED",
+      "items": [
+        {
+          "productId": "prod_spring_roll",
+          "productName": "Savouré Spring Roll Pastry Sheets",
+          "packSize": "Cocktail / Bite-Size (15cm × 15cm)",
+          "quantity": 45,
+          "unitPrice": 34,
+          "lineTotal": 1530
+        },
+        {
+          "productId": "prod_samoosa_pastry",
+          "productName": "Savouré Crispy Samoosa Pastry Sheets",
+          "packSize": "Cocktail Mini Strips (5cm × 20cm)",
+          "quantity": 50,
+          "unitPrice": 42,
+          "lineTotal": 2100
+        }
+      ],
+      "subtotal": 3630,
+      "vat": 0,
+      "total": 3630,
+      "createdAt": "2026-06-05T13:26:28.258Z",
+      "updatedAt": "2026-06-08T13:26:28.258Z"
+    },
+    {
+      "id": "ord_1008",
+      "orderNumber": "ORD-2026-0008",
+      "merchantId": "usr_1791911737847",
+      "merchantName": "Rookshana Banoo Moola",
+      "merchantStoreName": "Moola Halal Gourmet Deli",
+      "merchantEmail": "orders@moolagourmet.co.za",
+      "merchantPhone": "071 915 3630",
+      "branch": "Durban Central Deli",
+      "deliveryAddress": "42 Commercial Rd, Durban Central, KwaZulu-Natal",
+      "requestedDeliveryDate": "2026-03-20",
+      "status": "DELIVERED",
+      "items": [
+        {
+          "productId": "prod_spring_roll",
+          "productName": "Savouré Spring Roll Pastry Sheets",
+          "packSize": "Large Deli Sheet (25cm × 25cm)",
+          "quantity": 35,
+          "unitPrice": 58,
+          "lineTotal": 2030
+        },
+        {
+          "productId": "prod_tortilla_wraps",
+          "productName": "Savouré Stone-Ground Tortilla Wraps",
+          "packSize": "Jumbo Shawarma (30cm / 12\")",
+          "quantity": 30,
+          "unitPrice": 54,
+          "lineTotal": 1620
+        }
+      ],
+      "subtotal": 3650,
+      "vat": 0,
+      "total": 3650,
+      "createdAt": "2026-03-17T13:26:28.258Z",
+      "updatedAt": "2026-03-20T13:26:28.258Z"
+    }
+  ],
+  "merchantReports": [
+    {
+      "id": "rpt_past_001",
+      "reportNumber": "SAV-RPT-2026-W42",
+      "merchantId": "usr_1791911737847",
+      "merchantName": "Rookshana Banoo Moola",
+      "merchantStoreName": "Moola Halal Gourmet Deli",
+      "branch": "Durban Central Deli",
+      "merchantEmail": "orders@moolagourmet.co.za",
+      "merchantPhone": "071 915 3630",
+      "deliveryAddress": "42 Commercial Rd, Durban Central, KwaZulu-Natal",
+      "period": "WEEKLY",
+      "periodLabel": "Weekly Procurement Statement (Current Week)",
+      "startDate": "2026-10-19",
+      "endDate": "2026-10-26",
+      "generatedAt": "2026-10-26T09:26:28.258Z",
+      "totalOrderSpend": 3330,
+      "totalInvoiced": 3330,
+      "totalPaid": 3330,
+      "balanceDue": 0,
+      "ordersCount": 2,
+      "totalPacksOrdered": 75,
+      "deliveredOrdersCount": 1,
+      "pendingOrdersCount": 1,
+      "fulfillmentRate": 100,
+      "avgOrderValue": 1665,
+      "orders": [],
+      "invoices": [],
+      "productSummaries": [
+        {
+          "productId": "prod_spring_roll",
+          "productName": "Savouré Spring Roll Pastry Sheets",
+          "packSize": "Standard Restaurant (20cm × 20cm)",
+          "totalQuantity": 20,
+          "unitPrice": 42.5,
+          "totalSpend": 850
+        },
+        {
+          "productId": "prod_flaky_roti",
+          "productName": "Savouré Hand-Rolled Flaky Roti",
+          "packSize": "Classic Table Roti (22cm Round)",
+          "totalQuantity": 25,
+          "unitPrice": 38,
+          "totalSpend": 950
+        },
+        {
+          "productId": "prod_tortilla_wraps",
+          "productName": "Savouré Stone-Ground Tortilla Wraps",
+          "packSize": "Jumbo Shawarma (30cm / 12\")",
+          "totalQuantity": 15,
+          "unitPrice": 54,
+          "totalSpend": 810
+        },
+        {
+          "productId": "prod_samoosa_pastry",
+          "productName": "Savouré Crispy Samoosa Pastry Sheets",
+          "packSize": "Standard Golden Strips (7cm × 25cm)",
+          "totalQuantity": 15,
+          "unitPrice": 48,
+          "totalSpend": 720
+        }
+      ],
+      "notes": "Official audited weekly merchant report. Fast cold-chain fulfillment maintained."
+    },
+    {
+      "id": "rpt_past_002",
+      "reportNumber": "SAV-RPT-2026-M09",
+      "merchantId": "usr_1791911737847",
+      "merchantName": "Rookshana Banoo Moola",
+      "merchantStoreName": "Moola Halal Gourmet Deli",
+      "branch": "Durban Central Deli",
+      "merchantEmail": "orders@moolagourmet.co.za",
+      "merchantPhone": "071 915 3630",
+      "deliveryAddress": "42 Commercial Rd, Durban Central, KwaZulu-Natal",
+      "period": "MONTHLY",
+      "periodLabel": "Monthly Procurement Statement (Last 30 Days)",
+      "startDate": "2026-09-26",
+      "endDate": "2026-10-26",
+      "generatedAt": "2026-10-24T13:26:28.258Z",
+      "totalOrderSpend": 9380,
+      "totalInvoiced": 9380,
+      "totalPaid": 9380,
+      "balanceDue": 0,
+      "ordersCount": 4,
+      "totalPacksOrdered": 181,
+      "deliveredOrdersCount": 3,
+      "pendingOrdersCount": 1,
+      "fulfillmentRate": 98.7,
+      "avgOrderValue": 2345,
+      "orders": [],
+      "invoices": [],
+      "productSummaries": [
+        {
+          "productId": "prod_flaky_roti",
+          "productName": "Savouré Hand-Rolled Flaky Roti",
+          "packSize": "Catering Bulk Crate (22cm Round)",
+          "totalQuantity": 8,
+          "unitPrice": 265,
+          "totalSpend": 2120
+        },
+        {
+          "productId": "prod_spring_roll",
+          "productName": "Savouré Spring Roll Pastry Sheets",
+          "packSize": "Commercial Bulk Catering Box",
+          "totalQuantity": 6,
+          "unitPrice": 295,
+          "totalSpend": 1770
+        },
+        {
+          "productId": "prod_tortilla_wraps",
+          "productName": "Savouré Stone-Ground Tortilla Wraps",
+          "packSize": "Large Burrito / Deli (25cm / 10\")",
+          "totalQuantity": 25,
+          "unitPrice": 48,
+          "totalSpend": 1200
+        },
+        {
+          "productId": "prod_samoosa_pastry",
+          "productName": "Savouré Crispy Samoosa Pastry Sheets",
+          "packSize": "Standard Golden Strips (7cm × 25cm)",
+          "totalQuantity": 35,
+          "unitPrice": 48,
+          "totalSpend": 1680
+        }
+      ],
+      "notes": "Commercial monthly procurement statement. All deliveries completed with signed digital PODs."
+    },
+    {
+      "id": "rpt_past_003",
+      "reportNumber": "SAV-RPT-2026-Q2",
+      "merchantId": "usr_1791911737847",
+      "merchantName": "Rookshana Banoo Moola",
+      "merchantStoreName": "Moola Halal Gourmet Deli",
+      "branch": "Durban Central Deli",
+      "merchantEmail": "orders@moolagourmet.co.za",
+      "merchantPhone": "071 915 3630",
+      "deliveryAddress": "42 Commercial Rd, Durban Central, KwaZulu-Natal",
+      "period": "3_MONTHS",
+      "periodLabel": "Quarterly Procurement Audit (3 Months / Q2-Q3)",
+      "startDate": "2026-07-28",
+      "endDate": "2026-10-26",
+      "generatedAt": "2026-10-11T13:26:28.258Z",
+      "totalOrderSpend": 17430,
+      "totalInvoiced": 17430,
+      "totalPaid": 17430,
+      "balanceDue": 0,
+      "ordersCount": 6,
+      "totalPacksOrdered": 342,
+      "deliveredOrdersCount": 5,
+      "pendingOrdersCount": 1,
+      "fulfillmentRate": 99.2,
+      "avgOrderValue": 2905,
+      "orders": [],
+      "invoices": [],
+      "productSummaries": [
+        {
+          "productId": "prod_samoosa_pastry",
+          "productName": "Savouré Crispy Samoosa Pastry Sheets",
+          "packSize": "Commercial Foodservice Master Carton",
+          "totalQuantity": 5,
+          "unitPrice": 440,
+          "totalSpend": 2200
+        },
+        {
+          "productId": "prod_flaky_roti",
+          "productName": "Savouré Hand-Rolled Flaky Roti",
+          "packSize": "Classic Table Roti (22cm Round)",
+          "totalQuantity": 50,
+          "unitPrice": 38,
+          "totalSpend": 1900
+        },
+        {
+          "productId": "prod_tortilla_wraps",
+          "productName": "Savouré Stone-Ground Tortilla Wraps",
+          "packSize": "Foodservice Master Case (30cm)",
+          "totalQuantity": 6,
+          "unitPrice": 375,
+          "totalSpend": 2250
+        }
+      ],
+      "notes": "Q2 Wholesale partnership review. High-priority tiered pricing applied."
+    },
+    {
+      "id": "rpt_past_004",
+      "reportNumber": "SAV-RPT-2026-H1",
+      "merchantId": "usr_1791911737847",
+      "merchantName": "Rookshana Banoo Moola",
+      "merchantStoreName": "Moola Halal Gourmet Deli",
+      "branch": "Durban Central Deli",
+      "merchantEmail": "orders@moolagourmet.co.za",
+      "merchantPhone": "071 915 3630",
+      "deliveryAddress": "42 Commercial Rd, Durban Central, KwaZulu-Natal",
+      "period": "6_MONTHS",
+      "periodLabel": "Half-Year Procurement Statement (6 Months)",
+      "startDate": "2026-04-29",
+      "endDate": "2026-10-26",
+      "generatedAt": "2026-09-21T13:26:28.258Z",
+      "totalOrderSpend": 21060,
+      "totalInvoiced": 21060,
+      "totalPaid": 21060,
+      "balanceDue": 0,
+      "ordersCount": 7,
+      "totalPacksOrdered": 437,
+      "deliveredOrdersCount": 6,
+      "pendingOrdersCount": 1,
+      "fulfillmentRate": 98.9,
+      "avgOrderValue": 3008.57,
+      "orders": [],
+      "invoices": [],
+      "productSummaries": [
+        {
+          "productId": "prod_spring_roll",
+          "productName": "Savouré Spring Roll Pastry Sheets",
+          "packSize": "Cocktail / Bite-Size (15cm × 15cm)",
+          "totalQuantity": 45,
+          "unitPrice": 34,
+          "totalSpend": 1530
+        },
+        {
+          "productId": "prod_samoosa_pastry",
+          "productName": "Savouré Crispy Samoosa Pastry Sheets",
+          "packSize": "Cocktail Mini Strips (5cm × 20cm)",
+          "totalQuantity": 50,
+          "unitPrice": 42,
+          "totalSpend": 2100
+        }
+      ],
+      "notes": "Half-yearly executive wholesale audit. Qualified for premier tier volume discount."
+    },
+    {
+      "id": "rpt_past_005",
+      "reportNumber": "SAV-RPT-2025-ANNUAL",
+      "merchantId": "usr_1791911737847",
+      "merchantName": "Rookshana Banoo Moola",
+      "merchantStoreName": "Moola Halal Gourmet Deli",
+      "branch": "Durban Central Deli",
+      "merchantEmail": "orders@moolagourmet.co.za",
+      "merchantPhone": "071 915 3630",
+      "deliveryAddress": "42 Commercial Rd, Durban Central, KwaZulu-Natal",
+      "period": "YEARLY",
+      "periodLabel": "Annual Comprehensive Merchant Report (12 Months)",
+      "startDate": "2025-10-26",
+      "endDate": "2026-10-26",
+      "generatedAt": "2026-08-27T13:26:28.258Z",
+      "totalOrderSpend": 24710,
+      "totalInvoiced": 24710,
+      "totalPaid": 24710,
+      "balanceDue": 0,
+      "ordersCount": 8,
+      "totalPacksOrdered": 502,
+      "deliveredOrdersCount": 7,
+      "pendingOrdersCount": 1,
+      "fulfillmentRate": 99.1,
+      "avgOrderValue": 3088.75,
+      "orders": [],
+      "invoices": [],
+      "productSummaries": [
+        {
+          "productId": "prod_spring_roll",
+          "productName": "Savouré Spring Roll Pastry Sheets",
+          "packSize": "Standard Restaurant (20cm × 20cm)",
+          "totalQuantity": 120,
+          "unitPrice": 42.5,
+          "totalSpend": 5100
+        },
+        {
+          "productId": "prod_samoosa_pastry",
+          "productName": "Savouré Crispy Samoosa Pastry Sheets",
+          "packSize": "Standard Golden Strips (7cm × 25cm)",
+          "totalQuantity": 115,
+          "unitPrice": 48,
+          "totalSpend": 5520
+        },
+        {
+          "productId": "prod_flaky_roti",
+          "productName": "Savouré Hand-Rolled Flaky Roti",
+          "packSize": "Classic Table Roti (22cm Round)",
+          "totalQuantity": 85,
+          "unitPrice": 38,
+          "totalSpend": 3230
+        },
+        {
+          "productId": "prod_tortilla_wraps",
+          "productName": "Savouré Stone-Ground Tortilla Wraps",
+          "packSize": "Jumbo Shawarma (30cm / 12\")",
+          "totalQuantity": 65,
+          "unitPrice": 54,
+          "totalSpend": 3510
+        }
+      ],
+      "notes": "Annual procurement ledger and audited VAT-compliant statement."
     }
   ]
 }

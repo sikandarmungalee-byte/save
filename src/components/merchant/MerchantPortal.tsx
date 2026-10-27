@@ -38,7 +38,8 @@ import {
   Trash2,
   SlidersHorizontal,
   ChevronDown,
-  Info
+  Info,
+  RefreshCw
 } from 'lucide-react';
 import { InvoicePrintModal } from '../InvoicePrintModal';
 import { SHOWCASE_CONTACT } from '../showcase/showcaseData';
@@ -91,7 +92,10 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
     savePOD,
     merchantReports,
     saveMerchantReport,
-    deleteMerchantReport
+    deleteMerchantReport,
+    syncStatus,
+    lastSynced,
+    refreshData
   } = useERP();
 
   // Navigation tab: 'place-order' | 'my-orders' | 'reports' | 'invoices' | 'delivery-notes'
@@ -470,7 +474,37 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Real-time Cloud Sync indicator */}
+            <button
+              type="button"
+              onClick={() => refreshData()}
+              title="Real-time Cloud Firestore & Backend Live Sync Active. Tap to refresh."
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/25 hover:bg-black/40 border border-[#CC8468]/30 text-white text-xs font-semibold transition-all cursor-pointer"
+            >
+              {syncStatus === 'synced' ? (
+                <>
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <span className="font-semibold text-emerald-400 text-[11px]">Cloud Live</span>
+                  <span className="text-[#A69385] text-[10px] hidden md:inline">({lastSynced || 'Active'})</span>
+                  <RefreshCw className="w-2.5 h-2.5 text-[#C5B7AC] hover:text-[#E0A282]" />
+                </>
+              ) : syncStatus === 'syncing' ? (
+                <>
+                  <RefreshCw className="w-3 h-3 text-[#E0A282] animate-spin" />
+                  <span className="text-[#E0A282] text-[11px]">Syncing...</span>
+                </>
+              ) : (
+                <>
+                  <AlertCircle className="w-3 h-3 text-amber-400" />
+                  <span className="text-amber-300 text-[11px]">Offline</span>
+                </>
+              )}
+            </button>
+
             <button
               onClick={onBackToWebsite}
               className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-all cursor-pointer"

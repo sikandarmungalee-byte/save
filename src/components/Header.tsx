@@ -107,29 +107,35 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, onOpenLoginModal, on
       {/* Zone 2 & 3: System Status & User Actions */}
       <div className="flex items-center gap-2 sm:gap-4 shrink-0">
         {/* Real-time System status */}
-        <div
+        {/* Real-time Cloud & Live Sync status */}
+        <button
+          type="button"
           onClick={() => refreshData()}
-          title="Click to refresh system data"
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#171311] border border-[#2C211B] text-xs text-[#C5B7AC] cursor-pointer hover:bg-[#221B17] transition-colors"
+          title="Real-time Cloud Firestore & Backend Live Sync Active. Click to force instant refresh."
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#171311] border border-[#2C211B] text-xs text-[#C5B7AC] cursor-pointer hover:bg-[#221B17] hover:border-[#CC8468]/50 transition-all"
         >
           {syncStatus === 'synced' ? (
             <>
-              <span className="w-2 h-2 rounded-full bg-[#C98A5B]" />
-              <span className="hidden md:inline text-[#A69385]">System Active</span>
-              <span className="text-[#8A776B] tabular-nums hidden lg:inline">({lastSynced || 'Live'})</span>
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span className="hidden md:inline font-semibold text-emerald-400">Cloud Live</span>
+              <span className="text-[#8A776B] tabular-nums hidden lg:inline">({lastSynced || 'Active'})</span>
+              <RefreshCw className="w-2.5 h-2.5 text-[#8A776B] hover:text-[#DE9E74] ml-0.5" />
             </>
           ) : syncStatus === 'syncing' ? (
             <>
               <RefreshCw className="w-3 h-3 text-[#DE9E74] animate-spin" />
-              <span className="text-[#DE9E74] hidden sm:inline">Updating...</span>
+              <span className="text-[#DE9E74] font-medium hidden sm:inline">Syncing Cloud...</span>
             </>
           ) : (
             <>
-              <AlertCircle className="w-3 h-3 text-[#DE9E74]" />
-              <span className="text-[#DE9E74] hidden sm:inline">Offline Mode</span>
+              <AlertCircle className="w-3 h-3 text-amber-500" />
+              <span className="text-amber-400 font-medium hidden sm:inline">Offline Cache</span>
             </>
           )}
-        </div>
+        </button>
 
         {/* Back to Public Showcase Website */}
         {onGoToWebsite && (

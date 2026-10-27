@@ -9,15 +9,38 @@ function sanitizeConfig(val: any, fallback: string): string {
   return val.trim();
 }
 
+function getEnv(key: string, fallback: string): string {
+  let val: any = undefined;
+  try {
+    // Vite client-side
+    // @ts-ignore
+    if (typeof import.meta !== 'undefined' && import.meta && import.meta.env) {
+      // @ts-ignore
+      val = import.meta.env[key];
+    }
+  } catch (e) {}
+
+  if (!val) {
+    try {
+      // Node.js server-side
+      if (typeof process !== 'undefined' && process && process.env) {
+        val = process.env[key];
+      }
+    } catch (e) {}
+  }
+
+  return sanitizeConfig(val, fallback);
+}
+
 // Built-in production cloud configuration with environment override support
 const firebaseConfig = {
-  projectId: sanitizeConfig(import.meta.env.VITE_FIREBASE_PROJECT_ID, "gen-lang-client-0112209964"),
-  appId: sanitizeConfig(import.meta.env.VITE_FIREBASE_APP_ID, "1:558916521027:web:a6c82f08052cf2710618f6"),
-  apiKey: sanitizeConfig(import.meta.env.VITE_FIREBASE_API_KEY, "AIzaSyBFvaq1Hsftp77BNs_nHZs41rkPOYPt3aE"),
-  authDomain: sanitizeConfig(import.meta.env.VITE_FIREBASE_AUTH_DOMAIN, "gen-lang-client-0112209964.firebaseapp.com"),
-  firestoreDatabaseId: sanitizeConfig(import.meta.env.VITE_FIREBASE_DATABASE_ID, "ai-studio-apexerpenterpris-67d5d43f-3a5e-4c77-855a-ea478fbbd101"),
-  storageBucket: sanitizeConfig(import.meta.env.VITE_FIREBASE_STORAGE_BUCKET, "gen-lang-client-0112209964.firebasestorage.app"),
-  messagingSenderId: sanitizeConfig(import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID, "558916521027"),
+  projectId: getEnv("VITE_FIREBASE_PROJECT_ID", "gen-lang-client-0112209964"),
+  appId: getEnv("VITE_FIREBASE_APP_ID", "1:558916521027:web:a6c82f08052cf2710618f6"),
+  apiKey: getEnv("VITE_FIREBASE_API_KEY", "AIzaSyBFvaq1Hsftp77BNs_nHZs41rkPOYPt3aE"),
+  authDomain: getEnv("VITE_FIREBASE_AUTH_DOMAIN", "gen-lang-client-0112209964.firebaseapp.com"),
+  firestoreDatabaseId: getEnv("VITE_FIREBASE_DATABASE_ID", "ai-studio-apexerpenterpris-67d5d43f-3a5e-4c77-855a-ea478fbbd101"),
+  storageBucket: getEnv("VITE_FIREBASE_STORAGE_BUCKET", "gen-lang-client-0112209964.firebasestorage.app"),
+  messagingSenderId: getEnv("VITE_FIREBASE_MESSAGING_SENDER_ID", "558916521027"),
 };
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
