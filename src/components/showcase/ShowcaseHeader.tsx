@@ -7,6 +7,8 @@ interface ShowcaseHeaderProps {
   onOpenMerchantLogin: () => void;
   onOpenEnquiryModal: () => void;
   onOpenAdmin?: () => void;
+  isMerchantLoggedIn?: boolean;
+  onOpenMerchantPortal?: () => void;
 }
 
 export const ShowcaseHeader: React.FC<ShowcaseHeaderProps> = ({
@@ -15,6 +17,8 @@ export const ShowcaseHeader: React.FC<ShowcaseHeaderProps> = ({
   onOpenMerchantLogin,
   onOpenEnquiryModal,
   onOpenAdmin,
+  isMerchantLoggedIn,
+  onOpenMerchantPortal,
 }) => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -112,10 +116,14 @@ export const ShowcaseHeader: React.FC<ShowcaseHeaderProps> = ({
           {/* Merchant Portal */}
           <button
             type="button"
-            onClick={onOpenMerchantLogin}
-            className="hidden sm:inline-flex text-[10px] font-bold uppercase tracking-[0.15em] text-[#75412e] hover:text-[#3d2117] px-3 py-2 transition-colors cursor-pointer"
+            onClick={isMerchantLoggedIn && onOpenMerchantPortal ? onOpenMerchantPortal : onOpenMerchantLogin}
+            className={`hidden sm:inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.15em] px-3 py-2 rounded-full transition-colors cursor-pointer ${
+              isMerchantLoggedIn
+                ? 'bg-[#bd7657]/15 text-[#8d5037] hover:bg-[#bd7657]/25 border border-[#bd7657]/30'
+                : 'text-[#75412e] hover:text-[#3d2117]'
+            }`}
           >
-            Merchant Portal
+            <span>{isMerchantLoggedIn ? 'My Merchant Desk' : 'Merchant Portal'}</span>
           </button>
 
           {/* Primary Action Button: ENQUIRE NOW */}
@@ -184,12 +192,16 @@ export const ShowcaseHeader: React.FC<ShowcaseHeaderProps> = ({
             ))}
             <button
               onClick={() => {
-                onOpenMerchantLogin();
+                if (isMerchantLoggedIn && onOpenMerchantPortal) {
+                  onOpenMerchantPortal();
+                } else {
+                  onOpenMerchantLogin();
+                }
                 setIsMobileMenuOpen(false);
               }}
               className="text-left py-2 text-[#75412e]"
             >
-              Merchant Portal
+              {isMerchantLoggedIn ? 'My Merchant Desk' : 'Merchant Portal'}
             </button>
             {onOpenAdmin && (
               <button

@@ -426,15 +426,19 @@ export const BarcodeScannerModuleView: React.FC = () => {
 
       {/* CAMERA SCANNER MODAL */}
       {isScannerModalOpen && (
-        <BarcodeScanner
-          onScan={(barcode, meta) => {
-            setActiveMetadata(meta);
-            setManualBarcode(barcode);
-            handleBarcodeIdentified(barcode);
-            setIsScannerModalOpen(false);
-          }}
-          onClose={() => setIsScannerModalOpen(false)}
-        />
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+          <div className="w-full max-w-2xl my-auto">
+            <BarcodeScanner
+              onScan={(barcode, meta) => {
+                setActiveMetadata(meta);
+                setManualBarcode(barcode);
+                handleBarcodeIdentified(barcode);
+                setIsScannerModalOpen(false);
+              }}
+              onClose={() => setIsScannerModalOpen(false)}
+            />
+          </div>
+        </div>
       )}
 
       {/* PRINT BARCODE LABELS MODAL */}

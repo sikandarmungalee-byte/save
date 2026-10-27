@@ -897,6 +897,36 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 </div>
               </div>
 
+              {/* Barcode & Fast Camera Scanner */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-medium text-[#EDE6DE]">
+                    Barcode / EAN-13 (Optional)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsBarcodeScanOpen(true)}
+                    className="text-[11px] text-[#DE9E74] hover:text-[#f3b58f] font-semibold flex items-center gap-1 cursor-pointer"
+                  >
+                    <Camera className="w-3.5 h-3.5" /> Scan Barcode
+                  </button>
+                </div>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={form.barcode}
+                    onChange={(e) => setForm({ ...form, barcode: e.target.value })}
+                    placeholder="e.g. 6009800123012 (GS1 South Africa)"
+                    className="w-full px-3 py-2 text-xs bg-[#120F0D] border border-[#2C211B] rounded-lg text-white font-mono placeholder-[#6E5B4F] focus:outline-hidden focus:border-[#C98A5B]"
+                  />
+                  {(form.barcode.startsWith('600') || form.barcode.startsWith('601')) && (
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                      🇿🇦 GS1 SA
+                    </span>
+                  )}
+                </div>
+              </div>
+
               {/* Category selection or on-the-fly typing */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -1105,6 +1135,24 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Barcode Scanner Modal */}
+      {isBarcodeScanOpen && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+          <div className="w-full max-w-xl my-auto">
+            <BarcodeScanner
+              onScan={(scannedBarcode) => {
+                setForm((prev) => ({ ...prev, barcode: scannedBarcode.trim() }));
+                setIsBarcodeScanOpen(false);
+              }}
+              onClose={() => setIsBarcodeScanOpen(false)}
+              title="Product Barcode Assignment"
+              subtitle="Scan GS1 South Africa or retail EAN/UPC barcode to assign to this product"
+              autoCloseOnScan={true}
+            />
           </div>
         </div>
       )}

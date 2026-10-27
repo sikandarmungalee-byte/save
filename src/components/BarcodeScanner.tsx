@@ -315,10 +315,14 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
 
       try {
         if (scannerRef.current) {
-          if (scannerRef.current.isScanning) {
-            await scannerRef.current.stop();
+          try {
+            if (scannerRef.current.isScanning) {
+              await scannerRef.current.stop();
+            }
+            scannerRef.current.clear();
+          } catch {
+            // Ignore clean up errors
           }
-          scannerRef.current.clear();
         }
 
         const html5QrCode = new Html5Qrcode(containerId, {
@@ -333,18 +337,18 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
           ],
           verbose: false,
           experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true,
+            useBarCodeDetectorIfSupported: false, // Must be false to use reliable ZXing 1D barcode engine
           },
         });
 
         scannerRef.current = html5QrCode;
 
-        // Camera config with resilient fallbacks
+        // Camera config optimized for 1D wide barcodes
         const scanConfig = {
-          fps: 25,
+          fps: 20,
           qrbox: (viewfinderWidth: number, viewfinderHeight: number) => ({
-            width: Math.min(Math.floor(viewfinderWidth * 0.98), 800),
-            height: Math.min(Math.floor(viewfinderHeight * 0.95), 600),
+            width: Math.min(Math.floor(viewfinderWidth * 0.94), 700),
+            height: Math.min(Math.floor(viewfinderHeight * 0.75), 360),
           }),
           aspectRatio: 1.333333,
         };
@@ -357,96 +361,79 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
           // ignore normal non-detection frames
         };
 
-        // Try environment camera first, then user camera if environment fails
+        // Resilient camera start sequence: specified camera -> environment -> user -> enumerated ID
         try {
-          const primaryConfig = cameraId || { facingMode: { ideal: 'environment' } };
-          await html5QrCode.start(primaryConfig, scanConfig, onScanSuccess, onScanFailure);
+          if (cameraId) {
+            await html5QrCode.start(cameraId, scanConfig, onScanSuccess, onScanFailure);
+          } else {
+            await html5QrCode.start({ facingMode: 'environment' }, scanConfig, onScanSuccess, onScanFailure);
+          }
         } catch (initialErr) {
-          console.warn('Primary camera config failed, attempting fallback:', initialErr);
+          console.warn('Primary camera config note, trying user camera:', initialErr);
           try {
             await html5QrCode.start({ facingMode: 'user' }, scanConfig, onScanSuccess, onScanFailure);
           } catch (secondaryErr) {
-            // Last resort: any video device
-            await html5QrCode.start(true as any, scanConfig, onScanSuccess, onScanFailure);
+            console.warn('User camera failed, trying enumerated camera list:', secondaryErr);
+            if (cameras.length > 0) {
+              await html5QrCode.start(cameras[0].id, scanConfig, onScanSuccess, onScanFailure);
+            } else {
+              throw secondaryErr;
+            }
           }
         }
 
         setIsScanning(true);
         setHasPermission(true);
 
-        // Hardware-accelerated native BarcodeDetector loop on raw video element with dual-orientation support
+        // Hardware-accelerated native BarcodeDetector loop on raw video element when supported by browser
         if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
           try {
             let formatsToUse = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'qr_code'];
             if (typeof (window as any).BarcodeDetector.getSupportedFormats === 'function') {
               try {
                 const supported: string[] = await (window as any).BarcodeDetector.getSupportedFormats();
-                formatsToUse = formatsToUse.filter((f) => supported.includes(f));
+                if (Array.isArray(supported) && supported.length > 0) {
+                  formatsToUse = formatsToUse.filter((f) => supported.includes(f));
+                }
               } catch {
                 // Keep default formats
               }
             }
 
-            const detector = new (window as any).BarcodeDetector(
-              formatsToUse.length > 0 ? { formats: formatsToUse } : undefined
-            );
+            if (formatsToUse.length > 0) {
+              const detector = new (window as any).BarcodeDetector({ formats: formatsToUse });
 
-            // Offscreen rotation canvas for barcodes held vertically
-            const rotCanvas = document.createElement('canvas');
-            const rotCtx = rotCanvas.getContext('2d');
-
-            const attachNativeScanner = () => {
-              const containerEl = document.getElementById(containerId);
-              const videoEl = containerEl?.querySelector('video');
-              if (videoEl && videoEl.readyState >= 2) {
-                if (barcodeDetectorIntervalRef.current) {
-                  clearInterval(barcodeDetectorIntervalRef.current);
-                }
-                let tick = 0;
-                barcodeDetectorIntervalRef.current = setInterval(async () => {
-                  if (!videoEl || videoEl.paused || videoEl.ended || videoEl.readyState < 2) return;
-                  tick++;
-                  try {
-                    // Direct frame detection
-                    const detected = await detector.detect(videoEl);
-                    if (detected && detected.length > 0) {
-                      const code = detected[0].rawValue;
-                      if (code) {
-                        handleBarcodeDetected(code);
-                        return;
-                      }
-                    }
-
-                    // Every 2nd tick (~120ms), test 90-degree rotated frame for vertical barcodes
-                    if (tick % 2 === 0 && rotCtx && videoEl.videoWidth > 0) {
-                      const vw = videoEl.videoWidth;
-                      const vh = videoEl.videoHeight;
-                      rotCanvas.width = vh;
-                      rotCanvas.height = vw;
-                      rotCtx.save();
-                      rotCtx.translate(vh / 2, vw / 2);
-                      rotCtx.rotate((90 * Math.PI) / 180);
-                      rotCtx.drawImage(videoEl, -vw / 2, -vh / 2);
-                      rotCtx.restore();
-
-                      const rotDetected = await detector.detect(rotCanvas);
-                      if (rotDetected && rotDetected.length > 0) {
-                        const code = rotDetected[0].rawValue;
+              const attachNativeScanner = () => {
+                const containerEl = document.getElementById(containerId);
+                const videoEl = containerEl?.querySelector('video');
+                if (videoEl && videoEl.readyState >= 2) {
+                  if (barcodeDetectorIntervalRef.current) {
+                    clearInterval(barcodeDetectorIntervalRef.current);
+                  }
+                  let isBusy = false;
+                  barcodeDetectorIntervalRef.current = setInterval(async () => {
+                    if (isBusy || !videoEl || videoEl.paused || videoEl.ended || videoEl.readyState < 2) return;
+                    isBusy = true;
+                    try {
+                      const detected = await detector.detect(videoEl);
+                      if (detected && detected.length > 0) {
+                        const code = detected[0].rawValue;
                         if (code) {
                           handleBarcodeDetected(code);
-                          return;
                         }
                       }
+                    } catch {
+                      // Ignore non-barcode frame
+                    } finally {
+                      isBusy = false;
                     }
-                  } catch {
-                    // Ignore non-barcode frames
-                  }
-                }, 60);
-              } else if (containerEl) {
-                setTimeout(attachNativeScanner, 150);
-              }
-            };
-            setTimeout(attachNativeScanner, 200);
+                  }, 140);
+                } else if (containerEl) {
+                  setTimeout(attachNativeScanner, 200);
+                }
+              };
+              setTimeout(attachNativeScanner, 300);
+            }
           } catch (e) {
             console.warn('Native BarcodeDetector setup note:', e);
           }
@@ -465,13 +452,18 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
         console.error('Failed to start barcode camera:', err);
         setIsScanning(false);
         setHasPermission(false);
-        setCameraError(
-          err?.message ||
-            'Camera permission was denied or device camera is currently in use. You can use manual entry or upload a photo below.'
-        );
+        let errorMsg = 'Camera permission was denied or device camera is currently in use.';
+        if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
+          errorMsg = 'Camera access was blocked by browser or iframe permissions. You can use instant one-click South African demo barcodes or type the barcode in manual entry.';
+        } else if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
+          errorMsg = 'No camera found on this device. Please use manual barcode entry or upload a photo.';
+        } else if (err?.message) {
+          errorMsg = err.message;
+        }
+        setCameraError(errorMsg);
       }
     },
-    [containerId, handleBarcodeDetected]
+    [containerId, cameras, handleBarcodeDetected]
   );
 
   // Stop scanning
@@ -557,6 +549,21 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
     setCameraError(null);
 
     try {
+      // First try native BarcodeDetector if available on modern browsers for instant photo decoding
+      if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+        try {
+          const imgBitmap = await createImageBitmap(file);
+          const detector = new (window as any).BarcodeDetector();
+          const detected = await detector.detect(imgBitmap);
+          if (detected && detected.length > 0 && detected[0].rawValue) {
+            handleBarcodeDetected(detected[0].rawValue);
+            return;
+          }
+        } catch {
+          // Fall through to Html5Qrcode
+        }
+      }
+
       let fileScanner = scannerRef.current;
       if (!fileScanner) {
         fileScanner = new Html5Qrcode(containerId, {
@@ -570,8 +577,17 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
             Html5QrcodeSupportedFormats.QR_CODE,
           ],
           verbose: false,
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: false,
+          },
         });
         scannerRef.current = fileScanner;
+      } else if (fileScanner.isScanning) {
+        try {
+          await fileScanner.stop();
+        } catch {
+          // Ignore
+        }
       }
 
       const decodedText = await fileScanner.scanFile(file, true);
@@ -752,21 +768,28 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
                       <div className="w-12 h-12 rounded-full bg-red-500/20 text-red-400 border border-red-500/40 flex items-center justify-center">
                         <CameraOff className="w-6 h-6" />
                       </div>
-                      <p className="text-sm font-medium text-red-200 max-w-sm">{cameraError}</p>
-                      <div className="flex gap-2">
+                      <p className="text-xs sm:text-sm font-medium text-red-200 max-w-sm">{cameraError}</p>
+                      <div className="flex flex-wrap items-center justify-center gap-2">
                         <button
                           type="button"
                           onClick={() => startCamera(selectedCameraId)}
-                          className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors"
+                          className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors cursor-pointer"
                         >
                           Retry Camera
                         </button>
                         <button
                           type="button"
                           onClick={() => setActiveMode('manual')}
-                          className="px-4 py-2 rounded-xl bg-stone-700 hover:bg-stone-600 text-white text-xs font-bold transition-colors"
+                          className="px-3.5 py-2 rounded-xl bg-[#301610] hover:bg-[#4a241b] border border-[#B96F48]/50 text-white text-xs font-bold transition-colors cursor-pointer"
                         >
-                          Use Manual Input
+                          Manual Barcode Entry
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActiveMode('upload')}
+                          className="px-3.5 py-2 rounded-xl bg-stone-700 hover:bg-stone-600 text-white text-xs font-bold transition-colors cursor-pointer"
+                        >
+                          Upload Barcode Photo
                         </button>
                       </div>
                     </>

@@ -22,11 +22,17 @@ export const ShowcaseApp: React.FC<ShowcaseAppProps> = ({ onOpenAdmin }) => {
   const [isEnquiryModalOpen, setIsEnquiryModalOpen] = useState(false);
   const [selectedEnquiryProduct, setSelectedEnquiryProduct] = useState<string | null>(null);
 
-  // If the currently logged in user is a merchant, show the Merchant Portal directly
-  if (currentUser && currentUser.role === 'merchant') {
+  // Allow merchants to view either their portal or browse the public website
+  const [isViewingPortal, setIsViewingPortal] = useState<boolean>(false);
+
+  // If merchant explicitly chooses to view their ordering desk, show MerchantPortal
+  if (isViewingPortal && currentUser && currentUser.role === 'merchant') {
     return (
       <MerchantPortal
-        onBackToWebsite={() => setCurrentPage('home')}
+        onBackToWebsite={() => {
+          setIsViewingPortal(false);
+          setCurrentPage('home');
+        }}
       />
     );
   }
@@ -48,7 +54,9 @@ export const ShowcaseApp: React.FC<ShowcaseAppProps> = ({ onOpenAdmin }) => {
           <ShowcaseMerchantLoginPage
             onNavigate={handleNavigate}
             onLoginSuccess={(loggedInUser) => {
-              if (loggedInUser && loggedInUser.role !== 'merchant') {
+              if (loggedInUser && loggedInUser.role === 'merchant') {
+                setIsViewingPortal(true);
+              } else if (loggedInUser) {
                 onOpenAdmin();
               }
             }}
@@ -93,12 +101,21 @@ export const ShowcaseApp: React.FC<ShowcaseAppProps> = ({ onOpenAdmin }) => {
 
   return (
     <div className="min-h-screen bg-[#f5eee5] text-[#3d2117] flex flex-col font-sans selection:bg-[#b86643] selection:text-white">
-      {/* Header with Savouré Wordmark, Page Tabs & Enquire Now CTA (Admin moved to Footer) */}
+      {/* Header with Savouré Wordmark, Page Tabs, Enquire Now, Merchant Portal & Admin ERP CTA */}
       <ShowcaseHeader
         currentPage={currentPage}
         onNavigate={handleNavigate}
-        onOpenMerchantLogin={() => handleNavigate('merchant-login')}
+        onOpenMerchantLogin={() => {
+          if (currentUser?.role === 'merchant') {
+            setIsViewingPortal(true);
+          } else {
+            handleNavigate('merchant-login');
+          }
+        }}
         onOpenEnquiryModal={() => handleOpenEnquiryModal()}
+        onOpenAdmin={onOpenAdmin}
+        isMerchantLoggedIn={currentUser?.role === 'merchant'}
+        onOpenMerchantPortal={() => setIsViewingPortal(true)}
       />
 
       {/* Main Viewport: Home, Products, About, Wholesale, Contact, or Merchant Login */}

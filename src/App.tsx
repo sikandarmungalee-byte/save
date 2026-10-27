@@ -459,18 +459,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ onGoToWebsite }) => {
 };
 
 const AppContent: React.FC = () => {
-  const { currentUser } = useERP();
   const [viewMode, setViewMode] = useState<'website' | 'admin'>(() => {
     try {
       const saved = localStorage.getItem('savoure_view_mode');
       if (saved === 'admin' || saved === 'website') return saved;
-    } catch {}
-    try {
-      const savedUserStr = localStorage.getItem('savoure_erp_current_user') || sessionStorage.getItem('savoure_erp_current_user');
-      if (savedUserStr) {
-        const u = JSON.parse(savedUserStr);
-        if (u && u.role && u.role !== 'merchant') return 'admin';
-      }
     } catch {}
     return 'website';
   });
@@ -482,25 +474,11 @@ const AppContent: React.FC = () => {
     } catch {}
   };
 
-  React.useEffect(() => {
-    if (currentUser && currentUser.role !== 'merchant') {
-      const explicit = localStorage.getItem('savoure_view_mode');
-      if (explicit !== 'website') {
-        handleSetViewMode('admin');
-      }
-    }
-  }, [currentUser]);
-
-  // If logged in as merchant, always direct them to the merchant showcase and portal
-  if (currentUser && currentUser.role === 'merchant') {
-    return <ShowcaseApp onOpenAdmin={() => handleSetViewMode('admin')} />;
+  if (viewMode === 'admin') {
+    return <MainLayout onGoToWebsite={() => handleSetViewMode('website')} />;
   }
 
-  if (viewMode === 'website') {
-    return <ShowcaseApp onOpenAdmin={() => handleSetViewMode('admin')} />;
-  }
-
-  return <MainLayout onGoToWebsite={() => handleSetViewMode('website')} />;
+  return <ShowcaseApp onOpenAdmin={() => handleSetViewMode('admin')} />;
 };
 
 export default function App() {
