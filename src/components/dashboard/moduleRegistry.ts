@@ -775,8 +775,8 @@ export const ERP_MODULES: ERPModule[] = [
     subcategories: [
       {
         id: 'barcode-scanner-movement',
-        title: '📱 Phone Barcode Scanner (South Africa 600/601)',
-        subtitle: 'Camera scan GS1 barcodes & record instant movements',
+        title: '📱 Phone Camera Barcode Scanner',
+        subtitle: 'Camera scan barcodes & record instant movements',
         icon: Camera,
         actionType: 'modal',
         badge: (erp) => `${(erp.stockMovements || []).length} logged`,
@@ -1536,14 +1536,14 @@ export const ERP_MODULES: ERPModule[] = [
     ]
   },
 
-  // 21. GS1 Barcode & Camera Scanner
+  // 21. Barcode & Camera Scanner
   {
     id: 'barcode-scanner',
     number: 21,
-    title: 'GS1 Barcode Scanner & Tracking',
+    title: 'Barcode Scanner & Tracking',
     shortTitle: 'Barcode Scanner',
     subtitle: 'Camera, EAN-13 & Stock Slips',
-    description: 'Mobile and desktop GS1 camera scanner, South African 600-prefix EAN-13 validation, live stock inventory lookup, and barcode label sheet printing.',
+    description: 'Mobile and desktop camera scanner, EAN-13 & UPC barcode validation, live stock inventory lookup, and barcode label sheet printing.',
     icon: Barcode,
     subcategories: [
       {
@@ -1557,7 +1557,7 @@ export const ERP_MODULES: ERPModule[] = [
       {
         id: 'scanner-manual',
         title: 'Manual Barcode & SKU Lookup',
-        subtitle: 'Search GS1 EAN-13 numbers directly in bakery catalog',
+        subtitle: 'Search barcode numbers directly in bakery catalog',
         icon: Search,
         actionType: 'view',
         targetConfig: { mode: 'manual' }
@@ -1671,7 +1671,7 @@ export const ERP_MODULES: ERPModule[] = [
       {
         id: 'production-yield',
         title: 'Completed Yield & Lot Archive',
-        subtitle: 'Finished goods stock receipts and GS1 carton labels',
+        subtitle: 'Finished goods stock receipts and carton barcode labels',
         icon: CheckCircle2,
         actionType: 'view',
         targetConfig: { tab: 'completed' }

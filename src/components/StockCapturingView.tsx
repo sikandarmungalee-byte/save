@@ -588,7 +588,7 @@ export const StockCapturingView: React.FC<StockCapturingViewProps> = ({
             {stockMovements.length}
           </div>
           <div className="text-[11px] text-emerald-400 mt-1 font-sans flex items-center gap-1">
-            <span>🇿🇦 {totalSouthAfricanScans} GS1 SA Barcodes (600/601)</span>
+            <span>{stockMovements.length} Verified Barcode Movements</span>
           </div>
         </div>
 
@@ -655,9 +655,6 @@ export const StockCapturingView: React.FC<StockCapturingViewProps> = ({
         >
           <Barcode className="w-4 h-4 text-emerald-400" />
           <span>📱 Barcode Scanner & Movements ({stockMovements.length})</span>
-          <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold">
-            🇿🇦 GS1 SA
-          </span>
         </button>
 
         <button
@@ -706,15 +703,15 @@ export const StockCapturingView: React.FC<StockCapturingViewProps> = ({
               <div className="space-y-2 max-w-xl">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs font-bold uppercase tracking-wider">
-                    🇿🇦 South Africa GS1 Barcode Engine (600 / 601)
+                    Universal Barcode Scanner
                   </span>
-                  <span className="text-xs text-[#A69385]">· EAN-13 / UPC / QR</span>
+                  <span className="text-xs text-[#A69385]">· EAN-13 / UPC / SKU</span>
                 </div>
                 <h2 className="text-2xl font-serif font-bold text-white tracking-wide">
                   Real-Time Stock Movement Scanner
                 </h2>
                 <p className="text-xs text-[#A69385] leading-relaxed">
-                  Use your phone or tablet camera to instantly scan Savouré packaging, pastry sheet cartons, or ingredient sacks. Validates South African GS1 barcodes, performs live stock in/out adjustments, and synchronizes inventory across all bakery branches.
+                  Use your phone or tablet camera to instantly scan packaging, pastry cartons, or ingredient sacks. Reads all barcode numbers, performs live stock in/out adjustments, and synchronizes inventory across all bakery branches.
                 </p>
 
                 <div className="flex flex-wrap items-center gap-4 pt-1 text-xs text-[#EDE6DE]/80">
@@ -722,7 +719,7 @@ export const StockCapturingView: React.FC<StockCapturingViewProps> = ({
                     <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Rear phone camera autofocus
                   </span>
                   <span className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" /> GS1 Modulo-10 checksum
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Checksum verification
                   </span>
                   <span className="flex items-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Flashlight & sound chime
@@ -787,7 +784,7 @@ export const StockCapturingView: React.FC<StockCapturingViewProps> = ({
               <div className="flex items-center justify-between mb-2.5">
                 <span className="text-xs font-semibold text-[#DE9E74] flex items-center gap-1.5 uppercase tracking-wider">
                   <Sparkles className="w-3.5 h-3.5" />
-                  One-Tap Test Barcodes (South Africa GS1 600/601)
+                  One-Tap Test Barcodes
                 </span>
                 <span className="text-[11px] text-[#A69385]">Click any item to scan & adjust immediately</span>
               </div>
@@ -948,7 +945,7 @@ export const StockCapturingView: React.FC<StockCapturingViewProps> = ({
                             </div>
                             {isSA ? (
                               <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-400 mt-0.5">
-                                🇿🇦 GS1 South Africa
+                                Verified Barcode
                               </span>
                             ) : (
                               <span className="text-[10px] text-[#8A776B]">Standard Barcode</span>
@@ -1990,8 +1987,8 @@ export const StockCapturingView: React.FC<StockCapturingViewProps> = ({
                 handleBarcodeScanned(scannedBarcode, metadata);
               }}
               onClose={() => setIsBarcodeModalOpen(false)}
-              title="Savouré Stock Movement Scanner"
-              subtitle="Point your phone camera at any South African GS1 product barcode (600/601)"
+              title="Stock Movement Scanner"
+              subtitle="Point your camera at any product barcode to record stock movements"
             />
           </div>
         </div>
@@ -2140,7 +2137,7 @@ export const StockCapturingView: React.FC<StockCapturingViewProps> = ({
                     />
                     {(movementForm.barcode.startsWith('600') || movementForm.barcode.startsWith('601')) && (
                       <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                        🇿🇦 GS1 South Africa
+                        Verified Barcode
                       </span>
                     )}
                   </div>
@@ -2334,7 +2331,7 @@ export const StockCapturingView: React.FC<StockCapturingViewProps> = ({
                   {viewingMovementSlip.barcode}
                   {(viewingMovementSlip.isSouthAfricanBarcode || viewingMovementSlip.barcode.startsWith('600') || viewingMovementSlip.barcode.startsWith('601')) && (
                     <span className="ml-2 text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
-                      🇿🇦 GS1 South Africa
+                      Verified Barcode
                     </span>
                   )}
                 </span>

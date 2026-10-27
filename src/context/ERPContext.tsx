@@ -421,7 +421,7 @@ export const INITIAL_STOCK_ITEM_STATUSES: StockItemStatus[] = [
     unit: 'bags (25kg)',
     isFinished: false,
     minThreshold: 20,
-    notes: 'Premium cake and laminating flour from Premier FMCG (GS1 SA)',
+    notes: 'Premium cake and laminating flour from Premier FMCG',
     updatedAt: new Date().toISOString(),
   },
   {
@@ -3809,7 +3809,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         quantityOnHand: initialQty,
         unit: newMovement.unit,
         isFinished: initialQty <= 0,
-        notes: newMovement.notes || (isSA ? 'GS1 South Africa Product' : ''),
+        notes: newMovement.notes || (isSA ? 'Retail Product' : ''),
         updatedAt: now.toISOString(),
       });
     }

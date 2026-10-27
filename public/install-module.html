@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Download & Install Savouré ERP</title>
+
+  <!-- PWA Web App Manifest -->
+  <link rel="manifest" href="/manifest.json" />
+
+  <!-- Apple iOS PWA Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Savouré ERP" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <meta name="theme-color" content="#301610" />
+
+  <!-- Tailwind CSS CDN for Standalone Preview -->
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-[#120F0D] text-[#EDE6DE] p-4 sm:p-8 flex items-center justify-center min-h-screen">
+  <div class="w-full max-w-4xl space-y-6">
+    <!-- Header -->
+    <div class="text-center space-y-2">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#C98A5B]/20 text-[#DE9E74] text-xs font-bold uppercase tracking-widest border border-[#C98A5B]/30">
+        Enterprise Cross-Platform Deployment
+      </div>
+      <h1 class="text-3xl sm:text-4xl font-serif font-bold text-white tracking-tight">
+        Savouré ERP Install Gateway
+      </h1>
+      <p class="text-xs sm:text-sm text-[#A69385] max-w-lg mx-auto">
+        Install the Savouré Bakery Management System on Windows, macOS, Android, and iOS directly from your browser.
+      </p>
+    </div>
+
+    <!-- Embeddable Install Widget Container -->
+    <div id="savoure-install-module"></div>
+  </div>
+
+  <!-- Install Controller Script -->
+  <script src="/install-controller.js"></script>
+</body>
+</html>

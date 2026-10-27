@@ -87,14 +87,14 @@ export function parseBarcode(barcode: string): BarcodeParseResult {
   let description = 'Standard Barcode Format';
 
   if (isSA) {
-    country = 'South Africa (GS1 ZA)';
+    country = 'South Africa';
     description = isValidCheckDigit
-      ? 'Verified South African Retail Barcode (GS1 Prefix 600/601)'
-      : 'South African prefix detected (Check digit verification recommended)';
+      ? 'Verified South African Retail Barcode (Prefix 600/601)'
+      : 'South African prefix detected';
   } else if (clean.startsWith('00') || clean.startsWith('01') || clean.startsWith('02')) {
     country = 'United States / Canada';
   } else if (clean.startsWith('50')) {
-    country = 'United Kingdom (GS1 UK)';
+    country = 'United Kingdom';
   }
 
   return {

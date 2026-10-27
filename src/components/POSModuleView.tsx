@@ -439,7 +439,7 @@ export const POSModuleView: React.FC<POSModuleViewProps> = ({ initialSubcategory
                     type="text"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search by name, SKU, or GS1 barcode (e.g. 6009800123012)..."
+                    placeholder="Search by name, SKU, or barcode number (e.g. 6009800123012)..."
                     className="w-full pl-9 pr-8 py-2 text-xs rounded-xl bg-stone-50 border border-stone-200 focus:bg-white focus:outline-none focus:border-[#C98A5B] text-stone-900"
                   />
                   {searchTerm && (

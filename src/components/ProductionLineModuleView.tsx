@@ -706,7 +706,7 @@ export const ProductionLineModuleView: React.FC<ProductionLineModuleViewProps> =
               <div className="p-3 rounded-xl bg-stone-50 border border-stone-200 text-stone-600 text-[11px] space-y-1">
                 <div className="font-semibold text-stone-800">Automatic ERP Integration:</div>
                 <div>• Auto-calculates Bill of Materials (BOM) flour and laminating oil</div>
-                <div>• Generates South African GS1 barcode batch lot number</div>
+                <div>• Generates product barcode batch lot number</div>
                 <div>• Completing the batch will automatically increase warehouse stock</div>
               </div>
 
@@ -907,7 +907,7 @@ export const ProductionLineModuleView: React.FC<ProductionLineModuleViewProps> =
                   <div className="text-[10px]">South African Halal Certified Bakery</div>
                 </div>
                 <div className="text-[10px] font-bold text-right">
-                  GS1 SA 600
+                  Bakery Lot
                 </div>
               </div>
 

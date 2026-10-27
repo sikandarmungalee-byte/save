@@ -28,7 +28,7 @@ export interface BarcodeMetadata {
   isValidCheckDigit: boolean;
 }
 
-// GS1 Country & South African Barcode Parser
+// Country & Retail Barcode Number Parser
 export function parseBarcodeMetadata(rawBarcode: string): BarcodeMetadata {
   const barcode = (rawBarcode || '').trim();
   const isDigitsOnly = /^\d+$/.test(barcode);
@@ -47,7 +47,7 @@ export function parseBarcodeMetadata(rawBarcode: string): BarcodeMetadata {
     isValidCheckDigit = check === parseInt(barcode[12], 10);
   }
 
-  // South African GS1 prefixes: 600 and 601
+  // South African product barcode prefixes: 600 and 601
   const isSA = barcode.startsWith('600') || barcode.startsWith('601');
   const prefix = barcode.length >= 3 ? barcode.slice(0, 3) : '';
 
@@ -56,19 +56,19 @@ export function parseBarcodeMetadata(rawBarcode: string): BarcodeMetadata {
   else if (isEan8) format = 'EAN-8';
   else if (isUpcA) format = 'UPC-A';
   else if (barcode.length > 18) format = 'QR / 2D Code';
-  else if (barcode.length > 0) format = 'Code 128 / Custom';
+  else if (barcode.length > 0) format = 'Code 128 / Product Code';
 
   let description = 'Standard Product Code';
   if (isSA) {
-    description = `GS1 South Africa Official Barcode (Prefix ${prefix})`;
+    description = `South African Retail Barcode (Prefix ${prefix})`;
   } else if (barcode.startsWith('0') || barcode.startsWith('1')) {
-    description = 'GS1 North America (UPC-A)';
+    description = 'Retail Barcode (UPC-A)';
   } else if (barcode.startsWith('50')) {
-    description = 'GS1 United Kingdom';
+    description = 'UK Retail Barcode';
   } else if (barcode.startsWith('40') || barcode.startsWith('44')) {
-    description = 'GS1 Germany';
+    description = 'European Retail Barcode';
   } else if (barcode.startsWith('20') || barcode.startsWith('29')) {
-    description = 'In-Store Restrictive / Weight Embedded Barcode';
+    description = 'In-Store Weight / Batch Barcode';
   }
 
   return {
@@ -81,35 +81,35 @@ export function parseBarcodeMetadata(rawBarcode: string): BarcodeMetadata {
   };
 }
 
-// Preset South African Barcodes for Instant One-Click Testing
+// Preset Barcodes for Instant One-Click Testing
 export const SAMPLE_SOUTH_AFRICAN_BARCODES = [
   {
     barcode: '6009800123012',
     name: 'Savouré Spring Roll Pastry (20cm / 200g)',
     category: 'Pastry Sheets',
     unit: 'packs',
-    description: 'GS1 SA EAN-13 Registered Pastry',
+    description: 'EAN-13 Registered Pastry',
   },
   {
     barcode: '6001007012342',
     name: 'Savouré Samoosa Pastry Sheets (500g)',
     category: 'Pastry Sheets',
     unit: 'packs',
-    description: 'GS1 SA Crispy Triangle Cut Sheets',
+    description: 'Crispy Triangle Cut Sheets',
   },
   {
     barcode: '6009612345671',
     name: 'Savouré Hand-Rolled Flaky Roti (Pack of 6)',
     category: 'Artisanal Roti',
     unit: 'packs',
-    description: 'GS1 SA Layered Traditional Roti',
+    description: 'Layered Traditional Roti',
   },
   {
     barcode: '6002100987650',
     name: 'Savouré Tortilla Wraps 30cm (Pack of 12)',
     category: 'Tortillas & Wraps',
     unit: 'packs',
-    description: 'GS1 SA Soft-Rolled Tortillas',
+    description: 'Soft-Rolled Tortillas',
   },
   {
     barcode: '6001234567899',
@@ -138,8 +138,8 @@ interface BarcodeScannerProps {
 export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
   onScan,
   onClose,
-  title = 'Barcode Scanner & Stock Movement',
-  subtitle = 'Scan South African GS1 (600/601) or standard EAN/UPC product barcodes using your phone camera',
+  title = 'Barcode Scanner & Product Lookup',
+  subtitle = 'Scan any retail barcode, EAN/UPC product code, or SKU number using your camera',
   autoCloseOnScan = false,
 }) => {
   const scannerRef = useRef<Html5Qrcode | null>(null);
@@ -333,24 +333,25 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
             Html5QrcodeSupportedFormats.UPC_E,
             Html5QrcodeSupportedFormats.CODE_128,
             Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.CODE_93,
+            Html5QrcodeSupportedFormats.ITF,
+            Html5QrcodeSupportedFormats.CODABAR,
             Html5QrcodeSupportedFormats.QR_CODE,
+            Html5QrcodeSupportedFormats.DATA_MATRIX,
           ],
           verbose: false,
           experimentalFeatures: {
-            useBarCodeDetectorIfSupported: false, // Must be false to use reliable ZXing 1D barcode engine
+            useBarCodeDetectorIfSupported: false, // Use ZXing reliable multi-format decoder
           },
         });
 
         scannerRef.current = html5QrCode;
 
-        // Camera config optimized for 1D wide barcodes
+        // Full uncropped frame scan configuration for highest read-rate on any product angle
         const scanConfig = {
-          fps: 20,
-          qrbox: (viewfinderWidth: number, viewfinderHeight: number) => ({
-            width: Math.min(Math.floor(viewfinderWidth * 0.94), 700),
-            height: Math.min(Math.floor(viewfinderHeight * 0.75), 360),
-          }),
+          fps: 24,
           aspectRatio: 1.333333,
+          disableFlip: false,
         };
 
         const onScanSuccess = (decodedText: string) => {
@@ -361,23 +362,37 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
           // ignore normal non-detection frames
         };
 
-        // Resilient camera start sequence: specified camera -> environment -> user -> enumerated ID
+        // Resilient camera start sequence: specified camera -> environment (high-res) -> user -> enumerated ID
         try {
           if (cameraId) {
             await html5QrCode.start(cameraId, scanConfig, onScanSuccess, onScanFailure);
           } else {
-            await html5QrCode.start({ facingMode: 'environment' }, scanConfig, onScanSuccess, onScanFailure);
+            await html5QrCode.start(
+              {
+                facingMode: 'environment',
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+              } as any,
+              scanConfig,
+              onScanSuccess,
+              onScanFailure
+            );
           }
         } catch (initialErr) {
-          console.warn('Primary camera config note, trying user camera:', initialErr);
+          console.warn('High-res environment camera note, trying standard environment:', initialErr);
           try {
-            await html5QrCode.start({ facingMode: 'user' }, scanConfig, onScanSuccess, onScanFailure);
+            await html5QrCode.start({ facingMode: 'environment' }, scanConfig, onScanSuccess, onScanFailure);
           } catch (secondaryErr) {
-            console.warn('User camera failed, trying enumerated camera list:', secondaryErr);
-            if (cameras.length > 0) {
-              await html5QrCode.start(cameras[0].id, scanConfig, onScanSuccess, onScanFailure);
-            } else {
-              throw secondaryErr;
+            console.warn('Environment camera failed, trying front/user camera:', secondaryErr);
+            try {
+              await html5QrCode.start({ facingMode: 'user' }, scanConfig, onScanSuccess, onScanFailure);
+            } catch (tertiaryErr) {
+              console.warn('User camera failed, trying enumerated camera list:', tertiaryErr);
+              if (cameras.length > 0) {
+                await html5QrCode.start(cameras[0].id, scanConfig, onScanSuccess, onScanFailure);
+              } else {
+                throw tertiaryErr;
+              }
             }
           }
         }
@@ -620,7 +635,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
             <div className="flex items-center gap-2">
               <h3 className="font-serif font-bold text-lg text-white tracking-wide">{title}</h3>
               <span className="inline-flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                🇿🇦 South Africa (600/601)
+                ✨ Universal Barcode Reader
               </span>
             </div>
             <p className="text-xs text-[#F5E8D5]/70 line-clamp-1">{subtitle}</p>
@@ -700,6 +715,23 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
           <div className="flex flex-col gap-3">
             {/* Viewfinder Wrapper */}
             <div className="relative rounded-2xl overflow-hidden bg-black aspect-[4/3] w-full max-h-[380px] shadow-inner flex items-center justify-center border-2 border-stone-800">
+              <style>{`
+                #${containerId} video {
+                  width: 100% !important;
+                  height: 100% !important;
+                  object-fit: cover !important;
+                  display: block !important;
+                }
+                #${containerId} canvas {
+                  display: none !important;
+                }
+                #${containerId} img {
+                  display: none !important;
+                }
+                #${containerId} button {
+                  display: none !important;
+                }
+              `}</style>
               {/* HTML5 QR Container */}
               <div id={containerId} className="w-full h-full object-cover" />
 
@@ -717,9 +749,9 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
                     {/* Animated horizontal red/copper laser line */}
                     <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-red-500 to-transparent shadow-[0_0_10px_#ef4444] animate-pulse top-1/2 transform -translate-y-1/2" />
 
-                    <div className="absolute bottom-2 inset-x-0 text-center">
-                      <span className="text-[10px] tracking-wider font-mono text-emerald-300 bg-black/75 px-3 py-1 rounded-full border border-emerald-500/30">
-                        HOLD BARCODE 10-25 CM FROM LENS
+                    <div className="absolute bottom-2 inset-x-0 text-center px-2">
+                      <span className="text-[11px] tracking-wider font-mono text-emerald-300 bg-black/85 px-3 py-1.5 rounded-full border border-emerald-500/40 shadow-md inline-block max-w-[90%] truncate">
+                        {lastScannedResult ? `READ NUMBER: ${lastScannedResult.barcode}` : 'POINT CAMERA AT BARCODE NUMBER'}
                       </span>
                     </div>
                   </div>
@@ -796,7 +828,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
                   ) : (
                     <>
                       <div className="w-10 h-10 border-2 border-[#B96F48] border-t-transparent rounded-full animate-spin" />
-                      <p className="text-xs text-stone-300">Initializing camera sensor & GS1 barcode engine...</p>
+                      <p className="text-xs text-stone-300">Initializing camera sensor & barcode engine...</p>
                     </>
                   )}
                 </div>
@@ -887,7 +919,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
                 </button>
               </div>
               <p className="text-[11px] text-stone-500 mt-2">
-                Tip: South African retail goods use 13-digit EAN-13 barcodes starting with <strong>600</strong> or <strong>601</strong>.
+                Tip: Enter any standard retail barcode number (13-digit EAN, 12-digit UPC, or custom SKU code).
               </p>
             </div>
           </form>
@@ -907,7 +939,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
                   </span>
                   {lastScannedResult.isSouthAfrican ? (
                     <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-600 text-white shadow-xs">
-                      🇿🇦 GS1 South Africa (Prefix {lastScannedResult.prefix})
+                      Retail Barcode (Prefix {lastScannedResult.prefix})
                     </span>
                   ) : (
                     <span className="inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full bg-stone-200 text-stone-700">
@@ -927,12 +959,12 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
           </div>
         )}
 
-        {/* QUICK TEST SOUTH AFRICAN BARCODES SELECTOR */}
+        {/* QUICK TEST BARCODES SELECTOR */}
         <div className="border-t border-stone-200 pt-3">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-bold text-stone-700 flex items-center gap-1.5 uppercase tracking-wider">
               <Sparkles className="w-3.5 h-3.5 text-[#B96F48]" />
-              Tap to Test South African Barcodes (GS1 600/601)
+              Click to Test Sample Product Barcodes
             </span>
             <span className="text-[11px] text-stone-400">Instant Demo Barcodes</span>
           </div>
@@ -951,7 +983,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
                       {sample.barcode}
                     </span>
                     <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
-                      🇿🇦 SA
+                      Retail Code
                     </span>
                   </div>
                   <p className="text-xs text-stone-600 truncate mt-0.5">{sample.name}</p>

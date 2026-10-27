@@ -50,17 +50,29 @@ export const BarcodeScannerModuleView: React.FC = () => {
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
 
   const handleBarcodeIdentified = (barcode: string) => {
-    const meta = parseBarcodeMetadata(barcode);
+    const clean = (barcode || '').trim().replace(/[-\s]/g, '');
+    const meta = parseBarcodeMetadata(clean);
     setActiveMetadata(meta);
 
-    // Find in products catalog or stock item tracking
+    // Find in products catalog or stock item tracking with flexible matching
     const foundProd =
-      products.find((p) => p.barcode === barcode || p.sku.toLowerCase() === barcode.toLowerCase()) ||
-      SAMPLE_SOUTH_AFRICAN_BARCODES.find((s) => s.barcode === barcode) ||
-      stockItemStatuses.find((s) => s.barcode === barcode);
+      products.find((p) => {
+        const pBarcode = (p.barcode || '').trim().replace(/[-\s]/g, '');
+        const pSku = (p.sku || '').trim().toLowerCase();
+        return (
+          (pBarcode && (pBarcode === clean || `0${pBarcode}` === clean || pBarcode === `0${clean}`)) ||
+          pSku === clean.toLowerCase() ||
+          p.id === clean
+        );
+      }) ||
+      stockItemStatuses.find((s) => {
+        const sBarcode = (s.barcode || '').trim().replace(/[-\s]/g, '');
+        return sBarcode && (sBarcode === clean || `0${sBarcode}` === clean || sBarcode === `0${clean}`);
+      }) ||
+      SAMPLE_SOUTH_AFRICAN_BARCODES.find((s) => s.barcode === clean);
 
     setMatchedProduct(foundProd || null);
-    setManualBarcode(barcode);
+    setManualBarcode(clean);
   };
 
   const handleExecuteMovement = async () => {
@@ -109,7 +121,7 @@ export const BarcodeScannerModuleView: React.FC = () => {
                 Official Hardware & Camera Scanner
               </span>
               <span className="text-[#A69385]">·</span>
-              <span className="text-xs text-[#C5B7AC] font-mono">GS1 South Africa Prefix 600 / 601</span>
+              <span className="text-xs text-[#C5B7AC] font-mono">Universal EAN / UPC / SKU Barcode Reader</span>
             </div>
 
             <h1 className="text-2xl sm:text-3xl font-serif font-bold text-white tracking-tight">
@@ -117,7 +129,7 @@ export const BarcodeScannerModuleView: React.FC = () => {
             </h1>
 
             <p className="text-xs sm:text-sm text-[#C5B7AC] max-w-2xl leading-relaxed">
-              Industrial scanner module: Scan packaging with camera or USB wedge, inspect South African EAN-13 barcodes, execute rapid inventory check-ins, and print certified barcode shelf tags.
+              Industrial scanner module: Scan packaging with camera or USB wedge, read barcode numbers, lookup catalog products, execute rapid inventory movements, and print barcode shelf labels.
             </p>
           </div>
 
@@ -174,7 +186,7 @@ export const BarcodeScannerModuleView: React.FC = () => {
           <div className="space-y-3">
             <div>
               <label className="block text-xs font-bold text-[#75412E] mb-1">
-                Scan Barcode or Enter SKU (Prefix 600 / 601)
+                Scan Barcode Number or Enter SKU
               </label>
               <div className="flex gap-2">
                 <div className="relative flex-1">
@@ -202,10 +214,10 @@ export const BarcodeScannerModuleView: React.FC = () => {
               </div>
             </div>
 
-            {/* Quick 1-Click Preset South African Barcodes */}
+            {/* Quick 1-Click Preset Barcodes */}
             <div className="pt-2">
               <span className="text-[10px] uppercase font-bold tracking-wider text-[#8D5037] block mb-2">
-                Quick Test: South African Registered Bakery Barcodes
+                Quick Test: Verified Product Barcodes
               </span>
               <div className="grid grid-cols-2 gap-2">
                 {SAMPLE_SOUTH_AFRICAN_BARCODES.slice(0, 4).map((s) => (
@@ -315,7 +327,7 @@ export const BarcodeScannerModuleView: React.FC = () => {
             <h3 className="font-serif text-lg font-bold text-[#2B150A]">
               Scanned Item Metadata
             </h3>
-            <p className="text-xs text-[#66483B]">GS1 country identification and inventory tracking.</p>
+            <p className="text-xs text-[#66483B]">Barcode number verification and inventory tracking.</p>
           </div>
 
           {activeMetadata ? (
@@ -328,7 +340,7 @@ export const BarcodeScannerModuleView: React.FC = () => {
                   {activeMetadata.isSouthAfrican ? (
                     <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
                       <ShieldCheck className="w-3.5 h-3.5" />
-                      <span>GS1 South Africa (600/601)</span>
+                      <span>Retail Barcode ({activeMetadata.prefix})</span>
                     </span>
                   ) : (
                     <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-stone-100 text-stone-800">
@@ -449,8 +461,8 @@ export const BarcodeScannerModuleView: React.FC = () => {
               <div className="flex items-center gap-3">
                 <Printer className="w-6 h-6 text-[#D7A77C]" />
                 <div>
-                  <h3 className="font-serif font-bold text-lg text-white">GS1 South Africa Barcode Labels Sheet</h3>
-                  <p className="text-xs text-[#F5E8D5]/70">Official EAN-13 barcodes ready for printing on standard label stock</p>
+                  <h3 className="font-serif font-bold text-lg text-white">Product Barcode Labels Sheet</h3>
+                  <p className="text-xs text-[#F5E8D5]/70">Official product barcodes ready for printing on standard label stock</p>
                 </div>
               </div>
               <button
@@ -471,14 +483,14 @@ export const BarcodeScannerModuleView: React.FC = () => {
                     <div className="text-xs font-mono text-[#66483B]">{item.category} · {item.unit}</div>
                     <div className="h-12 my-2 bg-[repeating-linear-gradient(90deg,#1E0F07_0px,#1E0F07_3px,#fff_3px,#fff_6px,#1E0F07_6px,#1E0F07_8px,#fff_8px,#fff_12px)] rounded-xs" />
                     <div className="font-mono text-sm font-bold tracking-widest text-[#1E0F07]">{item.barcode}</div>
-                    <div className="text-[9px] text-emerald-700 font-bold uppercase mt-1">100% Halal Certified · GS1 South Africa Verified</div>
+                    <div className="text-[9px] text-emerald-700 font-bold uppercase mt-1">100% Halal Certified · Verified Product Barcode</div>
                   </div>
                 ))}
               </div>
             </div>
 
             <div className="p-4 border-t border-stone-200 bg-stone-50 flex items-center justify-between">
-              <span className="text-xs text-stone-500">Includes 6 official GS1 SA pastry SKUs</span>
+              <span className="text-xs text-stone-500">Includes 6 official bakery pastry SKUs</span>
               <div className="flex gap-2">
                 <button
                   type="button"

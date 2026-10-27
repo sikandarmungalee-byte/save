@@ -734,7 +734,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                             {p.barcode ? (
                               <div className="text-[10px] font-mono text-[#A69385] flex items-center gap-1 mt-0.5">
                                 {(p.barcode.startsWith('600') || p.barcode.startsWith('601')) && (
-                                  <span className="text-emerald-400 font-bold" title="GS1 South Africa (600/601)">
+                                  <span className="text-emerald-400 font-bold" title="South African Retail Barcode">
                                     🇿🇦
                                   </span>
                                 )}
@@ -916,12 +916,12 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                     type="text"
                     value={form.barcode}
                     onChange={(e) => setForm({ ...form, barcode: e.target.value })}
-                    placeholder="e.g. 6009800123012 (GS1 South Africa)"
+                    placeholder="e.g. 6009800123012 or standard UPC"
                     className="w-full px-3 py-2 text-xs bg-[#120F0D] border border-[#2C211B] rounded-lg text-white font-mono placeholder-[#6E5B4F] focus:outline-hidden focus:border-[#C98A5B]"
                   />
                   {(form.barcode.startsWith('600') || form.barcode.startsWith('601')) && (
                     <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                      🇿🇦 GS1 SA
+                      🇿🇦 SA Barcode
                     </span>
                   )}
                 </div>
@@ -1150,7 +1150,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               }}
               onClose={() => setIsBarcodeScanOpen(false)}
               title="Product Barcode Assignment"
-              subtitle="Scan GS1 South Africa or retail EAN/UPC barcode to assign to this product"
+              subtitle="Scan any retail barcode, EAN/UPC, or SKU number to assign to this product"
               autoCloseOnScan={true}
             />
           </div>

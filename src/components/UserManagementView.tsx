@@ -446,7 +446,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
     { key: 'customers', label: 'Customer Directory & Branches', desc: 'Manage legal entities, multi-branch shipping sites, and compliance docs', icon: Users2 },
     { key: 'catalog', label: 'Bakery & Product Catalog', desc: 'Maintain SKU codes, pack counts, unit prices, and margins', icon: Package },
     { key: 'stock', label: 'Stock Capturing & Purchase Slips', desc: 'Capture raw ingredient slips, photograph receipts, and track finished stock', icon: ShoppingBag },
-    { key: 'barcodeScanner', label: 'Barcode Scanner & SKU Lookup', desc: 'Camera and GS1 South Africa EAN-13 barcode inventory scanner', icon: Barcode },
+    { key: 'barcodeScanner', label: 'Barcode Scanner & SKU Lookup', desc: 'Camera and retail barcode inventory scanner', icon: Barcode },
     { key: 'pos', label: 'Point of Sale (POS) Counter Till', desc: 'Process walk-in counter checkout, cash drawer reconciliation, and thermal slips', icon: Receipt },
     { key: 'productionLine', label: 'Factory Production Lines', desc: 'Supervise bakery factory machinery, dough lamination, and QC inspection gates', icon: Factory },
     { key: 'merchantOrders', label: 'Merchant Orders & Push Alerts', desc: 'Receive real-time push orders from delis, supermarkets, and restaurants', icon: Store },

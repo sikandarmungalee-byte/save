@@ -1,0 +1,59 @@
+{
+  "id": "/?source=pwa",
+  "name": "Savouré Artisanal Pastry ERP",
+  "short_name": "Savouré ERP",
+  "description": "Enterprise Bakery ERP & Logistics Portal for Savouré Artisanal Pastry: Counter POS, Branch Transfers, Live Stock Tracking, and Merchant Ordering.",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "dir": "ltr",
+  "lang": "en-US",
+  "theme_color": "#301610",
+  "background_color": "#171311",
+  "categories": ["business", "productivity", "food"],
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/maskable-icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Point of Sale (POS)",
+      "short_name": "POS",
+      "description": "Launch counter cash register & fast sale scanner",
+      "url": "/?view=pos&source=pwa",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Barcode Scanner",
+      "short_name": "Scanner",
+      "description": "Stock movement & physical barcode camera scanner",
+      "url": "/?view=scanner&source=pwa",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Stock Capturing",
+      "short_name": "Stock",
+      "description": "Capture inventory receipts & branch status",
+      "url": "/?view=stock&source=pwa",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
+    }
+  ],
+  "prefer_related_applications": false
+}

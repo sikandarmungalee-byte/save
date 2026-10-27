@@ -133,7 +133,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'barcode-scanner',
-      label: 'Barcode Scanner & GS1',
+      label: 'Barcode Scanner & Stock',
       icon: Barcode,
       allowed: isSuperAdmin ? true : Boolean(perms?.barcodeScanner ?? (currentUser?.role === 'logistics')),
       highlight: true,

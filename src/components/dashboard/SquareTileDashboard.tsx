@@ -19,6 +19,7 @@ import {
   Shield,
   Layers
 } from 'lucide-react';
+import { InstallAppBanner } from '../InstallAppBanner';
 
 interface SquareTileDashboardProps {
   onSelectModule: (moduleId: string) => void;
@@ -551,6 +552,11 @@ export const SquareTileDashboard: React.FC<SquareTileDashboardProps> = ({
       {/* 3. MAIN DASHBOARD: 18 SQUARE MODULE CARDS GRID (WHITE CARDS) */}
       {/* ============================================================ */}
       <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 bg-white">
+        {/* Cross-Platform Mobile & Desktop Install Module */}
+        <div className="mb-6 sm:mb-8">
+          <InstallAppBanner />
+        </div>
+
         {/* Section Headline */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6 sm:mb-8">
           <div>
