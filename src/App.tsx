@@ -36,6 +36,7 @@ import { SquareTileDashboard } from './components/dashboard/SquareTileDashboard'
 import { ModuleSubcategoriesPage } from './components/dashboard/ModuleSubcategoriesPage';
 import { CompactTopNav } from './components/dashboard/CompactTopNav';
 import { SubcategoryNavigationStrip } from './components/dashboard/SubcategoryNavigationStrip';
+import { UniversalInstallModal } from './components/UniversalInstallModal';
 
 interface MainLayoutProps {
   onGoToWebsite?: () => void;
@@ -372,6 +373,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ onGoToWebsite }) => {
     <div className="min-h-screen bg-white text-[#2B150A] flex flex-col font-sans selection:bg-[#CC8468] selection:text-white">
       {/* Security PIN Screen Lock Overlay */}
       <PinLockModal />
+
+      {/* Cross-Platform Download & Install Modal */}
+      <UniversalInstallModal />
 
       {/* Multi-Device Login / Switch Account Modal */}
       <UserLoginModal

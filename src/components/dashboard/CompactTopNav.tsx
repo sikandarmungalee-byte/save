@@ -17,8 +17,10 @@ import {
   X,
   Layers,
   ArrowRight,
-  Cloud
+  Cloud,
+  Download
 } from 'lucide-react';
+import { openUniversalInstallModal } from '../UniversalInstallModal';
 
 interface CompactTopNavProps {
   currentModule: ERPModule;
@@ -300,13 +302,24 @@ export const CompactTopNav: React.FC<CompactTopNavProps> = ({
           {onGoToWebsite && (
             <button
               onClick={onGoToWebsite}
-              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-white hover:bg-stone-50 text-[#391E0F] border border-stone-200 text-xs hidden md:flex items-center gap-1.5 transition-colors font-medium shadow-2xs"
+              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-white hover:bg-stone-50 text-[#391E0F] border border-stone-200 text-xs hidden md:flex items-center gap-1.5 transition-colors font-medium shadow-2xs cursor-pointer"
               title="Public Savouré Website"
             >
               <Globe className="w-3.5 h-3.5 text-[#CC8468]" />
               <span>Website</span>
             </button>
           )}
+
+          {/* Prominent Download App Button */}
+          <button
+            onClick={openUniversalInstallModal}
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#391E0F] via-[#2B150A] to-[#1C1008] hover:from-[#4C2814] hover:to-[#381B0C] border border-[#DE9E74]/60 text-[#FFF9F0] text-xs font-bold shadow-xs transition-all hover:scale-102 active:scale-98 cursor-pointer ring-1 ring-[#DE9E74]/30"
+            title="Download & Install Savouré ERP App on Desktop / Mobile"
+          >
+            <Download className="w-3.5 h-3.5 text-[#DE9E74] animate-bounce" />
+            <span className="font-serif tracking-wide hidden sm:inline">Download App</span>
+            <span className="sm:hidden text-[11px]">App</span>
+          </button>
 
           {/* Profile Button */}
           <div className="relative">
@@ -369,6 +382,17 @@ export const CompactTopNav: React.FC<CompactTopNavProps> = ({
                   >
                     <Smartphone className="w-3.5 h-3.5 text-[#CC8468]" />
                     <span>Switch Account</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowProfileMenu(false);
+                      openUniversalInstallModal();
+                    }}
+                    className="w-full text-left px-3 py-1.5 text-xs text-[#2B150A] hover:bg-stone-50 rounded-lg flex items-center gap-2 font-medium"
+                  >
+                    <Download className="w-3.5 h-3.5 text-[#CC8468]" />
+                    <span>Download App (Desktop / Mobile)</span>
                   </button>
 
                   <div className="border-t border-stone-100 pt-1 mt-1">

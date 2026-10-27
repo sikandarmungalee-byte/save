@@ -17,9 +17,11 @@ import {
   X,
   ArrowRight,
   Shield,
-  Layers
+  Layers,
+  Download
 } from 'lucide-react';
 import { InstallAppBanner } from '../InstallAppBanner';
+import { openUniversalInstallModal } from '../UniversalInstallModal';
 
 interface SquareTileDashboardProps {
   onSelectModule: (moduleId: string) => void;
@@ -304,12 +306,23 @@ export const SquareTileDashboard: React.FC<SquareTileDashboardProps> = ({
               <button
                 onClick={onGoToWebsite}
                 title="View Public Savouré Website"
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-stone-50 border border-stone-200 hover:border-[#CC8468] text-[#391E0F] text-xs font-semibold transition-all"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-stone-50 border border-stone-200 hover:border-[#CC8468] text-[#391E0F] text-xs font-semibold transition-all cursor-pointer"
               >
                 <Globe className="w-3.5 h-3.5 text-[#CC8468]" />
                 <span>Website</span>
               </button>
             )}
+
+            {/* Prominent Download & Install ERP App Button */}
+            <button
+              onClick={openUniversalInstallModal}
+              title="Download & Install Savouré ERP on Desktop (Windows/macOS) or Mobile (iOS/Android)"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#391E0F] via-[#2B150A] to-[#1C1008] hover:from-[#4C2814] hover:to-[#381B0C] border border-[#DE9E74]/60 text-[#FFF9F0] text-xs font-bold shadow-sm transition-all hover:scale-102 active:scale-98 cursor-pointer ring-1 ring-[#DE9E74]/30"
+            >
+              <Download className="w-3.5 h-3.5 text-[#DE9E74] animate-bounce" />
+              <span className="font-serif tracking-wide hidden xs:inline">Download App</span>
+              <span className="xs:hidden">App</span>
+            </button>
 
             {/* Notifications Icon Button */}
             <div className="relative">
@@ -472,6 +485,17 @@ export const SquareTileDashboard: React.FC<SquareTileDashboardProps> = ({
                     >
                       <Smartphone className="w-3.5 h-3.5 text-[#CC8468]" />
                       <span>Switch Account / Sign In</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        openUniversalInstallModal();
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs text-[#2B150A] hover:bg-stone-50 rounded-lg flex items-center gap-2.5 transition-colors font-medium"
+                    >
+                      <Download className="w-3.5 h-3.5 text-[#CC8468]" />
+                      <span>Download & Install App (Desktop / Mobile)</span>
                     </button>
 
                     <div className="pt-1 border-t border-stone-100 mt-1">
