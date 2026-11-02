@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { useERP } from '../../context/ERPContext';
-import { Invoice, DeliveryNote, MerchantOrderItem, Product, ProductSizeOption } from '../../types/erp';
+import { Invoice, DeliveryNote, MerchantOrderItem, Product, ProductSizeOption, MerchantOrder } from '../../types/erp';
 import {
   Store,
   FileText,
@@ -39,11 +39,38 @@ import {
   SlidersHorizontal,
   ChevronDown,
   Info,
-  RefreshCw
+  RefreshCw,
+  LayoutGrid,
+  TableProperties,
+  RotateCcw,
+  FileDown,
+  ChevronRight,
+  Scale
 } from 'lucide-react';
 import { InvoicePrintModal } from '../InvoicePrintModal';
 import { SHOWCASE_CONTACT } from '../showcase/showcaseData';
 import { MerchantReportsTab } from './MerchantReportsTab';
+
+// Helper to map bakery product to showcase photography
+export function getProductImage(prod: Product): string {
+  const name = prod.name.toLowerCase();
+  const id = prod.id.toLowerCase();
+  const cat = (prod.category || '').toLowerCase();
+
+  if (id.includes('spring_roll') || name.includes('spring roll') || cat.includes('spring roll')) {
+    return '/showcase/savoure-springroll.png';
+  }
+  if (id.includes('samoosa') || name.includes('samoosa') || name.includes('samosa') || cat.includes('samoosa') || cat.includes('samosa')) {
+    return '/showcase/savoure-samoosa.png';
+  }
+  if (id.includes('roti') || name.includes('roti') || cat.includes('roti')) {
+    return '/showcase/savoure-roti.png';
+  }
+  if (id.includes('tortilla') || name.includes('tortilla') || name.includes('wrap') || cat.includes('tortilla') || cat.includes('wrap')) {
+    return '/showcase/savoure-tortilla.png';
+  }
+  return '/showcase/savoure-logo.png';
+}
 
 // Helper to retrieve all size options for any bakery product
 export function getProductSizes(prod: Product): ProductSizeOption[] {
@@ -142,6 +169,10 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
   const [orderNotes, setOrderNotes] = useState<string>('');
   const [isSubmittingOrder, setIsSubmittingOrder] = useState<boolean>(false);
   const [orderSuccessBanner, setOrderSuccessBanner] = useState<string | null>(null);
+  const [catalogLayout, setCatalogLayout] = useState<'cards' | 'matrix'>('cards');
+  const [confirmedOrder, setConfirmedOrder] = useState<MerchantOrder | null>(null);
+  const [coldChainRequired, setColdChainRequired] = useState<boolean>(true);
+  const [deliveryPreset, setDeliveryPreset] = useState<'tomorrow' | 'twoDays' | 'threeDays' | 'custom'>('twoDays');
 
   // Find linked customer record from ERP database if available
   const linkedCustomer = useMemo(() => {
@@ -235,6 +266,13 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
     });
   }, [merchantOrders, currentUser]);
 
+  const latestPreviousOrder = useMemo(() => {
+    if (!myOrdersList || myOrdersList.length === 0) return null;
+    return [...myOrdersList].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    )[0];
+  }, [myOrdersList]);
+
   // Financial statistics
   const totalBilled = merchantInvoices.reduce((acc, i) => acc + (Number(i.grandTotal) || 0), 0);
   const totalPaid = merchantInvoices.reduce((acc, i) => acc + (Number(i.amountPaid) || 0), 0);
@@ -309,7 +347,9 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
   }, [orderQuantities, orderableProducts]);
 
   const orderSubtotal = selectedOrderItems.reduce((acc, it) => acc + it.lineTotal, 0);
-  const orderTotal = orderSubtotal; // Zero-rated / staple exemption default
+  const orderTotal = orderSubtotal; // Zero-rated / staple food exemption default
+  const totalPackCount = selectedOrderItems.reduce((acc, it) => acc + it.quantity, 0);
+  const estimatedWholesaleWeightKg = Math.round(totalPackCount * 0.85 * 10) / 10;
 
   const handleQtyChange = (prodId: string, sizeId: string, delta: number) => {
     const itemKey = `${prodId}___${sizeId}`;
@@ -325,12 +365,61 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
     });
   };
 
+  const handleQuickAddQty = (prodId: string, sizeId: string, delta: number) => {
+    const itemKey = `${prodId}___${sizeId}`;
+    setOrderQuantities((prev) => {
+      const cur = prev[itemKey] || 0;
+      return { ...prev, [itemKey]: cur + delta };
+    });
+  };
+
   const handleRemoveOrderItem = (itemKey: string) => {
     setOrderQuantities((prev) => {
       const copy = { ...prev };
       delete copy[itemKey];
       return copy;
     });
+  };
+
+  const handleRepeatPreviousOrder = (order: MerchantOrder) => {
+    if (!order || !order.items || order.items.length === 0) return;
+    const newQuantities: Record<string, number> = {};
+    order.items.forEach((item) => {
+      const prod = orderableProducts.find(
+        (p) => p.id === item.productId || p.name.toLowerCase() === item.productName.toLowerCase()
+      );
+      if (prod) {
+        const sizes = getProductSizes(prod);
+        const matchedSize =
+          sizes.find(
+            (s) =>
+              item.packSize &&
+              (item.packSize.includes(s.shortName || '') || item.packSize.includes(s.name))
+          ) || sizes[0];
+        const key = `${prod.id}___${matchedSize.id}`;
+        newQuantities[key] = (newQuantities[key] || 0) + item.quantity;
+      }
+    });
+    setOrderQuantities(newQuantities);
+    setOrderNotice(
+      `⚡ Pre-filled ${Object.keys(newQuantities).length} item lines from Order #${order.orderNumber}. Adjust quantities as needed.`
+    );
+    setTimeout(() => setOrderNotice(null), 6000);
+  };
+
+  const handleSelectDeliveryPreset = (preset: 'tomorrow' | 'twoDays' | 'threeDays' | 'custom') => {
+    setDeliveryPreset(preset);
+    const now = Date.now();
+    if (preset === 'tomorrow') {
+      const d = new Date(now + 86400000);
+      setRequestedDeliveryDate(d.toISOString().split('T')[0]);
+    } else if (preset === 'twoDays') {
+      const d = new Date(now + 86400000 * 2);
+      setRequestedDeliveryDate(d.toISOString().split('T')[0]);
+    } else if (preset === 'threeDays') {
+      const d = new Date(now + 86400000 * 3);
+      setRequestedDeliveryDate(d.toISOString().split('T')[0]);
+    }
   };
 
   const handlePlaceOrderSubmit = async (e: React.FormEvent) => {
@@ -356,15 +445,20 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
         subtotal: orderSubtotal,
         vat: 0,
         total: orderTotal,
-        specialInstructions: orderNotes.trim(),
+        specialInstructions: [
+          orderNotes.trim(),
+          coldChainRequired ? 'Cold-Chain Refrigerated Transit Requested (-18°C / +4°C)' : '',
+        ]
+          .filter(Boolean)
+          .join(' | '),
       });
 
       setOrderQuantities({});
       setOrderNotes('');
+      setConfirmedOrder(created);
       setOrderSuccessBanner(
-        `🎉 Order #${created.orderNumber} successfully submitted! The bakery dispatch desk has received your order and triggered live push notifications.`
+        `🎉 Order #${created.orderNumber} successfully received! Live oven dispatch ticket generated.`
       );
-      setActiveTab('my-orders');
       setTimeout(() => setOrderSuccessBanner(null), 8000);
     } catch (err: any) {
       setOrderNotice(err?.message || 'Failed to submit order. Please try again or WhatsApp dispatch.');
@@ -625,41 +719,117 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
         </div>
 
         {/* ---------------------------------------------------- */}
-        {/* TAB 1: PLACE NEW ORDER (WITH PICK SIZE SELECTOR)     */}
+        {/* TAB 1: PLACE NEW ORDER (DUAL-VIEW & REFINED LEDGER)  */}
         {/* ---------------------------------------------------- */}
         {activeTab === 'place-order' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            {/* Left: Product Selector Grid */}
-            <div className="lg:col-span-8 space-y-4">
+            {/* Left: Product Catalog & Fast Ordering */}
+            <div className="lg:col-span-8 space-y-5">
+              {/* 1. Quick Re-order Banner (if previous order exists) */}
+              {latestPreviousOrder && (
+                <div className="p-4 sm:p-5 rounded-3xl bg-linear-to-r from-[#2B150A] via-[#3A1E10] to-[#2B150A] text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-md border border-[#DE9E74]/20 relative overflow-hidden">
+                  <div className="absolute right-0 top-0 bottom-0 w-48 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[#CC8468]/15 via-transparent to-transparent pointer-events-none" />
+                  <div className="flex items-center gap-3.5 relative z-10">
+                    <div className="w-11 h-11 rounded-2xl bg-[#CC8468]/20 border border-[#CC8468]/40 flex items-center justify-center shrink-0">
+                      <RotateCcw className="w-5 h-5 text-[#DE9E74]" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#DE9E74]">
+                          Instant Standing Re-Order
+                        </span>
+                        <span className="text-white/40">·</span>
+                        <span className="text-xs font-mono text-white/90 font-semibold">
+                          #{latestPreviousOrder.orderNumber}
+                        </span>
+                      </div>
+                      <p className="text-xs text-white/80 mt-0.5">
+                        Repeat order from {new Date(latestPreviousOrder.createdAt).toLocaleDateString()} ({latestPreviousOrder.items?.length || 0} items · <span className="font-mono font-bold text-white">R {latestPreviousOrder.total?.toFixed(2)}</span>)
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleRepeatPreviousOrder(latestPreviousOrder)}
+                    className="relative z-10 px-4 py-2.5 rounded-xl bg-[#CC8468] hover:bg-[#DE9E74] text-[#1E0F07] font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer shrink-0 shadow-sm hover:scale-[1.02]"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Pre-Fill This Order</span>
+                  </button>
+                </div>
+              )}
+
+              {/* 2. Catalog Card Header & Filters */}
               <div className="bg-white rounded-3xl border border-[#E8D9CD] p-6 shadow-sm space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#E8D9CD]">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#E8D9CD]">
                   <div>
-                    <h2 className="font-serif text-xl sm:text-2xl font-bold text-[#2B150A]">
-                      Bakery Wholesale Order Catalog
-                    </h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="font-serif text-xl sm:text-2xl font-bold text-[#2B150A]">
+                        Artisanal Wholesale Order Desk
+                      </h2>
+                      <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        Live Oven Queue
+                      </span>
+                    </div>
                     <p className="text-xs text-[#66483B] mt-0.5">
-                      Select your desired bakery product, pick your exact packaging size & dimension, and set wholesale pack quantities.
+                      Direct bakery dispatch with temp-controlled cold chain logistics across South Africa.
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold px-3 py-1 rounded-full bg-[#EAD8C6] text-[#75412E] border border-[#BD896E]/30">
-                      100% Halal Certified Kitchen
-                    </span>
+                  {/* View Mode Switcher: Cards vs Matrix */}
+                  <div className="flex items-center gap-2 shrink-0 self-start md:self-center">
+                    <div className="flex items-center bg-[#FBF7F1] p-1 rounded-2xl border border-[#BD896E]/30">
+                      <button
+                        type="button"
+                        onClick={() => setCatalogLayout('cards')}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          catalogLayout === 'cards'
+                            ? 'bg-[#2B150A] text-white shadow-xs'
+                            : 'text-[#66483B] hover:text-[#1E0F07]'
+                        }`}
+                        title="Visual product cards view"
+                      >
+                        <LayoutGrid className="w-3.5 h-3.5" />
+                        <span>Visual Cards</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCatalogLayout('matrix')}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          catalogLayout === 'matrix'
+                            ? 'bg-[#2B150A] text-white shadow-xs'
+                            : 'text-[#66483B] hover:text-[#1E0F07]'
+                        }`}
+                        title="Express tabular matrix for high-speed commercial procurement"
+                      >
+                        <TableProperties className="w-3.5 h-3.5" />
+                        <span>Express Matrix</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
 
                 {/* Search & Category Filter Bar */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
                   <div className="relative flex-1">
-                    <Search className="w-4 h-4 text-[#8D5037] absolute left-3 top-1/2 -translate-y-1/2" />
+                    <Search className="w-4 h-4 text-[#8D5037] absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
-                      placeholder="Search bakery products, dimensions, or pack sizes..."
+                      placeholder="Search bakery items, sizes, or pack specs..."
                       value={catalogSearch}
                       onChange={(e) => setCatalogSearch(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#FBF7F1] border border-[#BD896E]/30 text-xs text-[#2B150A] focus:outline-hidden focus:border-[#CC8468]"
+                      className="w-full pl-10 pr-3 py-2.5 rounded-xl bg-[#FBF7F1] border border-[#BD896E]/30 text-xs text-[#2B150A] placeholder-[#8D5037]/60 focus:outline-hidden focus:border-[#CC8468] transition-colors"
                     />
+                    {catalogSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setCatalogSearch('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
@@ -668,9 +838,9 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                         key={cat}
                         type="button"
                         onClick={() => setCatalogCategory(cat)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                        className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                           catalogCategory === cat
-                            ? 'bg-[#CC8468] text-[#1E0F07]'
+                            ? 'bg-[#CC8468] text-[#1E0F07] shadow-xs'
                             : 'bg-[#FBF7F1] text-[#66483B] hover:text-[#1E0F07]'
                         }`}
                       >
@@ -687,175 +857,195 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                       <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
                       <span>{orderNotice}</span>
                     </div>
-                    <button onClick={() => setOrderNotice(null)} className="text-amber-700 hover:text-amber-900">
+                    <button onClick={() => setOrderNotice(null)} className="text-amber-700 hover:text-amber-900 cursor-pointer">
                       <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 )}
 
-                {/* Product List with Pick Size */}
-                <div className="divide-y divide-[#E8D9CD]/60 mt-2">
-                  {filteredCatalogProducts.length === 0 ? (
-                    <div className="py-12 text-center text-xs text-[#7A6458] space-y-2">
-                      <Package className="w-10 h-10 text-stone-300 mx-auto" />
-                      <p>No products match your search or filter.</p>
-                      <button
-                        onClick={() => {
-                          setCatalogSearch('');
-                          setCatalogCategory('ALL');
-                        }}
-                        className="text-xs font-bold text-[#8D5037] underline"
-                      >
-                        Clear filters
-                      </button>
-                    </div>
-                  ) : (
-                    filteredCatalogProducts.map((prod) => {
-                      const sizes = getProductSizes(prod);
-                      const activeSize = getSelectedSizeForProduct(prod);
-                      const curQtyForActiveSize = orderQuantities[`${prod.id}___${activeSize.id}`] || 0;
-                      const showAllSizes = showAllSizesMap[prod.id] || false;
-
-                      // Count total quantity across all sizes for this product
-                      const totalProdQty = sizes.reduce(
-                        (acc, s) => acc + (orderQuantities[`${prod.id}___${s.id}`] || 0),
-                        0
-                      );
-
-                      return (
-                        <div
-                          key={prod.id}
-                          className="py-5 space-y-3.5 hover:bg-[#FBF7F1]/40 p-3 rounded-2xl transition-colors"
+                {/* ---------------------------------------------------- */}
+                {/* VIEW A: VISUAL CARDS VIEW                            */}
+                {/* ---------------------------------------------------- */}
+                {catalogLayout === 'cards' && (
+                  <div className="space-y-4 pt-2">
+                    {filteredCatalogProducts.length === 0 ? (
+                      <div className="py-12 text-center text-xs text-[#7A6458] space-y-2">
+                        <Package className="w-10 h-10 text-stone-300 mx-auto" />
+                        <p>No products match your search or filter.</p>
+                        <button
+                          onClick={() => {
+                            setCatalogSearch('');
+                            setCatalogCategory('ALL');
+                          }}
+                          className="text-xs font-bold text-[#8D5037] underline cursor-pointer"
                         >
-                          {/* Product Header */}
-                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                            <div className="flex items-start gap-3.5">
-                              <div className="w-14 h-14 rounded-2xl bg-[#EAD8C6]/50 border border-[#BD896E]/30 flex items-center justify-center p-2 shrink-0">
-                                <Package className="w-7 h-7 text-[#8D5037]" />
-                              </div>
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <h3 className="font-serif text-base font-bold text-[#2B150A]">
-                                    {prod.name}
-                                  </h3>
-                                  {prod.badge && (
-                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#CC8468]/20 text-[#8D5037] font-semibold">
-                                      {prod.badge}
+                          Clear filters
+                        </button>
+                      </div>
+                    ) : (
+                      filteredCatalogProducts.map((prod) => {
+                        const sizes = getProductSizes(prod);
+                        const activeSize = getSelectedSizeForProduct(prod);
+                        const curQtyForActiveSize = orderQuantities[`${prod.id}___${activeSize.id}`] || 0;
+                        const prodImg = getProductImage(prod);
+
+                        // Total count across all sizes for this product
+                        const totalProdQty = sizes.reduce(
+                          (acc, s) => acc + (orderQuantities[`${prod.id}___${s.id}`] || 0),
+                          0
+                        );
+
+                        return (
+                          <div
+                            key={prod.id}
+                            className="p-4 sm:p-5 rounded-3xl bg-[#FBF7F1]/50 border border-[#E8D9CD] hover:border-[#CC8468]/50 transition-all space-y-4"
+                          >
+                            {/* Product Header */}
+                            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                              <div className="flex items-start gap-4">
+                                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white border border-[#BD896E]/30 p-2 shrink-0 flex items-center justify-center overflow-hidden shadow-2xs group">
+                                  <img
+                                    src={prodImg}
+                                    alt={prod.name}
+                                    className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
+                                    onError={(e) => {
+                                      (e.currentTarget as HTMLImageElement).src = '/showcase/savoure-logo.png';
+                                    }}
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <h3 className="font-serif text-base sm:text-lg font-bold text-[#2B150A]">
+                                      {prod.name}
+                                    </h3>
+                                    {prod.badge && (
+                                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#CC8468]/20 text-[#8D5037] font-semibold">
+                                        {prod.badge}
+                                      </span>
+                                    )}
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#EAD8C6] text-[#75412E] font-medium">
+                                      {prod.category}
                                     </span>
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 font-medium">
+                                      100% Halal
+                                    </span>
+                                  </div>
+                                  {prod.description && (
+                                    <p className="text-xs text-[#66483B] line-clamp-2 max-w-xl">
+                                      {prod.description}
+                                    </p>
                                   )}
-                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#EAD8C6] text-[#75412E] font-medium">
-                                    {prod.category}
+                                  <div className="text-[11px] text-[#7A6458]">
+                                    Dimensions: <strong className="text-[#2B150A] font-semibold">{prod.physicalSize || activeSize.dimensions}</strong> · Pack: <strong className="text-[#2B150A] font-semibold">{prod.packSize || activeSize.packSpec}</strong>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Cart status badge */}
+                              {totalProdQty > 0 && (
+                                <div className="self-start sm:self-center shrink-0">
+                                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold font-mono shadow-2xs">
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>{totalProdQty} packs in order</span>
                                   </span>
                                 </div>
-                                {prod.description && (
-                                  <p className="text-xs text-[#66483B] max-w-xl line-clamp-2">
-                                    {prod.description}
-                                  </p>
-                                )}
-                              </div>
+                              )}
                             </div>
 
-                            {/* Badge if already added to cart */}
-                            {totalProdQty > 0 && (
-                              <div className="self-start sm:self-center shrink-0">
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold font-mono">
-                                  <Check className="w-3.5 h-3.5" />
-                                  <span>{totalProdQty} in order</span>
-                                </span>
+                            {/* Size Selection Chips */}
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-[#75412E]">
+                                <span>1. Select Size & Specification:</span>
+                                <span className="text-[#8D5037] font-normal lowercase">click to switch active packaging</span>
                               </div>
-                            )}
-                          </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                                {sizes.map((size) => {
+                                  const isSelected = activeSize.id === size.id;
+                                  const sizeInCart = orderQuantities[`${prod.id}___${size.id}`] || 0;
 
-                          {/* -------------------------------------------------- */}
-                          {/* PICK SIZE SELECTOR (Clear dimensions & specifications) */}
-                          {/* -------------------------------------------------- */}
-                          <div className="bg-[#FBF7F1] p-3.5 rounded-2xl border border-[#BD896E]/30 space-y-2.5">
-                            <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-[#75412E]">
-                              <div className="flex items-center gap-1.5">
-                                <SlidersHorizontal className="w-3.5 h-3.5 text-[#8D5037]" />
-                                <span>Pick Size & Packaging Specification:</span>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => toggleShowAllSizes(prod.id)}
-                                className="text-[10px] text-[#8D5037] hover:underline flex items-center gap-1 cursor-pointer font-semibold lowercase"
-                              >
-                                {showAllSizes ? 'Collapse sizes view' : 'Quick multi-size table'}
-                              </button>
-                            </div>
-
-                            {/* Visual Size Selection Options */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
-                              {sizes.map((size) => {
-                                const isSelected = activeSize.id === size.id;
-                                const sizeInCart = orderQuantities[`${prod.id}___${size.id}`] || 0;
-
-                                return (
-                                  <button
-                                    key={size.id}
-                                    type="button"
-                                    onClick={() => handleSelectSize(prod.id, size.id)}
-                                    className={`p-2.5 rounded-xl text-left transition-all cursor-pointer border relative flex flex-col justify-between ${
-                                      isSelected
-                                        ? 'bg-white border-[#CC8468] ring-2 ring-[#CC8468]/30 shadow-xs'
-                                        : 'bg-white/80 border-[#BD896E]/20 hover:border-[#CC8468]/60 hover:bg-white'
-                                    }`}
-                                  >
-                                    <div>
-                                      <div className="flex items-center justify-between gap-1">
-                                        <span className="font-bold text-xs text-[#1E0F07]">
-                                          {size.shortName || size.name}
-                                        </span>
-                                        {size.badge && (
-                                          <span className="text-[9px] px-1.5 py-0.2 rounded-full font-semibold bg-[#EAD8C6] text-[#75412E]">
-                                            {size.badge}
+                                  return (
+                                    <button
+                                      key={size.id}
+                                      type="button"
+                                      onClick={() => handleSelectSize(prod.id, size.id)}
+                                      className={`p-3 rounded-2xl text-left transition-all cursor-pointer border flex flex-col justify-between ${
+                                        isSelected
+                                          ? 'bg-white border-[#CC8468] ring-2 ring-[#CC8468]/30 shadow-xs'
+                                          : 'bg-white/70 border-[#BD896E]/20 hover:border-[#CC8468]/60 hover:bg-white'
+                                      }`}
+                                    >
+                                      <div>
+                                        <div className="flex items-center justify-between gap-1">
+                                          <span className="font-bold text-xs text-[#1E0F07]">
+                                            {size.shortName || size.name}
                                           </span>
-                                        )}
+                                          {size.badge && (
+                                            <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold bg-[#EAD8C6] text-[#75412E]">
+                                              {size.badge}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="text-[10px] text-[#7A6458] mt-1 space-y-0.5">
+                                          <div>{size.dimensions}</div>
+                                          <div className="text-[#8D5037]">{size.packSpec}</div>
+                                        </div>
                                       </div>
 
-                                      <div className="text-[10px] text-[#7A6458] mt-1 space-y-0.5">
-                                        <div className="font-semibold text-[#66483B]">{size.dimensions}</div>
-                                        <div className="text-[10px] text-[#8D5037]">{size.packSpec}</div>
-                                      </div>
-                                    </div>
-
-                                    <div className="mt-2 pt-1.5 border-t border-[#E8D9CD] flex items-center justify-between">
-                                      <span className="font-mono font-bold text-xs text-[#1E0F07]">
-                                        R {size.price.toFixed(2)}
-                                      </span>
-                                      {sizeInCart > 0 ? (
-                                        <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded-md">
-                                          {sizeInCart} in cart
+                                      <div className="mt-2 pt-2 border-t border-[#E8D9CD] flex items-center justify-between">
+                                        <span className="font-mono font-bold text-xs text-[#1E0F07]">
+                                          R {size.price.toFixed(2)}
                                         </span>
-                                      ) : isSelected ? (
-                                        <span className="text-[10px] text-[#CC8468] font-bold">Selected</span>
-                                      ) : null}
-                                    </div>
-                                  </button>
-                                );
-                              })}
+                                        {sizeInCart > 0 ? (
+                                          <span className="text-[10px] font-mono font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md">
+                                            {sizeInCart} added
+                                          </span>
+                                        ) : isSelected ? (
+                                          <span className="text-[10px] font-bold text-[#CC8468]">Selected</span>
+                                        ) : null}
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
                             </div>
 
-                            {/* Active Size Details & Direct Quantity Counter */}
-                            <div className="pt-2 border-t border-[#BD896E]/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/70 p-3 rounded-xl">
+                            {/* Active Size Stepper & Quick-Case Adds */}
+                            <div className="pt-3 border-t border-[#BD896E]/20 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl">
                               <div className="space-y-0.5">
                                 <div className="text-xs text-[#1E0F07]">
-                                  Selected Size: <strong className="font-bold text-[#8D5037]">{activeSize.name}</strong>
+                                  Active Specification: <strong className="font-bold text-[#8D5037]">{activeSize.name}</strong>
                                 </div>
                                 <div className="text-[11px] text-[#7A6458]">
-                                  Specification: <span className="font-medium">{activeSize.dimensions}</span> · <span>{activeSize.packSpec}</span> · <span className="font-mono font-bold text-emerald-800">R {activeSize.price.toFixed(2)} / pack</span>
+                                  {activeSize.dimensions} · {activeSize.packSpec} · <span className="font-mono font-bold text-emerald-800">R {activeSize.price.toFixed(2)} / pack</span>
                                 </div>
                               </div>
 
-                              {/* Direct Quantity Counter */}
-                              <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                              <div className="flex flex-wrap items-center gap-2.5 self-end md:self-center">
+                                {/* Quick Case Add Buttons */}
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[10px] uppercase font-bold text-[#75412E] mr-1 hidden sm:inline">
+                                    Quick Case:
+                                  </span>
+                                  {[5, 10, 25].map((amt) => (
+                                    <button
+                                      key={amt}
+                                      type="button"
+                                      onClick={() => handleQuickAddQty(prod.id, activeSize.id, amt)}
+                                      className="px-2.5 py-1 rounded-xl bg-[#FBF7F1] hover:bg-[#EAD8C6] border border-[#BD896E]/30 text-[11px] font-mono font-bold text-[#75412E] cursor-pointer transition-colors"
+                                      title={`Add ${amt} packs`}
+                                    >
+                                      +{amt}
+                                    </button>
+                                  ))}
+                                </div>
+
+                                {/* Stepper */}
                                 <div className="flex items-center border border-[#BD896E]/40 rounded-full bg-white p-1 shadow-2xs">
                                   <button
                                     type="button"
                                     onClick={() => handleQtyChange(prod.id, activeSize.id, -1)}
                                     disabled={curQtyForActiveSize === 0}
                                     className="w-8 h-8 rounded-full flex items-center justify-center text-[#2B150A] hover:bg-[#EAD8C6] disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer transition-colors"
-                                    title="Decrease quantity"
                                   >
                                     <Minus className="w-3.5 h-3.5" />
                                   </button>
@@ -866,7 +1056,6 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                                     type="button"
                                     onClick={() => handleQtyChange(prod.id, activeSize.id, 1)}
                                     className="w-8 h-8 rounded-full flex items-center justify-center bg-[#CC8468] hover:bg-[#B86643] text-white cursor-pointer transition-colors shadow-2xs"
-                                    title="Increase quantity"
                                   >
                                     <Plus className="w-3.5 h-3.5" />
                                   </button>
@@ -877,90 +1066,147 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                                 </div>
                               </div>
                             </div>
-
-                            {/* Optional All-Sizes Multi-Quantity Table */}
-                            {showAllSizes && (
-                              <div className="mt-2 pt-2 border-t border-[#BD896E]/30 overflow-x-auto animate-fade-in">
-                                <table className="w-full text-left text-xs border-collapse">
-                                  <thead>
-                                    <tr className="text-[10px] text-[#75412E] font-bold uppercase border-b border-[#E8D9CD]">
-                                      <th className="py-1.5 px-2">Size Option</th>
-                                      <th className="py-1.5 px-2">Dimensions & Pack Specification</th>
-                                      <th className="py-1.5 px-2 text-right">Price</th>
-                                      <th className="py-1.5 px-2 text-center">Quantity</th>
-                                      <th className="py-1.5 px-2 text-right">Subtotal</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-[#E8D9CD]/50">
-                                    {sizes.map((s) => {
-                                      const q = orderQuantities[`${prod.id}___${s.id}`] || 0;
-                                      return (
-                                        <tr key={s.id} className="hover:bg-white/60">
-                                          <td className="py-2 px-2 font-semibold text-[#1E0F07]">
-                                            {s.name}
-                                          </td>
-                                          <td className="py-2 px-2 text-[#66483B]">
-                                            {s.dimensions} · {s.packSpec}
-                                          </td>
-                                          <td className="py-2 px-2 text-right font-mono text-[#1E0F07]">
-                                            R {s.price.toFixed(2)}
-                                          </td>
-                                          <td className="py-2 px-2 text-center">
-                                            <div className="inline-flex items-center border border-[#BD896E]/30 rounded-full bg-white px-1 py-0.5">
-                                              <button
-                                                type="button"
-                                                onClick={() => handleQtyChange(prod.id, s.id, -1)}
-                                                disabled={q === 0}
-                                                className="w-5 h-5 flex items-center justify-center text-xs disabled:opacity-30"
-                                              >
-                                                -
-                                              </button>
-                                              <span className="w-8 text-center font-mono font-bold text-xs">{q}</span>
-                                              <button
-                                                type="button"
-                                                onClick={() => handleQtyChange(prod.id, s.id, 1)}
-                                                className="w-5 h-5 flex items-center justify-center text-xs text-[#CC8468] font-bold"
-                                              >
-                                                +
-                                              </button>
-                                            </div>
-                                          </td>
-                                          <td className="py-2 px-2 text-right font-mono font-bold text-[#1E0F07]">
-                                            R {(q * s.price).toFixed(2)}
-                                          </td>
-                                        </tr>
-                                      );
-                                    })}
-                                  </tbody>
-                                </table>
-                              </div>
-                            )}
                           </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+
+                {/* ---------------------------------------------------- */}
+                {/* VIEW B: EXPRESS WHOLESALE MATRIX                     */}
+                {/* ---------------------------------------------------- */}
+                {catalogLayout === 'matrix' && (
+                  <div className="overflow-x-auto pt-2">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="border-b border-[#E8D9CD] text-[10px] font-bold uppercase tracking-wider text-[#75412E] bg-[#FBF7F1]/60">
+                          <th className="py-3 px-3">Product</th>
+                          <th className="py-3 px-3">Size & Dimension</th>
+                          <th className="py-3 px-3">Pack Spec</th>
+                          <th className="py-3 px-3 text-right">Unit Price</th>
+                          <th className="py-3 px-3 text-center">Quick Case</th>
+                          <th className="py-3 px-3 text-center">Order Qty</th>
+                          <th className="py-3 px-3 text-right">Line Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#E8D9CD]/50">
+                        {filteredCatalogProducts.flatMap((prod) => {
+                          const sizes = getProductSizes(prod);
+                          const prodImg = getProductImage(prod);
+
+                          return sizes.map((size, idx) => {
+                            const itemKey = `${prod.id}___${size.id}`;
+                            const qty = orderQuantities[itemKey] || 0;
+
+                            return (
+                              <tr
+                                key={itemKey}
+                                className={`hover:bg-[#FBF7F1]/60 transition-colors ${
+                                  qty > 0 ? 'bg-amber-50/40' : ''
+                                }`}
+                              >
+                                <td className="py-3 px-3 font-medium text-[#2B150A]">
+                                  <div className="flex items-center gap-2.5">
+                                    {idx === 0 ? (
+                                      <img
+                                        src={prodImg}
+                                        alt={prod.name}
+                                        className="w-8 h-8 rounded-lg object-contain bg-white border border-[#BD896E]/20 p-0.5 shrink-0"
+                                      />
+                                    ) : (
+                                      <div className="w-8 h-8" />
+                                    )}
+                                    <div>
+                                      <div className="font-semibold text-xs text-[#2B150A]">
+                                        {prod.name}
+                                      </div>
+                                      {idx === 0 && (
+                                        <div className="text-[10px] text-[#7A6458]">
+                                          {prod.category}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-3">
+                                  <div className="font-semibold text-xs text-[#1E0F07]">
+                                    {size.shortName || size.name}
+                                  </div>
+                                  <div className="text-[10px] text-[#8D5037]">{size.dimensions}</div>
+                                </td>
+                                <td className="py-3 px-3 text-[#66483B] text-[11px]">
+                                  {size.packSpec}
+                                </td>
+                                <td className="py-3 px-3 text-right font-mono font-semibold text-[#1E0F07]">
+                                  R {size.price.toFixed(2)}
+                                </td>
+                                <td className="py-3 px-3 text-center">
+                                  <div className="inline-flex items-center gap-1">
+                                    {[5, 10, 25].map((amt) => (
+                                      <button
+                                        key={amt}
+                                        type="button"
+                                        onClick={() => handleQuickAddQty(prod.id, size.id, amt)}
+                                        className="px-2 py-0.5 rounded-lg bg-white hover:bg-[#EAD8C6] border border-[#BD896E]/30 text-[10px] font-mono font-bold text-[#75412E] cursor-pointer"
+                                      >
+                                        +{amt}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </td>
+                                <td className="py-3 px-3 text-center">
+                                  <div className="inline-flex items-center border border-[#BD896E]/40 rounded-full bg-white px-1 py-0.5 shadow-2xs">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleQtyChange(prod.id, size.id, -1)}
+                                      disabled={qty === 0}
+                                      className="w-5 h-5 flex items-center justify-center text-xs text-[#2B150A] disabled:opacity-30 cursor-pointer"
+                                    >
+                                      -
+                                    </button>
+                                    <span className="w-8 text-center font-mono font-bold text-xs">{qty}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleQtyChange(prod.id, size.id, 1)}
+                                      className="w-5 h-5 flex items-center justify-center text-xs text-[#CC8468] font-bold cursor-pointer"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-3 text-right font-mono font-bold text-[#2B150A]">
+                                  R {(qty * size.price).toFixed(2)}
+                                </td>
+                              </tr>
+                            );
+                          });
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Right: Order Summary & Checkout Card */}
+            {/* Right: Sticky Wholesale Order Ledger & Dispatch Form */}
             <div className="lg:col-span-4 bg-white rounded-3xl border border-[#E8D9CD] p-6 shadow-sm sticky top-28 space-y-5">
               <div className="flex items-center justify-between pb-3 border-b border-[#E8D9CD]">
                 <h3 className="font-serif text-lg font-bold text-[#2B150A] flex items-center gap-2">
                   <ShoppingBag className="w-4 h-4 text-[#CC8468]" />
-                  <span>Order Summary</span>
+                  <span>Wholesale Order Ledger</span>
                 </h3>
-                <span className="text-xs font-mono font-bold text-[#8D5037]">
-                  {selectedOrderItems.length} {selectedOrderItems.length === 1 ? 'size line' : 'size lines'}
+                <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-[#EAD8C6] text-[#75412E]">
+                  {selectedOrderItems.length} lines · {totalPackCount} packs
                 </span>
               </div>
 
+              {/* Items List */}
               {selectedOrderItems.length === 0 ? (
                 <div className="py-8 text-center text-xs text-[#7A6458] space-y-2">
                   <Package className="w-10 h-10 text-stone-300 mx-auto" />
-                  <p>Your order is empty.</p>
-                  <p className="text-[11px] text-[#A69385]">Pick a size on any product and add packs.</p>
+                  <p className="font-semibold text-[#2B150A]">Your order ledger is empty.</p>
+                  <p className="text-[11px] text-[#A69385]">Pick your packaging size and click + to add wholesale cases.</p>
                 </div>
               ) : (
                 <div className="space-y-3 max-h-64 overflow-y-auto pr-1 divide-y divide-[#FBF7F1]">
@@ -972,15 +1218,24 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                     const sizes = getProductSizes(prod);
                     const size = sizes.find((s) => s.id === sizeId) || sizes.find((s) => s.isDefault) || sizes[0];
                     const unitPrice = size ? size.price : (prod.unitPrice || 35.00);
+                    const prodImg = getProductImage(prod);
 
                     return (
-                      <div key={itemKey} className="pt-2 text-xs flex items-start justify-between gap-2">
-                        <div className="space-y-0.5 flex-1">
-                          <div className="font-semibold text-[#2B150A] leading-tight">
+                      <div key={itemKey} className="pt-2.5 text-xs flex items-start justify-between gap-2.5">
+                        <img
+                          src={prodImg}
+                          alt={prod.name}
+                          className="w-9 h-9 rounded-xl object-contain bg-[#FBF7F1] border border-[#BD896E]/20 p-0.5 shrink-0"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).src = '/showcase/savoure-logo.png';
+                          }}
+                        />
+                        <div className="space-y-0.5 flex-1 min-w-0">
+                          <div className="font-semibold text-[#2B150A] truncate leading-tight">
                             {prod.name}
                           </div>
-                          <div className="text-[11px] text-[#8D5037] font-medium font-mono">
-                            Size: {size?.name || 'Standard'} ({size?.dimensions})
+                          <div className="text-[11px] text-[#8D5037] font-medium font-mono truncate">
+                            {size?.shortName || size?.name} ({size?.dimensions})
                           </div>
                           <div className="text-[10px] text-[#7A6458]">
                             {qty} × R {unitPrice.toFixed(2)} / pack
@@ -1023,66 +1278,144 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                 </div>
               )}
 
-              {/* Delivery Settings & Checkout Form */}
+              {/* Delivery Settings & Schedule Presets */}
               <form onSubmit={handlePlaceOrderSubmit} className="space-y-4 pt-3 border-t border-[#E8D9CD]">
+                {/* Schedule Presets */}
                 <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-[#75412E] mb-1">
-                    Requested Delivery Date
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-[#75412E] mb-1.5 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-[#8D5037]" />
+                    <span>Requested Delivery Schedule</span>
                   </label>
-                  <div className="relative">
-                    <Calendar className="w-4 h-4 text-[#8D5037] absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="date"
-                      required
-                      value={requestedDeliveryDate}
-                      onChange={(e) => setRequestedDeliveryDate(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#FBF7F1] border border-[#BD896E]/30 text-xs text-[#2B150A] focus:outline-hidden focus:border-[#CC8468]"
-                    />
+                  <div className="grid grid-cols-2 gap-1.5 mb-2">
+                    <button
+                      type="button"
+                      onClick={() => handleSelectDeliveryPreset('tomorrow')}
+                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-semibold text-center border cursor-pointer transition-colors ${
+                        deliveryPreset === 'tomorrow'
+                          ? 'bg-[#2B150A] text-white border-[#2B150A]'
+                          : 'bg-[#FBF7F1] text-[#66483B] border-[#BD896E]/20 hover:bg-[#EAD8C6]'
+                      }`}
+                    >
+                      Tomorrow Morning
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectDeliveryPreset('twoDays')}
+                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-semibold text-center border cursor-pointer transition-colors ${
+                        deliveryPreset === 'twoDays'
+                          ? 'bg-[#2B150A] text-white border-[#2B150A]'
+                          : 'bg-[#FBF7F1] text-[#66483B] border-[#BD896E]/20 hover:bg-[#EAD8C6]'
+                      }`}
+                    >
+                      In 2 Days
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectDeliveryPreset('threeDays')}
+                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-semibold text-center border cursor-pointer transition-colors ${
+                        deliveryPreset === 'threeDays'
+                          ? 'bg-[#2B150A] text-white border-[#2B150A]'
+                          : 'bg-[#FBF7F1] text-[#66483B] border-[#BD896E]/20 hover:bg-[#EAD8C6]'
+                      }`}
+                    >
+                      In 3 Days
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectDeliveryPreset('custom')}
+                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-semibold text-center border cursor-pointer transition-colors ${
+                        deliveryPreset === 'custom'
+                          ? 'bg-[#2B150A] text-white border-[#2B150A]'
+                          : 'bg-[#FBF7F1] text-[#66483B] border-[#BD896E]/20 hover:bg-[#EAD8C6]'
+                      }`}
+                    >
+                      Custom Date
+                    </button>
                   </div>
+
+                  <input
+                    type="date"
+                    required
+                    value={requestedDeliveryDate}
+                    onChange={(e) => {
+                      setRequestedDeliveryDate(e.target.value);
+                      setDeliveryPreset('custom');
+                    }}
+                    className="w-full px-3 py-2 rounded-xl bg-[#FBF7F1] border border-[#BD896E]/30 text-xs text-[#2B150A] focus:outline-hidden focus:border-[#CC8468]"
+                  />
                 </div>
 
+                {/* Delivery Location */}
                 <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-[#75412E] mb-1">
-                    Delivery / Drop-Off Location
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-[#75412E] mb-1 flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-[#8D5037]" />
+                    <span>Store Delivery Location</span>
                   </label>
-                  <div className="relative">
-                    <MapPin className="w-4 h-4 text-[#8D5037] absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      required
-                      value={deliveryAddress}
-                      onChange={(e) => setDeliveryAddress(e.target.value)}
-                      placeholder="Enter store or kitchen address"
-                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#FBF7F1] border border-[#BD896E]/30 text-xs text-[#2B150A] focus:outline-hidden focus:border-[#CC8468]"
-                    />
-                  </div>
+                  <input
+                    type="text"
+                    required
+                    value={deliveryAddress}
+                    onChange={(e) => setDeliveryAddress(e.target.value)}
+                    placeholder="Enter commercial branch or kitchen address"
+                    className="w-full px-3 py-2 rounded-xl bg-[#FBF7F1] border border-[#BD896E]/30 text-xs text-[#2B150A] focus:outline-hidden focus:border-[#CC8468]"
+                  />
                 </div>
 
+                {/* Cold-Chain Fleet Delivery Toggle */}
+                <div className="p-3 rounded-2xl bg-[#FBF7F1] border border-[#BD896E]/30 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Truck className="w-4 h-4 text-[#CC8468] shrink-0" />
+                    <div>
+                      <div className="text-xs font-bold text-[#2B150A]">
+                        Refrigerated Cold Chain (-18°C / +4°C)
+                      </div>
+                      <div className="text-[10px] text-[#7A6458]">
+                        Nationwide dedicated temp-controlled fleet
+                      </div>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={coldChainRequired}
+                    onChange={(e) => setColdChainRequired(e.target.checked)}
+                    className="w-4 h-4 text-[#CC8468] rounded accent-[#CC8468] cursor-pointer"
+                  />
+                </div>
+
+                {/* Special Bakery Instructions */}
                 <div>
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-[#75412E] mb-1">
-                    Special Bakery Instructions (Optional)
+                    Special Bakery / Oven Instructions (Optional)
                   </label>
                   <textarea
                     rows={2}
                     value={orderNotes}
                     onChange={(e) => setOrderNotes(e.target.value)}
-                    placeholder="e.g. Please pack in double insulated cold crate..."
+                    placeholder="e.g. Early morning receiving, please pack in double insulated cold crate..."
                     className="w-full px-3 py-2 rounded-xl bg-[#FBF7F1] border border-[#BD896E]/30 text-xs text-[#2B150A] focus:outline-hidden focus:border-[#CC8468]"
                   />
                 </div>
 
-                {/* Subtotal & Total */}
+                {/* Transparent Ledger Breakdown & Zero-Rated VAT */}
                 <div className="pt-3 border-t border-[#E8D9CD] space-y-1.5 text-xs">
                   <div className="flex justify-between text-[#66483B]">
-                    <span>Items Subtotal</span>
-                    <span className="font-mono font-semibold">R {orderSubtotal.toFixed(2)}</span>
+                    <span>Total Packs / Cases</span>
+                    <span className="font-mono font-semibold">{totalPackCount} packs</span>
                   </div>
                   <div className="flex justify-between text-[#66483B]">
-                    <span>Delivery (Cold Chain Nationwide)</span>
-                    <span className="font-mono text-emerald-700 font-semibold">Included</span>
+                    <span>Estimated Wholesale Weight</span>
+                    <span className="font-mono font-semibold">~{estimatedWholesaleWeightKg} kg</span>
+                  </div>
+                  <div className="flex justify-between text-[#66483B]">
+                    <span>Cold-Chain Delivery</span>
+                    <span className="font-mono text-emerald-700 font-semibold">Included (Free)</span>
+                  </div>
+                  <div className="flex justify-between text-[#66483B]">
+                    <span>VAT (0% - Staple Food Exemption)</span>
+                    <span className="font-mono font-semibold text-emerald-700">R 0.00 (Zero-Rated)</span>
                   </div>
                   <div className="flex justify-between text-base font-serif font-bold text-[#2B150A] pt-2 border-t border-[#E8D9CD]">
-                    <span>Estimated Total</span>
+                    <span>Total Order Amount</span>
                     <span className="font-mono text-[#8D5037]">R {orderTotal.toFixed(2)}</span>
                   </div>
                 </div>
@@ -1093,12 +1426,17 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                   className="w-full py-3.5 rounded-full bg-[#CC8468] hover:bg-[#B86643] disabled:opacity-50 text-white font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm hover:-translate-y-0.5"
                 >
                   <Send className="w-4 h-4" />
-                  <span>{isSubmittingOrder ? 'Submitting Order...' : 'Submit Order to Bakery Dispatch'}</span>
+                  <span>
+                    {isSubmittingOrder
+                      ? 'Submitting to Live Oven Queue...'
+                      : `Submit Order (R ${orderTotal.toFixed(2)})`}
+                  </span>
                 </button>
 
-                <p className="text-[10px] text-center text-[#8D5037] leading-relaxed">
-                  🔔 Submitting triggers instant real-time push alerts to the bakery oven dispatch desk.
-                </p>
+                <div className="flex items-center justify-center gap-1.5 text-[10px] text-[#8D5037]">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Submitting transmits directly to the bakery oven dispatch queue</span>
+                </div>
               </form>
             </div>
           </div>
@@ -1525,6 +1863,159 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
               >
                 Confirm & Submit POD
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Order Confirmation Receipt Modal */}
+      {confirmedOrder && (
+        <div className="fixed inset-0 bg-black/65 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 space-y-6 shadow-2xl border border-[#E8D9CD] max-h-[92vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-start justify-between pb-4 border-b border-[#E8D9CD]">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-[#FBF7F1] border border-[#BD896E]/30 p-2 flex items-center justify-center shrink-0">
+                  <img
+                    src="/showcase/savoure-logo.png"
+                    alt="Savouré Logo"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                      Oven Queue Enqueued
+                    </span>
+                    <span className="text-xs font-mono font-bold text-[#8D5037]">
+                      #{confirmedOrder.orderNumber}
+                    </span>
+                  </div>
+                  <h3 className="font-serif text-xl sm:text-2xl font-bold text-[#2B150A] mt-0.5">
+                    Wholesale Order Confirmed
+                  </h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmedOrder(null);
+                  setActiveTab('my-orders');
+                }}
+                className="w-8 h-8 rounded-full bg-stone-100 hover:bg-stone-200 flex items-center justify-center text-stone-600 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Merchant & Dispatch Metadata */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-[#FBF7F1] p-4 rounded-2xl border border-[#BD896E]/20">
+              <div className="space-y-1">
+                <div className="text-[10px] uppercase font-bold text-[#75412E]">Merchant / Store</div>
+                <div className="font-bold text-[#2B150A]">{confirmedOrder.merchantStoreName}</div>
+                <div className="text-[#66483B]">{confirmedOrder.branch || 'Main Branch'}</div>
+              </div>
+              <div className="space-y-1">
+                <div className="text-[10px] uppercase font-bold text-[#75412E]">Delivery Schedule</div>
+                <div className="font-bold text-[#2B150A]">{confirmedOrder.requestedDeliveryDate}</div>
+                <div className="text-[#66483B] truncate">{confirmedOrder.deliveryAddress}</div>
+              </div>
+            </div>
+
+            {/* Itemized Table */}
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-wider text-[#75412E] mb-2 flex items-center justify-between">
+                <span>Itemized Bakery Batch</span>
+                <span className="font-mono text-xs">{confirmedOrder.items?.length || 0} line items</span>
+              </div>
+              <div className="border border-[#E8D9CD] rounded-2xl overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#FBF7F1] text-[10px] font-bold uppercase text-[#75412E] border-b border-[#E8D9CD]">
+                    <tr>
+                      <th className="py-2.5 px-3">Item & Pack Spec</th>
+                      <th className="py-2.5 px-3 text-center">Quantity</th>
+                      <th className="py-2.5 px-3 text-right">Unit Price</th>
+                      <th className="py-2.5 px-3 text-right">Line Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#E8D9CD]/50">
+                    {confirmedOrder.items?.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-[#FBF7F1]/30">
+                        <td className="py-2.5 px-3">
+                          <div className="font-semibold text-[#2B150A]">{item.productName}</div>
+                          <div className="text-[10px] text-[#8D5037]">{item.packSize}</div>
+                        </td>
+                        <td className="py-2.5 px-3 text-center font-mono font-bold text-[#2B150A]">
+                          {item.quantity}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono text-[#66483B]">
+                          R {item.unitPrice.toFixed(2)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-[#2B150A]">
+                          R {item.lineTotal.toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Financial Totals */}
+            <div className="pt-2 border-t border-[#E8D9CD] space-y-1.5 text-xs">
+              <div className="flex justify-between text-[#66483B]">
+                <span>Items Subtotal</span>
+                <span className="font-mono font-semibold">R {confirmedOrder.subtotal?.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-[#66483B]">
+                <span>Refrigerated Cold Chain Fleet</span>
+                <span className="font-mono text-emerald-700 font-semibold">Included (Free)</span>
+              </div>
+              <div className="flex justify-between text-[#66483B]">
+                <span>VAT (0% - Staple Food Exemption)</span>
+                <span className="font-mono text-emerald-700 font-semibold">R 0.00 (Zero-Rated)</span>
+              </div>
+              <div className="flex justify-between text-base font-serif font-bold text-[#2B150A] pt-2 border-t border-[#E8D9CD]">
+                <span>Grand Total (ZAR)</span>
+                <span className="font-mono text-[#8D5037]">R {confirmedOrder.total?.toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-full bg-[#FBF7F1] hover:bg-[#EAD8C6] border border-[#BD896E]/30 text-[#2B150A] text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition-colors"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Print Order Receipt</span>
+              </button>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <a
+                  href={`https://wa.me/27613645712?text=${encodeURIComponent(
+                    `Hello Savouré Bakery Dispatch, I have placed Wholesale Order #${confirmedOrder.orderNumber} for ${confirmedOrder.merchantStoreName} (Total R ${confirmedOrder.total?.toFixed(2)}). Please confirm oven baking schedule.`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 sm:flex-none px-4 py-2.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  <span>WhatsApp Dispatch</span>
+                </a>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirmedOrder(null);
+                    setActiveTab('my-orders');
+                  }}
+                  className="flex-1 sm:flex-none px-5 py-2.5 rounded-full bg-[#2B150A] hover:bg-[#1E0F07] text-white text-xs font-bold uppercase tracking-wider cursor-pointer shadow-xs"
+                >
+                  View in My Orders
+                </button>
+              </div>
             </div>
           </div>
         </div>

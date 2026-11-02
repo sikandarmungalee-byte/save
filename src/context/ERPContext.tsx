@@ -1876,8 +1876,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSyncStatus('synced');
       }
     }, (error) => {
-      console.warn('Firestore real-time subscription notice:', error);
-      setSyncStatus('synced');
+      // Gracefully handle offline or network transition events
+      if (error && error.message && (error.message.includes('offline') || error.message.includes('unavailable') || error.message.includes('timeout'))) {
+        console.warn('[Cloud Sync] Client operating in resilient offline cache mode.');
+        setSyncStatus('offline');
+      } else {
+        console.warn('[Cloud Sync] Firestore real-time notice:', error?.message || error);
+        setSyncStatus('offline');
+      }
     });
 
     // 3. Resilient Periodic Background Heartbeat & Cross-Device Reconnect

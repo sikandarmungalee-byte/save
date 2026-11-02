@@ -54,10 +54,18 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // Bypass non-GET requests, Firebase auth endpoints, and internal websockets
+  // Bypass non-GET requests, Firebase, Firestore, Google APIs, and internal backend routes
   if (req.method !== 'GET') return;
-  if (url.origin.includes('firestore.googleapis.com') || url.origin.includes('identitytoolkit')) return;
-  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/_')) return;
+  if (
+    url.hostname.includes('googleapis.com') ||
+    url.hostname.includes('google.com') ||
+    url.hostname.includes('firebaseapp.com') ||
+    url.hostname.includes('firebaseio.com') ||
+    url.pathname.startsWith('/api/') ||
+    url.pathname.startsWith('/_')
+  ) {
+    return;
+  }
 
   // Navigation requests: HTML navigation uses Network-First with Cache fallback
   if (req.mode === 'navigate') {
