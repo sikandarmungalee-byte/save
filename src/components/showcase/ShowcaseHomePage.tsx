@@ -216,7 +216,7 @@ export const ShowcaseHomePage: React.FC<ShowcaseHomePageProps> = ({ onNavigate }
                   <img
                     src="/showcase/savoure-logo.png"
                     alt="Savouré A Taste of Tradition"
-                    className="w-full h-full object-contain"
+                    className="w-full h-full rounded-full object-contain"
                   />
                 </div>
 

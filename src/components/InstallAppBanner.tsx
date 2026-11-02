@@ -12,6 +12,7 @@ import {
   ChevronUp,
   Apple,
 } from 'lucide-react';
+import { openUniversalInstallModal } from './UniversalInstallModal';
 
 interface PlatformInfo {
   isIOS: boolean;
@@ -83,8 +84,13 @@ export const InstallAppBanner: React.FC = () => {
   }, []);
 
   const handleInstallClick = async () => {
+    if (platform.isMac) {
+      openUniversalInstallModal();
+      return;
+    }
+
     if (platform.isIOS) {
-      setShowIOSModal(true);
+      openUniversalInstallModal();
       return;
     }
 
@@ -97,8 +103,7 @@ export const InstallAppBanner: React.FC = () => {
       }
       setDeferredPrompt(null);
     } else {
-      // Browser already suppressed or standalone, show manual platform walkthrough
-      setShowAllPlatforms(true);
+      openUniversalInstallModal();
     }
   };
 
@@ -143,12 +148,13 @@ export const InstallAppBanner: React.FC = () => {
     badgeLabel = '🤖 Android';
     buttonLabel = '📱 Install Android App';
   } else if (platform.isMac) {
-    badgeLabel = '🍏 macOS App';
-    buttonLabel = '📥 Install Desktop ERP App';
+    badgeLabel = '🍏 Apple MacBook (macOS)';
+    buttonLabel = '🍎 Install on MacBook (Dock)';
   } else if (platform.isWindows) {
     badgeLabel = '🪟 Windows PC';
     buttonLabel = '📥 Install Desktop ERP App';
   }
+
 
   return (
     <div className="bg-gradient-to-r from-[#241A15] via-[#1E1511] to-[#17120F] border border-[#3E291D] rounded-2xl p-4 sm:p-5 text-white shadow-xl relative overflow-hidden animate-in fade-in duration-200">

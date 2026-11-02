@@ -101,11 +101,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenEnquiryMod
               </div>
 
               {/* Savouré Master Logo Mark Container */}
-              <div className="relative z-1 w-64 h-64 sm:w-72 sm:h-72 rounded-full bg-white p-4 shadow-lg border border-[#bd896e]/30 flex items-center justify-center group-hover:scale-105 transition-transform duration-500">
+              <div className="relative z-1 w-64 h-64 sm:w-72 sm:h-72 rounded-full bg-white p-4 shadow-lg border border-[#bd896e]/30 flex items-center justify-center group-hover:scale-105 transition-transform duration-500 overflow-hidden">
                 <img
                   src="/showcase/savoure-logo.png"
                   alt="Savouré — A Taste of Tradition"
-                  className="w-full h-full object-contain drop-shadow-sm"
+                  className="w-full h-full rounded-full object-contain drop-shadow-sm"
                 />
               </div>
 

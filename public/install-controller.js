@@ -102,11 +102,11 @@
         </button>
       `;
     } else if (platform.isMac) {
-      platformBadge = '🍏 macOS (Apple Silicon & Intel)';
+      platformBadge = '🍏 Apple MacBook (macOS)';
       platformDesc = 'Installs into your Applications folder & macOS Dock as a dedicated window.';
       installActionHTML = `
-        <button id="btn-trigger-native" class="w-full sm:w-auto px-6 py-3 rounded-full bg-gradient-to-r from-[#C98A5B] to-[#995834] hover:from-[#DE9E74] hover:to-[#B86643] text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 cursor-pointer">
-          <span>📥 Install Desktop ERP App</span>
+        <button id="btn-trigger-mac" class="w-full sm:w-auto px-6 py-3 rounded-full bg-gradient-to-r from-[#D7A77C] to-[#C98A5B] hover:from-[#E2B792] hover:to-[#DE9E74] text-[#1E0F07] font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 cursor-pointer">
+          <span>🍎 Install on MacBook (Dock)</span>
         </button>
       `;
     } else {
@@ -150,7 +150,7 @@
         <div id="all-platforms-drawer" class="hidden mt-6 pt-5 border-t border-[#3A2D25] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
           <div class="p-3.5 rounded-2xl bg-black/40 border border-[#3A2D25] space-y-1">
             <div class="font-bold text-white flex items-center gap-1.5">🍏 macOS</div>
-            <div class="text-[#A69385] text-[11px]">Click install in Safari or Chrome URL bar &rarr; "Install Savouré ERP".</div>
+            <div class="text-[#A69385] text-[11px]">Safari: File &rarr; Add to Dock. Chrome: Click install icon in URL bar.</div>
           </div>
           <div class="p-3.5 rounded-2xl bg-black/40 border border-[#3A2D25] space-y-1">
             <div class="font-bold text-white flex items-center gap-1.5">🪟 Windows</div>
@@ -163,6 +163,50 @@
           <div class="p-3.5 rounded-2xl bg-black/40 border border-[#3A2D25] space-y-1">
             <div class="font-bold text-white flex items-center gap-1.5">🍎 iOS (Safari)</div>
             <div class="text-[#A69385] text-[11px]">Tap Share icon (<span class="font-mono">&uarr;</span>) &rarr; "Add to Home Screen".</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- macOS Walkthrough Modal -->
+      <div id="mac-guide-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="w-full max-w-lg bg-[#1C1613] border border-[#3A2D25] rounded-3xl p-6 sm:p-7 shadow-2xl space-y-5 text-white animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+          <div class="flex items-center justify-between pb-3 border-b border-[#3A2D25]">
+            <div className="flex items-center gap-2">
+              <span class="text-xl">🍏</span>
+              <h4 class="font-serif font-bold text-base text-white">Install on MacBook / macOS</h4>
+            </div>
+            <button id="close-mac-modal" class="text-stone-400 hover:text-white p-1">✕</button>
+          </div>
+
+          <div class="space-y-4 text-xs">
+            <div class="p-3 rounded-2xl bg-amber-950/40 border border-amber-600/30 text-amber-200 text-xs">
+              <strong>Preview Notice:</strong> If you are inside a preview iframe, click the button below to launch in your browser tab first.
+            </div>
+
+            <!-- Safari Option -->
+            <div class="p-4 rounded-2xl bg-[#261E1A] border border-[#3A2D25] space-y-2">
+              <div class="font-bold text-amber-300 text-sm">Option A: Apple Safari (Add to Dock)</div>
+              <p class="text-[#C5B7AC]">1. In the top Mac menu bar, click <strong>File</strong> (or the Share icon).</p>
+              <p class="text-[#C5B7AC]">2. Select <strong>"Add to Dock..."</strong>.</p>
+              <p class="text-[#C5B7AC]">3. Click <strong>"Add"</strong>. The app is instantly added to your MacBook Dock!</p>
+            </div>
+
+            <!-- Chrome Option -->
+            <div class="p-4 rounded-2xl bg-[#261E1A] border border-[#3A2D25] space-y-2">
+              <div class="font-bold text-blue-300 text-sm">Option B: Google Chrome / Edge</div>
+              <p class="text-[#C5B7AC]">1. Look at the right side of Chrome's top address bar.</p>
+              <p class="text-[#C5B7AC]">2. Click the <strong>Install icon</strong> (🖥️ with down arrow) or menu ⋮ &rarr; Save and share &rarr; Install.</p>
+              <p class="text-[#C5B7AC]">3. Click <strong>"Install"</strong>.</p>
+            </div>
+          </div>
+
+          <div class="pt-2 flex flex-col sm:flex-row gap-2">
+            <button id="btn-mac-open-tab" class="flex-1 py-3 rounded-xl bg-[#C98A5B] text-[#120F0D] font-bold text-xs uppercase tracking-wider cursor-pointer">
+              Open Full Window to Install
+            </button>
+            <button id="done-mac-modal" class="px-5 py-3 rounded-xl bg-stone-800 text-white font-bold text-xs uppercase tracking-wider cursor-pointer">
+              Got It
+            </button>
           </div>
         </div>
       </div>
@@ -231,6 +275,33 @@
       });
     }
 
+    const btnMac = document.getElementById('btn-trigger-mac');
+    const macModal = document.getElementById('mac-guide-modal');
+    const closeMacModal = document.getElementById('close-mac-modal');
+    const doneMacModal = document.getElementById('done-mac-modal');
+    const btnMacOpenTab = document.getElementById('btn-mac-open-tab');
+
+    if (btnMac && macModal) {
+      btnMac.addEventListener('click', () => {
+        if (deferredInstallPrompt) {
+          deferredInstallPrompt.prompt();
+        } else {
+          macModal.classList.remove('hidden');
+        }
+      });
+    }
+    if (closeMacModal && macModal) {
+      closeMacModal.addEventListener('click', () => macModal.classList.add('hidden'));
+    }
+    if (doneMacModal && macModal) {
+      doneMacModal.addEventListener('click', () => macModal.classList.add('hidden'));
+    }
+    if (btnMacOpenTab) {
+      btnMacOpenTab.addEventListener('click', () => {
+        window.open(window.location.origin + '/?source=pwa', '_blank');
+      });
+    }
+
     const btnIOS = document.getElementById('btn-trigger-ios');
     const iosModal = document.getElementById('ios-guide-modal');
     const closeIosModal = document.getElementById('close-ios-modal');
@@ -253,6 +324,7 @@
         drawer.classList.toggle('hidden');
       });
     }
+
   }
 
   // 5. Initialize on DOM Ready
