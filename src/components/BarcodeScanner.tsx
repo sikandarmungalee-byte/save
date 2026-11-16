@@ -81,51 +81,11 @@ export function parseBarcodeMetadata(rawBarcode: string): BarcodeMetadata {
   };
 }
 
-// Preset Barcodes for Instant One-Click Testing
-export const SAMPLE_SOUTH_AFRICAN_BARCODES = [
-  {
-    barcode: '6009800123012',
-    name: 'Savouré Spring Roll Pastry (20cm / 200g)',
-    category: 'Pastry Sheets',
-    unit: 'packs',
-    description: 'EAN-13 Registered Pastry',
-  },
-  {
-    barcode: '6001007012342',
-    name: 'Savouré Samoosa Pastry Sheets (500g)',
-    category: 'Pastry Sheets',
-    unit: 'packs',
-    description: 'Crispy Triangle Cut Sheets',
-  },
-  {
-    barcode: '6009612345671',
-    name: 'Savouré Hand-Rolled Flaky Roti (Pack of 6)',
-    category: 'Artisanal Roti',
-    unit: 'packs',
-    description: 'Layered Traditional Roti',
-  },
-  {
-    barcode: '6002100987650',
-    name: 'Savouré Tortilla Wraps 30cm (Pack of 12)',
-    category: 'Tortillas & Wraps',
-    unit: 'packs',
-    description: 'Soft-Rolled Tortillas',
-  },
-  {
-    barcode: '6001234567899',
-    name: 'Supreme Unbleached Pastry Flour (25kg)',
-    category: 'Flour & Grains',
-    unit: 'kg',
-    description: 'Bulk Ingredient Raw Material',
-  },
-  {
-    barcode: '6009876543219',
-    name: 'Pure Sunflower Frying & Laminating Oil (20L)',
-    category: 'Oils & Fats',
-    unit: 'litres',
-    description: 'Bakery Batch Raw Material',
-  },
-];
+export interface QuickBarcodeItem {
+  barcode: string;
+  name: string;
+  category?: string;
+}
 
 interface BarcodeScannerProps {
   onScan: (barcode: string, metadata: BarcodeMetadata) => void;
@@ -133,6 +93,7 @@ interface BarcodeScannerProps {
   title?: string;
   subtitle?: string;
   autoCloseOnScan?: boolean;
+  quickBarcodes?: QuickBarcodeItem[];
 }
 
 export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
@@ -141,6 +102,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
   title = 'Barcode Scanner & Product Lookup',
   subtitle = 'Scan any retail barcode, EAN/UPC product code, or SKU number using your camera',
   autoCloseOnScan = false,
+  quickBarcodes = [],
 }) => {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const containerId = useRef(`barcode-reader-${Math.random().toString(36).substring(2, 9)}`).current;
@@ -469,7 +431,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
         setHasPermission(false);
         let errorMsg = 'Camera permission was denied or device camera is currently in use.';
         if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
-          errorMsg = 'Camera access was blocked by browser or iframe permissions. You can use instant one-click South African demo barcodes or type the barcode in manual entry.';
+          errorMsg = 'Camera access was blocked by browser or iframe permissions. You can type the barcode in manual entry or upload a photo.';
         } else if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
           errorMsg = 'No camera found on this device. Please use manual barcode entry or upload a photo.';
         } else if (err?.message) {
@@ -959,42 +921,44 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
           </div>
         )}
 
-        {/* QUICK TEST BARCODES SELECTOR */}
-        <div className="border-t border-stone-200 pt-3">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-stone-700 flex items-center gap-1.5 uppercase tracking-wider">
-              <Sparkles className="w-3.5 h-3.5 text-[#B96F48]" />
-              Click to Test Sample Product Barcodes
-            </span>
-            <span className="text-[11px] text-stone-400">Instant Demo Barcodes</span>
-          </div>
+        {/* LIVE CATALOG QUICK BARCODE LOOKUP */}
+        {quickBarcodes.length > 0 && (
+          <div className="border-t border-stone-200 pt-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-stone-700 flex items-center gap-1.5 uppercase tracking-wider">
+                <Sparkles className="w-3.5 h-3.5 text-[#B96F48]" />
+                ERP Catalog Product Barcodes
+              </span>
+              <span className="text-[11px] text-stone-400">Live Inventory Items</span>
+            </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
-            {SAMPLE_SOUTH_AFRICAN_BARCODES.map((sample) => (
-              <button
-                key={sample.barcode}
-                type="button"
-                onClick={() => handleBarcodeDetected(sample.barcode)}
-                className="text-left p-2.5 rounded-xl border border-stone-200 hover:border-[#B96F48] bg-white hover:bg-[#F5E8D5]/30 transition-all flex items-center justify-between group shadow-2xs"
-              >
-                <div className="min-w-0 pr-2">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-mono text-xs font-bold text-stone-900 group-hover:text-[#301610]">
-                      {sample.barcode}
-                    </span>
-                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
-                      Retail Code
-                    </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+              {quickBarcodes.map((sample) => (
+                <button
+                  key={sample.barcode}
+                  type="button"
+                  onClick={() => handleBarcodeDetected(sample.barcode)}
+                  className="text-left p-2.5 rounded-xl border border-stone-200 hover:border-[#B96F48] bg-white hover:bg-[#F5E8D5]/30 transition-all flex items-center justify-between group shadow-2xs"
+                >
+                  <div className="min-w-0 pr-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono text-xs font-bold text-stone-900 group-hover:text-[#301610]">
+                        {sample.barcode}
+                      </span>
+                      <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                        ERP SKU
+                      </span>
+                    </div>
+                    <p className="text-xs text-stone-600 truncate mt-0.5">{sample.name}</p>
                   </div>
-                  <p className="text-xs text-stone-600 truncate mt-0.5">{sample.name}</p>
-                </div>
-                <div className="w-7 h-7 rounded-lg bg-stone-100 group-hover:bg-[#B96F48] group-hover:text-white flex items-center justify-center text-stone-400 transition-colors shrink-0">
-                  <ChevronRight className="w-4 h-4" />
-                </div>
-              </button>
-            ))}
+                  <div className="w-7 h-7 rounded-lg bg-stone-100 group-hover:bg-[#B96F48] group-hover:text-white flex items-center justify-center text-stone-400 transition-colors shrink-0">
+                    <ChevronRight className="w-4 h-4" />
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

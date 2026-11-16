@@ -1173,14 +1173,29 @@ app.post('/api/database/restore', (req: Request, res: Response) => {
 app.post('/api/database/purge', (_req: Request, res: Response) => {
   const db = getDatabase();
   // Clean wipe all fake and dummy data completely
+  db.users = (db.users || []).filter((u) => u.role === 'super_admin' || u.email.toLowerCase() === 'admin@savoure.co.za');
   db.customers = [];
   db.products = [];
+  db.categories = [];
   db.invoices = [];
   db.deliveryNotes = [];
   db.quotations = [];
   db.payments = [];
+  db.merchantOrders = [];
+  db.merchantReports = [];
+  db.posTransactions = [];
+  db.posSessions = [];
+  db.productionLines = [];
+  db.productionBatches = [];
+  db.staff = [];
+  db.payrollPayouts = [];
+  db.stockPurchases = [];
+  db.stockItemStatuses = [];
+  db.stockMovements = [];
+  db.journalEntries = [];
   db.leads = [];
   db.communications = [];
+  db.loginLogs = [];
   saveDatabase(db);
   res.json({ success: true, message: 'All fake and transactional records purged successfully.' });
 });
@@ -1241,9 +1256,9 @@ app.post('/api/sync', (req: Request, res: Response) => {
 });
 
 // ----------------------------------------------------
-// Taskeen AI Executive Business Advisor Endpoint
+// Savouré AI Executive Business Advisor Endpoint
 // ----------------------------------------------------
-app.post('/api/ai/ask-taskeen', async (req: Request, res: Response) => {
+const handleAskSavoure = async (req: Request, res: Response) => {
   try {
     const { prompt, erpContext } = req.body;
     if (!prompt || typeof prompt !== 'string') {
@@ -1270,9 +1285,9 @@ Stock Items Currently Marked FINISHED/DEPLETED: ${finishedStock.length > 0 ? fin
 ${erpContext ? `Live Client Session Context: ${JSON.stringify(erpContext)}` : ''}
 `;
 
-    const systemInstruction = `You are Taskeen, an intelligent, helpful executive AI assistant and business advisor powered by Google Gemini.
+    const systemInstruction = `You are Savouré AI, an intelligent, helpful executive AI assistant and business advisor powered by Google Gemini.
 You function as a normal, full-capability AI: you can converse naturally, answer general knowledge questions, solve problems, write text, explain any concept, brainstorm, code, and assist with any topic just like a normal standard AI.
-Additionally, you have real-time visibility into the user's business administration and enterprise data:
+Additionally, you have real-time visibility into the user's business administration and enterprise data for Savouré Artisanal Pastry:
 ${businessSnapshot}
 Guidelines:
 1. If the user asks general, conversational, creative, or non-business questions, answer directly, intelligently, and helpfully like a normal AI without forcing unnecessary business figures into the response.
@@ -1327,7 +1342,7 @@ Guidelines:
         throw lastError;
       }
 
-      reply = reply || 'I am Taskeen, your executive assistant powered by Google Gemini. How may I assist you today?';
+      reply = reply || 'I am Savouré AI, your executive advisor powered by Google Gemini. How may I assist you today?';
       return res.json({ reply, model: usedModel });
     } catch (aiErr: any) {
       console.warn('Gemini API notice:', aiErr?.message);
@@ -1345,15 +1360,18 @@ Guidelines:
       } else if (lower.includes('sales') || lower.includes('revenue') || lower.includes('invoice')) {
         fallbackReply = `**Financial Summary:**\n• **Total Invoices:** ${invCount}\n• **Total Revenue Issued:** ${company?.currency || 'R'} ${totalRev.toLocaleString()}\n• **Accounts Receivable:** ${company?.currency || 'R'} ${unpaidBal.toLocaleString()}`;
       } else {
-        fallbackReply = `I am Taskeen, your executive business advisor powered by Google Gemini. I am here to assist you with operations, invoices, pricing, stock forecasting, and strategic planning. How can I help you right now?`;
+        fallbackReply = `I am Savouré AI, your executive business advisor powered by Google Gemini. I am here to assist you with operations, invoices, pricing, stock forecasting, and strategic planning. How can I help you right now?`;
       }
 
-      return res.json({ reply: fallbackReply, model: 'Gemini AI Assistant' });
+      return res.json({ reply: fallbackReply, model: 'Savouré AI Engine' });
     }
   } catch (err: any) {
-    res.json({ reply: 'I am Taskeen, your executive AI advisor. How may I assist you with your operations today?', model: 'Taskeen AI Assistant' });
+    res.json({ reply: 'I am Savouré AI, your executive advisor. How may I assist you with your bakery operations today?', model: 'Savouré AI Assistant' });
   }
-});
+};
+
+app.post('/api/ai/ask-savoure', handleAskSavoure);
+app.post('/api/ai/ask-taskeen', handleAskSavoure);
 
 // Gemini Connection Status Endpoint
 app.get('/api/ai/status', async (_req: Request, res: Response) => {
@@ -1363,12 +1381,13 @@ app.get('/api/ai/status', async (_req: Request, res: Response) => {
       connected: true,
       hasKey: !!apiKey,
       model: 'Gemini 3.8 Flash',
-      message: apiKey ? 'Connected to Google Gemini' : 'Taskeen Intelligence Engine Ready',
+      message: apiKey ? 'Connected to Google Gemini' : 'Savouré Intelligence Engine Ready',
     });
   } catch (err: any) {
-    res.json({ connected: true, model: 'Gemini 3.8 Flash', message: 'Taskeen Intelligence Engine Ready' });
+    res.json({ connected: true, model: 'Gemini 3.8 Flash', message: 'Savouré Intelligence Engine Ready' });
   }
 });
+
 
 // In-memory store for registered FCM device tokens & push notification logs
 const registeredDeviceTokens = new Map<string, { token: string; userId?: string; isMobile?: boolean; timestamp: string }>();

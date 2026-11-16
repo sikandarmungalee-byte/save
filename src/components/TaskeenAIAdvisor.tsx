@@ -23,7 +23,7 @@ import {
 
 interface ChatMessage {
   id: string;
-  sender: 'user' | 'taskeen';
+  sender: 'user' | 'savoure';
   text: string;
   timestamp: string;
   model?: string;
@@ -49,8 +49,8 @@ export const TaskeenAIAdvisor: React.FC<{ isModal?: boolean; onClose?: () => voi
   const [messages, setMessages] = useState<ChatMessage[]>(() => [
     {
       id: 'welcome',
-      sender: 'taskeen',
-      text: `Good day! I am **Taskeen**, your Executive AI Advisor powered by Google Gemini.\n\nYou can chat with me and ask questions like a normal AI, as well as consult me on your live business operations, invoices, stock levels, payroll, and financials. How may I assist you today?`,
+      sender: 'savoure',
+      text: `Good day! I am **Savouré AI**, your Executive Bakery & Business Advisor powered by Google Gemini.\n\nYou can chat with me and ask questions like a normal AI, as well as consult me on your live bakery operations, invoices, stock levels, payroll, and financials. How may I assist you today?`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       model: 'Gemini 3.8 Flash',
     },
@@ -151,7 +151,7 @@ export const TaskeenAIAdvisor: React.FC<{ isModal?: boolean; onClose?: () => voi
     };
 
     try {
-      const response = await fetch('/api/ai/ask-taskeen', {
+      const response = await fetch('/api/ai/ask-savoure', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -187,41 +187,41 @@ export const TaskeenAIAdvisor: React.FC<{ isModal?: boolean; onClose?: () => voi
               finishedItems.map((s) => `• **${s.name}** at *${s.branchName}*`).join('\n') +
               `\n\n**Action Recommended:** Generate procurement purchase orders or restock batch tickets immediately to avoid production bottlenecks for fresh rotis and pastry sheets.`
             : `**Stock Status:** All registered bakery items and raw materials are currently marked **in stock** with zero depleted items flagged across our stores.`;
-          replyModel = 'Taskeen Executive Engine';
+          replyModel = 'Savouré Executive Engine';
         } else if (lower.includes('invoice') || lower.includes('revenue') || lower.includes('debtor') || lower.includes('sales') || lower.includes('cash')) {
           replyText = `**Executive Financial Standing:**\n• **Total Invoices Issued:** ${invoices.length} official statements\n• **Gross Invoiced Revenue:** ${company.currency} ${totalRev.toLocaleString()}\n• **Accounts Receivable (Unpaid Balance):** ${company.currency} ${unpaidBal.toLocaleString()}\n\n**Debtor Recovery Insight:** Active collections should prioritize oldest accounts with balance due exceeding 30 calendar days to preserve healthy working capital.`;
-          replyModel = 'Taskeen Executive Engine';
+          replyModel = 'Savouré Executive Engine';
         } else if (lower.includes('vat') || lower.includes('tax') || lower.includes('sars')) {
           const vatOutput = totalRev * (company.vatRate > 0 ? (company.vatRate / (100 + company.vatRate)) : 0);
           replyText = `**SARS VAT Analysis:**\n• **Configured VAT Rate:** ${company.vatRate}%\n• **Estimated Output Tax:** ${company.currency} ${vatOutput.toFixed(2)}\n• **Filing Status:** Ensure all customer invoices include valid registered business names and tax invoice serials for SARS compliance.`;
-          replyModel = 'Taskeen Executive Engine';
+          replyModel = 'Savouré Executive Engine';
         } else if (lower.includes('margin') || lower.includes('price') || lower.includes('pricing') || lower.includes('profit')) {
           replyText = `**Bakery Margin Analysis & Strategy:**\n• **Catalog Portfolio:** ${products.length} registered product lines\n• **Key Lines:** Premium Rotis, Tortilla Wraps, Crispy Samoosa Pastry, Spring Roll Sheets\n• **Strategic Margin Target:** Maintain 38% - 45% gross margin on wholesale commercial tier, with minimum order quantity (MOQ) thresholds to optimize delivery freight costs.`;
-          replyModel = 'Taskeen Executive Engine';
+          replyModel = 'Savouré Executive Engine';
         } else {
-          replyText = `I am **Taskeen**, your executive advisor powered by Google Gemini. I have analyzed your question regarding **"${query}"** against Savouré's live enterprise figures. All commercial tax invoices, multi-branch stock levels, and accounts receivable are synchronized in real time. Let me know if you would like me to produce a specific breakdown or operational forecast.`;
+          replyText = `I am **Savouré AI**, your executive advisor powered by Google Gemini. I have analyzed your question regarding **"${query}"** against Savouré's live enterprise figures. All commercial tax invoices, multi-branch stock levels, and accounts receivable are synchronized in real time. Let me know if you would like me to produce a specific breakdown or operational forecast.`;
           replyModel = 'Gemini 3.8 Flash';
         }
       }
 
-      const taskeenMessage: ChatMessage = {
-        id: 'taskeen_' + Date.now(),
-        sender: 'taskeen',
+      const savoureMessage: ChatMessage = {
+        id: 'savoure_' + Date.now(),
+        sender: 'savoure',
         text: replyText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         model: replyModel,
       };
 
-      setMessages((prev) => [...prev, taskeenMessage]);
+      setMessages((prev) => [...prev, savoureMessage]);
     } catch {
-      const taskeenMessage: ChatMessage = {
-        id: 'taskeen_client_' + Date.now(),
-        sender: 'taskeen',
-        text: `I am **Taskeen**, your executive business advisor powered by Google Gemini. Your live operations currently reflect **${invoices.length} tax invoices** with **${company.currency} ${totalRev.toLocaleString()}** in revenue and **${finishedItems.length}** depleted items. How may I assist you with your pricing, forecasting, or customer strategy?`,
+      const savoureMessage: ChatMessage = {
+        id: 'savoure_client_' + Date.now(),
+        sender: 'savoure',
+        text: `I am **Savouré AI**, your executive business advisor powered by Google Gemini. Your live operations currently reflect **${invoices.length} tax invoices** with **${company.currency} ${totalRev.toLocaleString()}** in revenue and **${finishedItems.length}** depleted items. How may I assist you with your pricing, forecasting, or customer strategy?`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         model: 'Gemini 3.8 Flash',
       };
-      setMessages((prev) => [...prev, taskeenMessage]);
+      setMessages((prev) => [...prev, savoureMessage]);
     } finally {
       setLoading(false);
     }
@@ -237,14 +237,14 @@ export const TaskeenAIAdvisor: React.FC<{ isModal?: boolean; onClose?: () => voi
     setMessages([
       {
         id: 'welcome_reset',
-        sender: 'taskeen',
-        text: `Chat thread cleared. I am ready to advise you on today's operations, financial figures, or customer requirements.`,
+        sender: 'savoure',
+        text: `Chat thread cleared. I am ready to advise you on today's bakery operations, financial figures, or customer requirements.`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       },
     ]);
   };
 
-  return (
+  const advisorContent = (
     <div
       className={`flex flex-col bg-[#171311] border border-[#2C211B] rounded-2xl shadow-2xl overflow-hidden ${
         isModal ? 'h-[85vh] max-h-[780px] w-full max-w-4xl' : 'h-[calc(100vh-140px)] min-h-[580px]'
@@ -265,7 +265,7 @@ export const TaskeenAIAdvisor: React.FC<{ isModal?: boolean; onClose?: () => voi
           <div>
             <div className="flex items-center gap-2">
               <h2 className="font-serif font-bold text-base text-white tracking-wide">
-                Taskeen
+                Savouré AI
               </h2>
               <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 text-[10px] font-mono font-bold uppercase tracking-wider border border-emerald-500/30 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -294,7 +294,7 @@ export const TaskeenAIAdvisor: React.FC<{ isModal?: boolean; onClose?: () => voi
               type="button"
               onClick={onClose}
               className="p-1.5 rounded-lg text-[#8A776B] hover:text-white hover:bg-[#221B17]"
-              title="Close Taskeen"
+              title="Close Savouré AI"
             >
               <X className="w-5 h-5" />
             </button>
@@ -354,7 +354,7 @@ export const TaskeenAIAdvisor: React.FC<{ isModal?: boolean; onClose?: () => voi
               >
                 {!isUser && (
                   <div className="flex items-center justify-between mb-1.5 pb-1 border-b border-[#2C211B]/60 text-[10px] text-[#A69385]">
-                    <span className="font-serif font-bold text-[#DE9E74]">Taskeen Advisor</span>
+                    <span className="font-serif font-bold text-[#DE9E74]">Savouré AI Advisor</span>
                     <div className="flex items-center gap-2">
                       <span className="font-mono">{msg.timestamp}</span>
                       <button
@@ -422,7 +422,7 @@ export const TaskeenAIAdvisor: React.FC<{ isModal?: boolean; onClose?: () => voi
                 <span className="w-2 h-2 rounded-full bg-[#DE9E74] animate-bounce [animation-delay:0.4s]" />
               </div>
               <span className="font-serif italic text-white ml-2">
-                Taskeen is analyzing your enterprise data...
+                Savouré AI is analyzing your enterprise data...
               </span>
             </div>
           </div>
@@ -454,14 +454,29 @@ export const TaskeenAIAdvisor: React.FC<{ isModal?: boolean; onClose?: () => voi
             className="px-5 py-3 rounded-xl bg-[#C98A5B] hover:bg-[#DE9E74] disabled:opacity-40 text-[#120F0D] font-bold text-xs transition-colors flex items-center gap-1.5 shadow-md shrink-0"
           >
             <Send className="w-4 h-4" />
-            <span className="hidden sm:inline">Ask Taskeen</span>
+            <span className="hidden sm:inline">Ask Savouré</span>
           </button>
         </form>
         <div className="flex items-center justify-between text-[10px] text-[#6E5B4F] mt-2 px-1">
-          <span>Taskeen Executive AI Intelligence · Enterprise Edition</span>
+          <span>Savouré Executive AI Intelligence · Enterprise Edition</span>
           <span>Private and confidential</span>
         </div>
       </div>
     </div>
   );
+
+  if (isModal) {
+    return (
+      <div
+        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+        onClick={(e) => {
+          if (e.target === e.currentTarget && onClose) onClose();
+        }}
+      >
+        {advisorContent}
+      </div>
+    );
+  }
+
+  return advisorContent;
 };

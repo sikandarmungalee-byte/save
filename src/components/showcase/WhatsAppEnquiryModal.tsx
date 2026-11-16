@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   MessageCircle,
   X,
-  Plus,
-  Minus,
   Check,
   Building2,
   MapPin,
@@ -15,7 +13,7 @@ import {
   Send,
   Calendar
 } from 'lucide-react';
-import { SHOWCASE_CONTACT, SHOWCASE_COLLECTION, ShowcaseProductItem } from './showcaseData';
+import { SHOWCASE_CONTACT, SHOWCASE_COLLECTION } from './showcaseData';
 import { useERP } from '../../context/ERPContext';
 
 interface WhatsAppEnquiryModalProps {
@@ -29,14 +27,13 @@ export const WhatsAppEnquiryModal: React.FC<WhatsAppEnquiryModalProps> = ({
   onClose,
   selectedSpecialtyId,
 }) => {
-  const { createLead } = useERP();
+  const { createLead, showcaseProducts } = useERP();
+  const productList = (showcaseProducts && showcaseProducts.length > 0) ? showcaseProducts : SHOWCASE_COLLECTION;
 
   const [specialtyId, setSpecialtyId] = useState<string>(
-    selectedSpecialtyId || SHOWCASE_COLLECTION[0].id
+    selectedSpecialtyId || productList[0]?.id || SHOWCASE_COLLECTION[0].id
   );
   const [enquiryType, setEnquiryType] = useState<string>('Wholesale Supply');
-  const [unitType, setUnitType] = useState<'dozen' | 'pack' | 'carton'>('dozen');
-  const [quantity, setQuantity] = useState<number>(10);
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
   const [businessName, setBusinessName] = useState('');
@@ -50,20 +47,15 @@ export const WhatsAppEnquiryModal: React.FC<WhatsAppEnquiryModalProps> = ({
   useEffect(() => {
     if (selectedSpecialtyId) {
       setSpecialtyId(selectedSpecialtyId);
+    } else if (!productList.some((p) => p.id === specialtyId) && productList[0]) {
+      setSpecialtyId(productList[0].id);
     }
-  }, [selectedSpecialtyId]);
+  }, [selectedSpecialtyId, productList]);
 
   if (!isOpen) return null;
 
   const currentSpecialty =
-    SHOWCASE_COLLECTION.find((s) => s.id === specialtyId) || SHOWCASE_COLLECTION[0];
-
-  const unitLabel =
-    unitType === 'dozen'
-      ? quantity === 1 ? 'Dozen (12 units)' : 'Dozens'
-      : unitType === 'pack'
-      ? quantity === 1 ? 'Commercial Pack' : 'Commercial Packs'
-      : quantity === 1 ? 'Wholesale Carton' : 'Wholesale Cartons';
+    productList.find((s) => s.id === specialtyId) || productList[0] || SHOWCASE_COLLECTION[0];
 
   // Format professional WhatsApp message text (Zero prices!)
   const generateWhatsAppMessage = () => {
@@ -74,8 +66,6 @@ export const WhatsAppEnquiryModal: React.FC<WhatsAppEnquiryModalProps> = ({
       ``,
       `*Product / Specialty:* ${currentSpecialty.name}`,
       `*Enquiry Type:* ${enquiryType}`,
-      `*Estimated Quantity:* ${quantity} ${unitLabel}`,
-      `*Packaging Spec:* ${currentSpecialty.packSpec}`,
       ``,
       `*Delivery Area / City:* ${deliveryArea.trim() || 'South Africa (Nationwide Delivery)'}`,
       requiredDate.trim() ? `*Required Date:* ${requiredDate.trim()}` : '',
@@ -105,7 +95,7 @@ export const WhatsAppEnquiryModal: React.FC<WhatsAppEnquiryModalProps> = ({
         phone: clientPhone.trim(),
         status: 'NEW',
         source: 'WEBSITE',
-        notes: `Enquiry: ${currentSpecialty.name} (${enquiryType}). Quantity: ${quantity} ${unitLabel}. Area: ${deliveryArea || 'Gauteng'}. Date: ${requiredDate}. Notes: ${specialNotes}`,
+        notes: `Enquiry: ${currentSpecialty.name} (${enquiryType}). Area: ${deliveryArea || 'Gauteng'}. Date: ${requiredDate}. Notes: ${specialNotes}`,
       });
     } catch (e) {
       console.warn('CRM notice:', e);
@@ -132,7 +122,7 @@ export const WhatsAppEnquiryModal: React.FC<WhatsAppEnquiryModalProps> = ({
         phone: clientPhone.trim(),
         status: 'NEW',
         source: 'WEBSITE',
-        notes: `Website Enquiry: ${currentSpecialty.name} (${enquiryType}). Qty: ${quantity} ${unitLabel}. Suburb: ${deliveryArea}. Required Date: ${requiredDate}. Notes: ${specialNotes}`,
+        notes: `Website Enquiry: ${currentSpecialty.name} (${enquiryType}). Suburb: ${deliveryArea}. Required Date: ${requiredDate}. Notes: ${specialNotes}`,
       });
       setIsSubmitted(true);
     } catch (err) {
@@ -149,10 +139,6 @@ export const WhatsAppEnquiryModal: React.FC<WhatsAppEnquiryModalProps> = ({
       setTimeout(() => setCopied(false), 2500);
     });
   };
-
-  const dozenPresets = [5, 10, 20, 50, 100];
-  const packPresets = [10, 25, 50, 100, 200];
-  const activePresets = unitType === 'dozen' ? dozenPresets : packPresets;
 
   return (
     <div className="fixed inset-0 z-50 bg-[#3d2117]/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
@@ -215,8 +201,8 @@ export const WhatsAppEnquiryModal: React.FC<WhatsAppEnquiryModalProps> = ({
                 1. Select Pastry Specialty <span className="text-[#b86643]">*</span>
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {SHOWCASE_COLLECTION.map((spec) => {
-                  const isSelected = spec.id === specialtyId;
+                {productList.map((spec) => {
+                  const isSelected = spec.id === currentSpecialty.id;
                   return (
                     <button
                       key={spec.id}
@@ -247,134 +233,30 @@ export const WhatsAppEnquiryModal: React.FC<WhatsAppEnquiryModalProps> = ({
               </div>
             </div>
 
-            {/* 2. Enquiry Purpose & Volume */}
-            <div className="p-4 rounded-2xl bg-white border border-[#bd896e]/30 space-y-4">
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-[#8d5037] mb-2">
-                  2. Purpose of Enquiry
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {[
-                    'Wholesale Supply',
-                    'Event Catering',
-                    'Retail Shelving',
-                    'Sample Tasting Pack',
-                  ].map((type) => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => setEnquiryType(type)}
-                      className={`px-3 py-2 rounded-xl text-xs font-medium text-center transition-all cursor-pointer ${
-                        enquiryType === type
-                          ? 'bg-[#3d2117] text-white shadow-xs'
-                          : 'bg-[#f5eee5] text-[#75412e] border border-[#bd896e]/30 hover:border-[#bd896e]'
-                      }`}
-                    >
-                      {type}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Quantity Chooser */}
-              <div className="space-y-3 pt-2 border-t border-[#bd896e]/20">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-[#8d5037]">
-                      Estimated Volume
-                    </label>
-                    <p className="text-xs text-[#66483b]">How much would you like to enquire for?</p>
-                  </div>
-
-                  <div className="inline-flex p-1 rounded-full bg-[#f5eee5] border border-[#bd896e]/30">
-                    <button
-                      type="button"
-                      onClick={() => setUnitType('dozen')}
-                      className={`px-3 py-1 rounded-full text-xs font-medium transition-all cursor-pointer ${
-                        unitType === 'dozen'
-                          ? 'bg-[#3d2117] text-white shadow-xs'
-                          : 'text-[#75412e] hover:text-[#3d2117]'
-                      }`}
-                    >
-                      Dozens (12s)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setUnitType('pack')}
-                      className={`px-3 py-1 rounded-full text-xs font-medium transition-all cursor-pointer ${
-                        unitType === 'pack'
-                          ? 'bg-[#3d2117] text-white shadow-xs'
-                          : 'text-[#75412e] hover:text-[#3d2117]'
-                      }`}
-                    >
-                      Packs
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setUnitType('carton')}
-                      className={`px-3 py-1 rounded-full text-xs font-medium transition-all cursor-pointer ${
-                        unitType === 'carton'
-                          ? 'bg-[#3d2117] text-white shadow-xs'
-                          : 'text-[#75412e] hover:text-[#3d2117]'
-                      }`}
-                    >
-                      Cartons
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center rounded-full bg-[#f5eee5] border border-[#bd896e]/30 p-1">
-                    <button
-                      type="button"
-                      onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                      className="w-8 h-8 rounded-full hover:bg-white flex items-center justify-center text-[#75412e] transition-colors cursor-pointer"
-                      aria-label="Decrease quantity"
-                    >
-                      <Minus className="w-3.5 h-3.5" />
-                    </button>
-
-                    <div className="px-4 text-center min-w-[50px]">
-                      <span className="font-mono text-xl font-bold text-[#3d2117]">{quantity}</span>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setQuantity((q) => q + 1)}
-                      className="w-8 h-8 rounded-full hover:bg-white flex items-center justify-center text-[#75412e] transition-colors cursor-pointer"
-                      aria-label="Increase quantity"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  <div className="text-xs text-[#66483b] leading-tight">
-                    <div className="font-bold text-[#3d2117]">{unitLabel}</div>
-                    {unitType === 'dozen' && (
-                      <div className="text-[#8d5037] font-mono text-[11px] mt-0.5">
-                        = {quantity * 12} individual portions
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[11px] text-[#8d5037] mr-1">Quick choose:</span>
-                  {activePresets.map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => setQuantity(preset)}
-                      className={`px-2.5 py-1 rounded-full text-xs font-mono transition-all cursor-pointer ${
-                        quantity === preset
-                          ? 'bg-[#b86643] text-white'
-                          : 'bg-[#f5eee5] text-[#75412e] border border-[#bd896e]/30 hover:border-[#bd896e]'
-                      }`}
-                    >
-                      {preset} {unitType === 'dozen' ? 'doz' : 'pk'}
-                    </button>
-                  ))}
-                </div>
+            {/* 2. Enquiry Purpose */}
+            <div className="p-4 rounded-2xl bg-white border border-[#bd896e]/30">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-[#8d5037] mb-2">
+                2. Purpose of Enquiry
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {[
+                  'Wholesale Supply',
+                  'Event Catering',
+                  'Retail Shelving',
+                ].map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setEnquiryType(type)}
+                    className={`px-3 py-2 rounded-xl text-xs font-medium text-center transition-all cursor-pointer ${
+                      enquiryType === type
+                        ? 'bg-[#3d2117] text-white shadow-xs'
+                        : 'bg-[#f5eee5] text-[#75412e] border border-[#bd896e]/30 hover:border-[#bd896e]'
+                    }`}
+                  >
+                    {type}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -420,7 +302,7 @@ export const WhatsAppEnquiryModal: React.FC<WhatsAppEnquiryModalProps> = ({
                       type="text"
                       value={businessName}
                       onChange={(e) => setBusinessName(e.target.value)}
-                      placeholder="e.g. Moola Banqueting"
+                      placeholder="e.g. Catering Co. / Store Name"
                       className="w-full pl-9 pr-3 py-2.5 text-xs rounded-xl bg-white border border-[#bd896e]/30 text-[#3d2117] focus:outline-hidden focus:border-[#b86643]"
                     />
                   </div>

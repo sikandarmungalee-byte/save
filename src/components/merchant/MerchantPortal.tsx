@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useERP } from '../../context/ERPContext';
 import { Invoice, DeliveryNote, MerchantOrderItem, Product, ProductSizeOption, MerchantOrder } from '../../types/erp';
 import {
@@ -72,31 +72,22 @@ export function getProductImage(prod: Product): string {
   return '/showcase/savoure-logo.png';
 }
 
-// Helper to retrieve all size options for any bakery product
+// Helper to retrieve size/packaging options from real ERP product fields
 export function getProductSizes(prod: Product): ProductSizeOption[] {
   if (prod.sizes && prod.sizes.length > 0) {
     return prod.sizes;
   }
-  const basePrice = prod.unitPrice || 35.00;
+  const basePrice = Number(prod.unitPrice) || 0;
   return [
     {
       id: `${prod.id}_std`,
-      name: `${prod.name} (Standard Pack)`,
-      shortName: 'Standard Pack',
-      dimensions: prod.physicalSize || 'Standard 20cm',
+      name: prod.name,
+      shortName: prod.packSize || 'Standard Pack',
+      dimensions: prod.physicalSize || 'Standard Spec',
       packSpec: prod.packSize || 'Commercial Pack',
       price: basePrice,
       isDefault: true,
-      badge: 'Standard',
-    },
-    {
-      id: `${prod.id}_bulk`,
-      name: `${prod.name} (Bulk Catering Box)`,
-      shortName: 'Catering Box (12s)',
-      dimensions: prod.physicalSize || 'Standard 20cm',
-      packSpec: `12 × (${prod.packSize || 'Commercial Pack'})`,
-      price: Math.round(basePrice * 12 * 0.90 * 100) / 100,
-      badge: '10% Wholesale Save',
+      badge: prod.sku || undefined,
     },
   ];
 }
@@ -111,6 +102,7 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
     invoices,
     deliveryNotes,
     products,
+    categories,
     merchantOrders,
     createMerchantOrder,
     logout,
@@ -192,6 +184,7 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
     return null;
   }, [customers, currentUser]);
 
+  const currencySymbol = company?.currency || 'R';
   const currentBranch = currentUser?.branch || linkedCustomer?.branches?.[0]?.branchName || 'Main Branch';
   const customerDisplayName =
     currentUser?.customerName ||
@@ -199,6 +192,21 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
     currentUser?.merchantStoreName ||
     currentUser?.name ||
     'Merchant Partner';
+
+  // Keep branch and delivery address aligned with live hydrated merchant / customer data
+  useEffect(() => {
+    const resolvedBranch = currentUser?.branch || linkedCustomer?.branches?.[0]?.branchName;
+    if (resolvedBranch && (selectedBranch === 'Main Branch' || !selectedBranch)) {
+      setSelectedBranch(resolvedBranch);
+    }
+    const resolvedAddr =
+      currentUser?.deliveryAddress ||
+      currentUser?.merchantAddress ||
+      linkedCustomer?.branches?.[0]?.deliveryAddress;
+    if (resolvedAddr && (deliveryAddress === 'Commercial Store Dispatch Address' || !deliveryAddress)) {
+      setDeliveryAddress(resolvedAddr);
+    }
+  }, [currentUser, linkedCustomer]);
 
   // ------------------------------------------------------------------
   // STRICT AUTOMATIC FILTERING FOR INVOICES
@@ -279,10 +287,27 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
   const totalBalanceDue = merchantInvoices.reduce((acc, i) => acc + (Number(i.balanceDue) || 0), 0);
   const pendingOrdersCount = myOrdersList.filter((o) => o.status === 'PENDING' || o.status === 'ACCEPTED' || o.status === 'PREPARING').length;
 
-  // Ordering catalog items (from ERP products)
+  // Ordering catalog items (linked directly to all live ERP products added in Admin)
   const orderableProducts = useMemo(() => {
-    return (products || []).filter((p) => p.unitPrice > 0 || p.showcase !== false);
+    return (products || []).filter((p) => Boolean(p && p.name && p.name.trim()));
   }, [products]);
+
+  const availableCategories = useMemo(() => {
+    const catSet = new Set<string>();
+    (categories || []).forEach((c) => {
+      if (c && c.trim()) catSet.add(c.trim());
+    });
+    orderableProducts.forEach((p) => {
+      if (p.category && p.category.trim()) catSet.add(p.category.trim());
+    });
+    return ['ALL', ...Array.from(catSet)];
+  }, [categories, orderableProducts]);
+
+  useEffect(() => {
+    if (catalogCategory !== 'ALL' && !availableCategories.includes(catalogCategory)) {
+      setCatalogCategory('ALL');
+    }
+  }, [availableCategories, catalogCategory]);
 
   // Helper to determine currently active size option for a product card
   const getSelectedSizeForProduct = (prod: Product): ProductSizeOption => {
@@ -329,8 +354,8 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
         if (prod) {
           const sizes = getProductSizes(prod);
           const size = sizes.find((s) => s.id === sizeId) || sizes.find((s) => s.isDefault) || sizes[0];
-          const unitPrice = size ? size.price : (prod.unitPrice || 35.00);
-          const packSize = size ? `${size.shortName || size.name} [${size.packSpec}]` : (prod.packSize || 'Commercial Pack');
+          const unitPrice = size ? size.price : (Number(prod.unitPrice) || 0);
+          const packSize = size ? `${size.shortName || size.name}${size.packSpec && size.packSpec !== size.shortName ? ` [${size.packSpec}]` : ''}` : (prod.packSize || 'Commercial Pack');
           list.push({
             productId: prod.id,
             productName: prod.name,
@@ -349,7 +374,6 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
   const orderSubtotal = selectedOrderItems.reduce((acc, it) => acc + it.lineTotal, 0);
   const orderTotal = orderSubtotal; // Zero-rated / staple food exemption default
   const totalPackCount = selectedOrderItems.reduce((acc, it) => acc + it.quantity, 0);
-  const estimatedWholesaleWeightKg = Math.round(totalPackCount * 0.85 * 10) / 10;
 
   const handleQtyChange = (prodId: string, sizeId: string, delta: number) => {
     const itemKey = `${prodId}___${sizeId}`;
@@ -362,6 +386,19 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
         return copy;
       }
       return { ...prev, [itemKey]: next };
+    });
+  };
+
+  const handleSetExactQty = (prodId: string, sizeId: string, rawValue: string) => {
+    const itemKey = `${prodId}___${sizeId}`;
+    const parsed = Math.max(0, parseInt(rawValue, 10) || 0);
+    setOrderQuantities((prev) => {
+      if (parsed === 0) {
+        const copy = { ...prev };
+        delete copy[itemKey];
+        return copy;
+      }
+      return { ...prev, [itemKey]: parsed };
     });
   };
 
@@ -833,7 +870,7 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                   </div>
 
                   <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-                    {['ALL', 'Pastry Sheets', 'Artisanal Roti', 'Tortillas & Wraps'].map((cat) => (
+                    {availableCategories.map((cat) => (
                       <button
                         key={cat}
                         type="button"
@@ -844,7 +881,7 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                             : 'bg-[#FBF7F1] text-[#66483B] hover:text-[#1E0F07]'
                         }`}
                       >
-                        {cat === 'ALL' ? 'All Products' : cat}
+                        {cat === 'ALL' ? `All Products (${orderableProducts.length})` : cat}
                       </button>
                     ))}
                   </div>
@@ -868,7 +905,25 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                 {/* ---------------------------------------------------- */}
                 {catalogLayout === 'cards' && (
                   <div className="space-y-4 pt-2">
-                    {filteredCatalogProducts.length === 0 ? (
+                    {orderableProducts.length === 0 ? (
+                      <div className="py-12 text-center text-xs text-[#7A6458] space-y-3 bg-[#FBF7F1]/70 rounded-2xl border border-dashed border-[#BD896E]/40">
+                        <Package className="w-10 h-10 text-[#CC8468]/60 mx-auto" />
+                        <div className="font-serif text-base font-bold text-[#2B150A]">
+                          No ERP Products Synced Yet
+                        </div>
+                        <p className="max-w-md mx-auto">
+                          Products added in Savouré Admin ERP (&rarr; Products &amp; Catalog) appear here automatically from live Cloud Firestore.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => refreshData()}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#2B150A] text-white text-xs font-bold cursor-pointer"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          <span>Refresh Live Catalog</span>
+                        </button>
+                      </div>
+                    ) : filteredCatalogProducts.length === 0 ? (
                       <div className="py-12 text-center text-xs text-[#7A6458] space-y-2">
                         <Package className="w-10 h-10 text-stone-300 mx-auto" />
                         <p>No products match your search or filter.</p>
@@ -889,7 +944,6 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                         const curQtyForActiveSize = orderQuantities[`${prod.id}___${activeSize.id}`] || 0;
                         const prodImg = getProductImage(prod);
 
-                        // Total count across all sizes for this product
                         const totalProdQty = sizes.reduce(
                           (acc, s) => acc + (orderQuantities[`${prod.id}___${s.id}`] || 0),
                           0
@@ -923,20 +977,32 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                                         {prod.badge}
                                       </span>
                                     )}
-                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#EAD8C6] text-[#75412E] font-medium">
-                                      {prod.category}
-                                    </span>
-                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 font-medium">
-                                      100% Halal
-                                    </span>
+                                    {prod.category && (
+                                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#EAD8C6] text-[#75412E] font-medium">
+                                        {prod.category}
+                                      </span>
+                                    )}
+                                    {prod.sku && (
+                                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-white border border-[#BD896E]/30 font-mono text-[#66483B]">
+                                        SKU: {prod.sku}
+                                      </span>
+                                    )}
                                   </div>
                                   {prod.description && (
                                     <p className="text-xs text-[#66483B] line-clamp-2 max-w-xl">
                                       {prod.description}
                                     </p>
                                   )}
-                                  <div className="text-[11px] text-[#7A6458]">
-                                    Dimensions: <strong className="text-[#2B150A] font-semibold">{prod.physicalSize || activeSize.dimensions}</strong> · Pack: <strong className="text-[#2B150A] font-semibold">{prod.packSize || activeSize.packSpec}</strong>
+                                  <div className="text-[11px] text-[#7A6458] flex flex-wrap items-center gap-x-2">
+                                    <span>Size: <strong className="text-[#2B150A] font-semibold">{prod.physicalSize || activeSize.dimensions}</strong></span>
+                                    <span>·</span>
+                                    <span>Pack: <strong className="text-[#2B150A] font-semibold">{prod.packSize || activeSize.packSpec}</strong></span>
+                                    {typeof prod.stockOnHand === 'number' && (
+                                      <>
+                                        <span>·</span>
+                                        <span>Available Stock: <strong className={prod.stockOnHand > 0 ? 'text-emerald-700 font-mono' : 'text-amber-700 font-mono'}>{prod.stockOnHand}</strong></span>
+                                      </>
+                                    )}
                                   </div>
                                 </div>
                               </div>
@@ -946,77 +1012,79 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                                 <div className="self-start sm:self-center shrink-0">
                                   <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold font-mono shadow-2xs">
                                     <Check className="w-3.5 h-3.5" />
-                                    <span>{totalProdQty} packs in order</span>
+                                    <span>{totalProdQty} in order</span>
                                   </span>
                                 </div>
                               )}
                             </div>
 
-                            {/* Size Selection Chips */}
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-[#75412E]">
-                                <span>1. Select Size & Specification:</span>
-                                <span className="text-[#8D5037] font-normal lowercase">click to switch active packaging</span>
-                              </div>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                                {sizes.map((size) => {
-                                  const isSelected = activeSize.id === size.id;
-                                  const sizeInCart = orderQuantities[`${prod.id}___${size.id}`] || 0;
+                            {/* Size Selection Chips (when multiple configured in ERP) */}
+                            {sizes.length > 1 && (
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-[#75412E]">
+                                  <span>Select Size &amp; Specification:</span>
+                                  <span className="text-[#8D5037] font-normal lowercase">click to switch active packaging</span>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                                  {sizes.map((size) => {
+                                    const isSelected = activeSize.id === size.id;
+                                    const sizeInCart = orderQuantities[`${prod.id}___${size.id}`] || 0;
 
-                                  return (
-                                    <button
-                                      key={size.id}
-                                      type="button"
-                                      onClick={() => handleSelectSize(prod.id, size.id)}
-                                      className={`p-3 rounded-2xl text-left transition-all cursor-pointer border flex flex-col justify-between ${
-                                        isSelected
-                                          ? 'bg-white border-[#CC8468] ring-2 ring-[#CC8468]/30 shadow-xs'
-                                          : 'bg-white/70 border-[#BD896E]/20 hover:border-[#CC8468]/60 hover:bg-white'
-                                      }`}
-                                    >
-                                      <div>
-                                        <div className="flex items-center justify-between gap-1">
-                                          <span className="font-bold text-xs text-[#1E0F07]">
-                                            {size.shortName || size.name}
-                                          </span>
-                                          {size.badge && (
-                                            <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold bg-[#EAD8C6] text-[#75412E]">
-                                              {size.badge}
+                                    return (
+                                      <button
+                                        key={size.id}
+                                        type="button"
+                                        onClick={() => handleSelectSize(prod.id, size.id)}
+                                        className={`p-3 rounded-2xl text-left transition-all cursor-pointer border flex flex-col justify-between ${
+                                          isSelected
+                                            ? 'bg-white border-[#CC8468] ring-2 ring-[#CC8468]/30 shadow-xs'
+                                            : 'bg-white/70 border-[#BD896E]/20 hover:border-[#CC8468]/60 hover:bg-white'
+                                        }`}
+                                      >
+                                        <div>
+                                          <div className="flex items-center justify-between gap-1">
+                                            <span className="font-bold text-xs text-[#1E0F07]">
+                                              {size.shortName || size.name}
                                             </span>
-                                          )}
+                                            {size.badge && (
+                                              <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold bg-[#EAD8C6] text-[#75412E]">
+                                                {size.badge}
+                                              </span>
+                                            )}
+                                          </div>
+                                          <div className="text-[10px] text-[#7A6458] mt-1 space-y-0.5">
+                                            <div>{size.dimensions}</div>
+                                            <div className="text-[#8D5037]">{size.packSpec}</div>
+                                          </div>
                                         </div>
-                                        <div className="text-[10px] text-[#7A6458] mt-1 space-y-0.5">
-                                          <div>{size.dimensions}</div>
-                                          <div className="text-[#8D5037]">{size.packSpec}</div>
-                                        </div>
-                                      </div>
 
-                                      <div className="mt-2 pt-2 border-t border-[#E8D9CD] flex items-center justify-between">
-                                        <span className="font-mono font-bold text-xs text-[#1E0F07]">
-                                          R {size.price.toFixed(2)}
-                                        </span>
-                                        {sizeInCart > 0 ? (
-                                          <span className="text-[10px] font-mono font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md">
-                                            {sizeInCart} added
+                                        <div className="mt-2 pt-2 border-t border-[#E8D9CD] flex items-center justify-between">
+                                          <span className="font-mono font-bold text-xs text-[#1E0F07]">
+                                            {currencySymbol} {size.price.toFixed(2)}
                                           </span>
-                                        ) : isSelected ? (
-                                          <span className="text-[10px] font-bold text-[#CC8468]">Selected</span>
-                                        ) : null}
-                                      </div>
-                                    </button>
-                                  );
-                                })}
+                                          {sizeInCart > 0 ? (
+                                            <span className="text-[10px] font-mono font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md">
+                                              {sizeInCart} added
+                                            </span>
+                                          ) : isSelected ? (
+                                            <span className="text-[10px] font-bold text-[#CC8468]">Selected</span>
+                                          ) : null}
+                                        </div>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
                               </div>
-                            </div>
+                            )}
 
                             {/* Active Size Stepper & Quick-Case Adds */}
                             <div className="pt-3 border-t border-[#BD896E]/20 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl">
                               <div className="space-y-0.5">
                                 <div className="text-xs text-[#1E0F07]">
-                                  Active Specification: <strong className="font-bold text-[#8D5037]">{activeSize.name}</strong>
+                                  Unit Spec: <strong className="font-bold text-[#8D5037]">{activeSize.shortName || activeSize.name}</strong>
                                 </div>
                                 <div className="text-[11px] text-[#7A6458]">
-                                  {activeSize.dimensions} · {activeSize.packSpec} · <span className="font-mono font-bold text-emerald-800">R {activeSize.price.toFixed(2)} / pack</span>
+                                  {activeSize.dimensions} · {activeSize.packSpec} · <span className="font-mono font-bold text-emerald-800">{currencySymbol} {activeSize.price.toFixed(2)} / unit</span>
                                 </div>
                               </div>
 
@@ -1024,7 +1092,7 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                                 {/* Quick Case Add Buttons */}
                                 <div className="flex items-center gap-1">
                                   <span className="text-[10px] uppercase font-bold text-[#75412E] mr-1 hidden sm:inline">
-                                    Quick Case:
+                                    Quick Add:
                                   </span>
                                   {[5, 10, 25].map((amt) => (
                                     <button
@@ -1032,14 +1100,14 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                                       type="button"
                                       onClick={() => handleQuickAddQty(prod.id, activeSize.id, amt)}
                                       className="px-2.5 py-1 rounded-xl bg-[#FBF7F1] hover:bg-[#EAD8C6] border border-[#BD896E]/30 text-[11px] font-mono font-bold text-[#75412E] cursor-pointer transition-colors"
-                                      title={`Add ${amt} packs`}
+                                      title={`Add ${amt} units`}
                                     >
                                       +{amt}
                                     </button>
                                   ))}
                                 </div>
 
-                                {/* Stepper */}
+                                {/* Stepper with Direct Numeric Input */}
                                 <div className="flex items-center border border-[#BD896E]/40 rounded-full bg-white p-1 shadow-2xs">
                                   <button
                                     type="button"
@@ -1049,9 +1117,15 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                                   >
                                     <Minus className="w-3.5 h-3.5" />
                                   </button>
-                                  <span className="w-12 text-center font-mono font-bold text-xs tabular-nums text-[#2B150A]">
-                                    {curQtyForActiveSize}
-                                  </span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={curQtyForActiveSize === 0 ? '' : curQtyForActiveSize}
+                                    placeholder="0"
+                                    onChange={(e) => handleSetExactQty(prod.id, activeSize.id, e.target.value)}
+                                    aria-label={`Quantity for ${prod.name}`}
+                                    className="w-12 text-center font-mono font-bold text-xs tabular-nums text-[#2B150A] bg-transparent outline-none"
+                                  />
                                   <button
                                     type="button"
                                     onClick={() => handleQtyChange(prod.id, activeSize.id, 1)}
@@ -1062,7 +1136,7 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                                 </div>
 
                                 <div className="w-24 text-right font-mono font-bold text-xs text-[#2B150A]">
-                                  R {(curQtyForActiveSize * activeSize.price).toFixed(2)}
+                                  {currencySymbol} {(curQtyForActiveSize * activeSize.price).toFixed(2)}
                                 </div>
                               </div>
                             </div>
@@ -1139,7 +1213,7 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                                   {size.packSpec}
                                 </td>
                                 <td className="py-3 px-3 text-right font-mono font-semibold text-[#1E0F07]">
-                                  R {size.price.toFixed(2)}
+                                  {currencySymbol} {size.price.toFixed(2)}
                                 </td>
                                 <td className="py-3 px-3 text-center">
                                   <div className="inline-flex items-center gap-1">
@@ -1165,7 +1239,15 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                                     >
                                       -
                                     </button>
-                                    <span className="w-8 text-center font-mono font-bold text-xs">{qty}</span>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={qty === 0 ? '' : qty}
+                                      placeholder="0"
+                                      onChange={(e) => handleSetExactQty(prod.id, size.id, e.target.value)}
+                                      aria-label={`Matrix quantity for ${prod.name}`}
+                                      className="w-10 text-center font-mono font-bold text-xs bg-transparent outline-none"
+                                    />
                                     <button
                                       type="button"
                                       onClick={() => handleQtyChange(prod.id, size.id, 1)}
@@ -1176,7 +1258,7 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                                   </div>
                                 </td>
                                 <td className="py-3 px-3 text-right font-mono font-bold text-[#2B150A]">
-                                  R {(qty * size.price).toFixed(2)}
+                                  {currencySymbol} {(qty * size.price).toFixed(2)}
                                 </td>
                               </tr>
                             );
@@ -1217,7 +1299,7 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                     if (!prod) return null;
                     const sizes = getProductSizes(prod);
                     const size = sizes.find((s) => s.id === sizeId) || sizes.find((s) => s.isDefault) || sizes[0];
-                    const unitPrice = size ? size.price : (prod.unitPrice || 35.00);
+                    const unitPrice = size ? size.price : (Number(prod.unitPrice) || 0);
                     const prodImg = getProductImage(prod);
 
                     return (
@@ -1399,12 +1481,12 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                 {/* Transparent Ledger Breakdown & Zero-Rated VAT */}
                 <div className="pt-3 border-t border-[#E8D9CD] space-y-1.5 text-xs">
                   <div className="flex justify-between text-[#66483B]">
-                    <span>Total Packs / Cases</span>
-                    <span className="font-mono font-semibold">{totalPackCount} packs</span>
+                    <span>Distinct ERP SKUs</span>
+                    <span className="font-mono font-semibold">{selectedOrderItems.length} items</span>
                   </div>
                   <div className="flex justify-between text-[#66483B]">
-                    <span>Estimated Wholesale Weight</span>
-                    <span className="font-mono font-semibold">~{estimatedWholesaleWeightKg} kg</span>
+                    <span>Total Units / Packs</span>
+                    <span className="font-mono font-semibold">{totalPackCount} packs</span>
                   </div>
                   <div className="flex justify-between text-[#66483B]">
                     <span>Cold-Chain Delivery</span>
@@ -1412,11 +1494,11 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                   </div>
                   <div className="flex justify-between text-[#66483B]">
                     <span>VAT (0% - Staple Food Exemption)</span>
-                    <span className="font-mono font-semibold text-emerald-700">R 0.00 (Zero-Rated)</span>
+                    <span className="font-mono font-semibold text-emerald-700">{currencySymbol} 0.00 (Zero-Rated)</span>
                   </div>
                   <div className="flex justify-between text-base font-serif font-bold text-[#2B150A] pt-2 border-t border-[#E8D9CD]">
                     <span>Total Order Amount</span>
-                    <span className="font-mono text-[#8D5037]">R {orderTotal.toFixed(2)}</span>
+                    <span className="font-mono text-[#8D5037]">{currencySymbol} {orderTotal.toFixed(2)}</span>
                   </div>
                 </div>
 

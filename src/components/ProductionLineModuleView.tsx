@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useERP } from '../context/ERPContext';
 import {
   ProductionLine,
@@ -50,6 +50,7 @@ export const ProductionLineModuleView: React.FC<ProductionLineModuleViewProps> =
     stockItemStatuses,
     currentUser,
     updateProductionLineStatus,
+    addProductionLine,
     createProductionBatch,
     updateProductionBatchStatus,
     completeProductionBatch,
@@ -62,18 +63,47 @@ export const ProductionLineModuleView: React.FC<ProductionLineModuleViewProps> =
 
   // Modals
   const [isNewBatchModalOpen, setIsNewBatchModalOpen] = useState(false);
+  const [isNewLineModalOpen, setIsNewLineModalOpen] = useState(false);
   const [isQCModalOpen, setIsQCModalOpen] = useState(false);
   const [selectedBatchForQC, setSelectedBatchForQC] = useState<ProductionBatch | null>(null);
   const [isBatchLabelModalOpen, setIsBatchLabelModalOpen] = useState(false);
   const [selectedBatchForLabel, setSelectedBatchForLabel] = useState<ProductionBatch | null>(null);
 
+  // New Line Form State
+  const [newLineForm, setNewLineForm] = useState<{
+    code: string;
+    name: string;
+    section: ProductionLine['section'];
+    supervisor: string;
+    capacityPerHour: string;
+  }>({
+    code: '',
+    name: '',
+    section: 'Extrusion & Sheeting',
+    supervisor: currentUser?.name || '',
+    capacityPerHour: '',
+  });
+
   // New Batch Form State
-  const [selectedProductId, setSelectedProductId] = useState<string>(products[0]?.id || 'prod_spring_roll');
-  const [selectedLineId, setSelectedLineId] = useState<string>('line_01');
+  const [selectedProductId, setSelectedProductId] = useState<string>(products[0]?.id || '');
+  const [selectedLineId, setSelectedLineId] = useState<string>(productionLines[0]?.id || '');
   const [plannedQty, setPlannedQty] = useState<number>(500);
-  const [operatorName, setOperatorName] = useState<string>('Sipho Ndlovu');
-  const [supervisorName, setSupervisorName] = useState<string>('Yusuf Patel');
-  const [batchNotes, setBatchNotes] = useState<string>('Standard morning production run');
+  const [operatorName, setOperatorName] = useState<string>('');
+  const [supervisorName, setSupervisorName] = useState<string>(currentUser?.name || '');
+  const [batchNotes, setBatchNotes] = useState<string>('');
+
+  // Keep selected product and line synced with live ERP records
+  useEffect(() => {
+    if ((!selectedProductId || !products.some((p) => p.id === selectedProductId)) && products.length > 0) {
+      setSelectedProductId(products[0].id);
+    }
+  }, [products, selectedProductId]);
+
+  useEffect(() => {
+    if ((!selectedLineId || !productionLines.some((l) => l.id === selectedLineId)) && productionLines.length > 0) {
+      setSelectedLineId(productionLines[0].id);
+    }
+  }, [productionLines, selectedLineId]);
 
   // QC / Completion Form State
   const [actualYieldInput, setActualYieldInput] = useState<number>(490);
@@ -84,8 +114,8 @@ export const ProductionLineModuleView: React.FC<ProductionLineModuleViewProps> =
   const [qcVisualAppearance, setQcVisualAppearance] = useState<'Pass' | 'Fail' | 'Marginal'>('Pass');
   const [qcMetalDetected, setQcMetalDetected] = useState<boolean>(true);
   const [qcSealIntegrity, setQcSealIntegrity] = useState<boolean>(true);
-  const [qcInspectorName, setQcInspectorName] = useState<string>(currentUser?.name || 'Zainab Cassim (QC Officer)');
-  const [qcNotesInput, setQcNotesInput] = useState<string>('Consistent sheet elasticity, perfect lamination.');
+  const [qcInspectorName, setQcInspectorName] = useState<string>(currentUser?.name || '');
+  const [qcNotesInput, setQcNotesInput] = useState<string>('');
 
   const [bannerNotice, setBannerNotice] = useState<string | null>(null);
 
@@ -144,20 +174,60 @@ export const ProductionLineModuleView: React.FC<ProductionLineModuleViewProps> =
     }
   };
 
+  const handleCreateLine = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newLineForm.code.trim() || !newLineForm.name.trim()) return;
+    try {
+      const created = await addProductionLine({
+        code: newLineForm.code.trim().toUpperCase(),
+        name: newLineForm.name.trim(),
+        section: newLineForm.section,
+        supervisor: newLineForm.supervisor.trim() || currentUser?.name || 'Floor Supervisor',
+        capacityPerHour: newLineForm.capacityPerHour.trim() || '500 units/hr',
+        status: 'IDLE',
+      });
+      setSelectedLineId(created.id);
+      setIsNewLineModalOpen(false);
+      setNewLineForm({
+        code: '',
+        name: '',
+        section: 'Extrusion & Sheeting',
+        supervisor: currentUser?.name || '',
+        capacityPerHour: '',
+      });
+      setBannerNotice(`Production line ${created.code} created and synced to live cloud.`);
+      setTimeout(() => setBannerNotice(null), 4000);
+    } catch (err: any) {
+      setBannerNotice(err.message || 'Failed to add production line');
+      setTimeout(() => setBannerNotice(null), 4000);
+    }
+  };
+
   // Submit New Production Batch
   const handleCreateBatch = async (e: React.FormEvent) => {
     e.preventDefault();
     const prod = products.find((p) => p.id === selectedProductId) || products[0];
     const line = productionLines.find((l) => l.id === selectedLineId) || productionLines[0];
 
-    // Calculate BOM roughly based on planned quantity
+    if (!prod) {
+      setBannerNotice('Please add at least one product in Products & Catalog before scheduling a batch.');
+      setTimeout(() => setBannerNotice(null), 5000);
+      return;
+    }
+    if (!line) {
+      setBannerNotice('Please add a factory production line before scheduling a batch.');
+      setTimeout(() => setBannerNotice(null), 5000);
+      return;
+    }
+
+    // Calculate BOM estimate based on planned quantity
     const flourKg = Math.round(plannedQty * 0.2);
     const oilL = Math.round(plannedQty * 0.03);
 
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const seq = productionBatches.length + 1;
     const batchNumber = `BATCH-${dateStr}-${String(seq).padStart(3, '0')}`;
-    const lotCode = `LOT-${dateStr}-${prod.sku.slice(-3)}`;
+    const lotCode = `LOT-${dateStr}-${(prod.sku || prod.id).slice(-3)}`;
 
     try {
       await createProductionBatch({
@@ -172,23 +242,23 @@ export const ProductionLineModuleView: React.FC<ProductionLineModuleViewProps> =
         ingredients: [
           {
             ingredientId: 'ing_flour',
-            ingredientName: 'Supreme Unbleached Pastry Flour (25kg)',
-            sku: 'RAW-FLR-001',
+            ingredientName: 'Pastry Flour (Raw Material)',
+            sku: 'RAW-FLR',
             quantityUsed: flourKg,
             unit: 'kg',
-            costPerUnit: 14.50,
+            costPerUnit: 0,
           },
           {
             ingredientId: 'ing_oil',
-            ingredientName: 'Pure Sunflower Laminating Oil (20L)',
-            sku: 'RAW-OIL-002',
+            ingredientName: 'Laminating Oil (Raw Material)',
+            sku: 'RAW-OIL',
             quantityUsed: oilL,
             unit: 'litres',
-            costPerUnit: 26.00,
+            costPerUnit: 0,
           },
         ],
-        operatorName,
-        supervisorName,
+        operatorName: operatorName.trim() || 'Assigned Operator',
+        supervisorName: supervisorName.trim() || currentUser?.name || 'Floor Supervisor',
         lotCode,
         notes: batchNotes,
       });
@@ -336,13 +406,38 @@ export const ProductionLineModuleView: React.FC<ProductionLineModuleViewProps> =
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-bold text-stone-900">Bakery Machinery & Conveyor Lines</h2>
+              <h2 className="text-sm font-bold text-stone-900">Bakery Machinery &amp; Conveyor Lines</h2>
               <p className="text-xs text-stone-500">Live machinery status, extrusion lines, folding portions, and supervisor controls.</p>
             </div>
+            <button
+              type="button"
+              onClick={() => setIsNewLineModalOpen(true)}
+              className="px-3.5 py-2 rounded-xl bg-[#391E0F] hover:bg-[#2B150A] text-[#F5E8D5] text-xs font-bold flex items-center gap-1.5 shadow-sm cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Production Line</span>
+            </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {productionLines.map((line) => {
+          {productionLines.length === 0 ? (
+            <div className="py-14 text-center bg-white rounded-2xl border border-dashed border-stone-300 space-y-2">
+              <Factory className="w-10 h-10 text-stone-300 mx-auto" />
+              <h3 className="text-sm font-bold text-stone-800">No Production Lines Configured</h3>
+              <p className="text-xs text-stone-500 max-w-sm mx-auto">
+                Add your factory production lines to track real-time machinery status and schedule batch runs in the cloud.
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsNewLineModalOpen(true)}
+                className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#391E0F] text-[#F5E8D5] text-xs font-bold cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Create First Production Line</span>
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {productionLines.map((line) => {
               const activeBatchOnLine = activeBatches.find((b) => b.lineId === line.id);
               return (
                 <div
@@ -413,7 +508,8 @@ export const ProductionLineModuleView: React.FC<ProductionLineModuleViewProps> =
                 </div>
               );
             })}
-          </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -628,33 +724,52 @@ export const ProductionLineModuleView: React.FC<ProductionLineModuleViewProps> =
             <form onSubmit={handleCreateBatch} className="space-y-4 text-xs">
               <div className="space-y-1">
                 <label className="font-semibold text-stone-700">Target Product to Manufacture:</label>
-                <select
-                  value={selectedProductId}
-                  onChange={(e) => setSelectedProductId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-stone-300 text-xs text-stone-900 font-medium"
-                >
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({p.sku})
-                    </option>
-                  ))}
-                </select>
+                {products.length === 0 ? (
+                  <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-[11px]">
+                    No products in ERP catalog yet. Add products under Products &amp; Catalog first.
+                  </div>
+                ) : (
+                  <select
+                    value={selectedProductId}
+                    onChange={(e) => setSelectedProductId(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-stone-300 text-xs text-stone-900 font-medium"
+                  >
+                    {products.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.sku})
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="font-semibold text-stone-700">Assigned Production Line:</label>
-                  <select
-                    value={selectedLineId}
-                    onChange={(e) => setSelectedLineId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-stone-300 text-xs"
-                  >
-                    {productionLines.map((l) => (
-                      <option key={l.id} value={l.id}>
-                        {l.code} - {l.name}
-                      </option>
-                    ))}
-                  </select>
+                  {productionLines.length === 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsNewBatchModalOpen(false);
+                        setIsNewLineModalOpen(true);
+                      }}
+                      className="w-full px-3 py-2 rounded-xl border border-dashed border-[#CC8468] text-xs font-semibold text-[#8D5037] hover:bg-[#FBF7F1]"
+                    >
+                      + Add Production Line First
+                    </button>
+                  ) : (
+                    <select
+                      value={selectedLineId}
+                      onChange={(e) => setSelectedLineId(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-stone-300 text-xs"
+                    >
+                      {productionLines.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.code} - {l.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
                 <div className="space-y-1">
@@ -677,6 +792,7 @@ export const ProductionLineModuleView: React.FC<ProductionLineModuleViewProps> =
                     type="text"
                     value={supervisorName}
                     onChange={(e) => setSupervisorName(e.target.value)}
+                    placeholder="Enter supervisor name"
                     className="w-full px-3 py-2 rounded-xl border border-stone-300 text-xs"
                   />
                 </div>
@@ -687,6 +803,7 @@ export const ProductionLineModuleView: React.FC<ProductionLineModuleViewProps> =
                     type="text"
                     value={operatorName}
                     onChange={(e) => setOperatorName(e.target.value)}
+                    placeholder="Enter operator name"
                     className="w-full px-3 py-2 rounded-xl border border-stone-300 text-xs"
                   />
                 </div>
@@ -698,14 +815,14 @@ export const ProductionLineModuleView: React.FC<ProductionLineModuleViewProps> =
                   type="text"
                   value={batchNotes}
                   onChange={(e) => setBatchNotes(e.target.value)}
-                  placeholder="e.g. Extra thin lamination for weekend hotel catering"
+                  placeholder="Optional production notes"
                   className="w-full px-3 py-2 rounded-xl border border-stone-300 text-xs"
                 />
               </div>
 
               <div className="p-3 rounded-xl bg-stone-50 border border-stone-200 text-stone-600 text-[11px] space-y-1">
                 <div className="font-semibold text-stone-800">Automatic ERP Integration:</div>
-                <div>• Auto-calculates Bill of Materials (BOM) flour and laminating oil</div>
+                <div>• Auto-calculates Bill of Materials (BOM) raw material quantities</div>
                 <div>• Generates product barcode batch lot number</div>
                 <div>• Completing the batch will automatically increase warehouse stock</div>
               </div>
@@ -713,13 +830,116 @@ export const ProductionLineModuleView: React.FC<ProductionLineModuleViewProps> =
               <div className="flex gap-2 pt-2">
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-[#391E0F] hover:bg-[#2B150A] text-[#F5E8D5] font-bold text-xs shadow-sm transition-colors"
+                  disabled={products.length === 0 || productionLines.length === 0}
+                  className="flex-1 py-2.5 rounded-xl bg-[#391E0F] hover:bg-[#2B150A] disabled:opacity-50 text-[#F5E8D5] font-bold text-xs shadow-sm transition-colors"
                 >
                   Start Batch Production
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsNewBatchModalOpen(false)}
+                  className="px-4 py-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 font-semibold text-xs"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------- ADD PRODUCTION LINE MODAL ---------------- */}
+      {isNewLineModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden border border-stone-200 p-6 space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-stone-100">
+              <div className="flex items-center gap-2">
+                <Cpu className="w-5 h-5 text-[#CC8468]" />
+                <h3 className="text-sm font-bold text-stone-900">Add Production Line</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsNewLineModalOpen(false)}
+                className="text-stone-400 hover:text-stone-700 p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateLine} className="space-y-3 text-xs">
+              <div className="grid grid-cols-3 gap-2">
+                <div className="space-y-1">
+                  <label className="font-semibold text-stone-700">Line Code *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newLineForm.code}
+                    onChange={(e) => setNewLineForm({ ...newLineForm, code: e.target.value })}
+                    placeholder="e.g. L1"
+                    className="w-full px-3 py-2 rounded-xl border border-stone-300 font-mono text-xs uppercase"
+                  />
+                </div>
+                <div className="col-span-2 space-y-1">
+                  <label className="font-semibold text-stone-700">Line Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newLineForm.name}
+                    onChange={(e) => setNewLineForm({ ...newLineForm, name: e.target.value })}
+                    placeholder="e.g. Sheeting & Lamination Line"
+                    className="w-full px-3 py-2 rounded-xl border border-stone-300 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-semibold text-stone-700">Factory Section</label>
+                <select
+                  value={newLineForm.section}
+                  onChange={(e) => setNewLineForm({ ...newLineForm, section: e.target.value as ProductionLine['section'] })}
+                  className="w-full px-3 py-2 rounded-xl border border-stone-300 text-xs"
+                >
+                  <option value="Extrusion & Sheeting">Extrusion &amp; Sheeting</option>
+                  <option value="Lamination">Lamination</option>
+                  <option value="Folding & Shaping">Folding &amp; Shaping</option>
+                  <option value="Baking & Griddling">Baking &amp; Griddling</option>
+                  <option value="Packaging & Dispatch">Packaging &amp; Dispatch</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="font-semibold text-stone-700">Line Supervisor</label>
+                  <input
+                    type="text"
+                    value={newLineForm.supervisor}
+                    onChange={(e) => setNewLineForm({ ...newLineForm, supervisor: e.target.value })}
+                    placeholder="Supervisor name"
+                    className="w-full px-3 py-2 rounded-xl border border-stone-300 text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="font-semibold text-stone-700">Hourly Capacity</label>
+                  <input
+                    type="text"
+                    value={newLineForm.capacityPerHour}
+                    onChange={(e) => setNewLineForm({ ...newLineForm, capacityPerHour: e.target.value })}
+                    placeholder="e.g. 600 packs/hr"
+                    className="w-full px-3 py-2 rounded-xl border border-stone-300 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 rounded-xl bg-[#391E0F] hover:bg-[#2B150A] text-[#F5E8D5] font-bold text-xs shadow-sm"
+                >
+                  Save Production Line
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsNewLineModalOpen(false)}
                   className="px-4 py-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 font-semibold text-xs"
                 >
                   Cancel

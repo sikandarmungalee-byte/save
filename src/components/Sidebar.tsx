@@ -187,7 +187,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'taskeen',
-      label: 'Ask Taskeen AI',
+      label: 'Ask Savouré AI',
       icon: Sparkles,
       allowed: isSuperAdmin ? true : Boolean(perms?.taskeenAI ?? true),
       highlight: true,

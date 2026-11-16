@@ -50,74 +50,25 @@ export const MASTER_ADMIN_USER: User = {
   lastLogin: new Date().toISOString(),
 };
 
-export const SOUTHERN_AMBISION_CUSTOMER: Customer = {
-  id: 'cust_1791911619388',
-  registeredName: 'Southern Ambision 1390 CC',
-  tradingName: 'TBC',
-  accountCode: 'ROKSH4',
-  registrationNumber: '2007/140641/23',
-  vatNumber: '',
-  primaryContact: 'ROOKSHANA',
-  primaryPhone: '0719153630',
-  primaryEmail: 'ROOKSHANAL@ICLOUD.COM',
-  branches: [
-    {
-      id: 'br_1791911619388',
-      branchName: 'Main / HQ',
-      deliveryAddress: '',
-      contactPerson: 'ROOKSHANA',
-      phone: '0719153630',
-      email: 'ROOKSHANAL@ICLOUD.COM',
-    },
-  ],
-  creditLimit: 50000,
-  paymentTermsDays: 7,
-  notes: '',
-  documents: [],
-  createdAt: '2026-10-13T17:13:39.388Z',
-};
-
-export const ROOKSHANA_MERCHANT_USER: User = {
-  id: 'usr_1791911737847',
-  name: 'ROOKSHANA',
-  email: 'rookshanal@icloud.com',
-  password: 'Shazia',
-  role: 'merchant',
-  customerId: 'cust_1791911619388',
-  merchantStoreName: 'TBC',
-  merchantPhone: '0719153630',
-  status: 'active',
-  permissions: {
-    manageUsers: false,
-    invoices: true,
-    deliveryNotes: true,
-    quotations: false,
-    payments: false,
-    customers: false,
-    catalog: false,
-    reports: false,
-    crmLeads: false,
-    databaseExplorer: false,
-    companySettings: false,
-    merchants: false,
-  },
-  createdAt: '2026-10-13T17:15:37.847Z',
-  lastLogin: '2026-10-13T17:15:37.847Z',
-};
-
-export const CLEAN_USERS: User[] = [MASTER_ADMIN_USER, ROOKSHANA_MERCHANT_USER];
+export const CLEAN_USERS: User[] = [MASTER_ADMIN_USER];
 
 export function getCleanEmptyDatabase(): ERPDatabase {
   return {
-    users: [MASTER_ADMIN_USER, ROOKSHANA_MERCHANT_USER],
+    users: [MASTER_ADMIN_USER],
     company: CLEAN_COMPANY,
-    customers: [SOUTHERN_AMBISION_CUSTOMER],
+    customers: [],
     products: [],
     categories: [],
     invoices: [],
     deliveryNotes: [],
     quotations: [],
     payments: [],
+    merchantOrders: [],
+    merchantReports: [],
+    posTransactions: [],
+    posSessions: [],
+    productionLines: [],
+    productionBatches: [],
     leads: [],
     communications: [],
     staff: [],
@@ -151,8 +102,13 @@ export function getDatabase(): ERPDatabase {
       modified = true;
     }
 
-    // Filter out dummy test users
-    const filteredUsers = parsed.users.filter((u) => u.email.toLowerCase() !== 'test@test.com');
+    // Filter out dummy/demo test users
+    const filteredUsers = parsed.users.filter(
+      (u) =>
+        u.email.toLowerCase() !== 'test@test.com' &&
+        u.email.toLowerCase() !== 'rookshanal@icloud.com' &&
+        u.id !== 'usr_1791911737847'
+    );
     if (filteredUsers.length !== parsed.users.length) {
       parsed.users = filteredUsers;
       modified = true;
@@ -202,16 +158,9 @@ export function saveDatabase(db: ERPDatabase): void {
 export function purgeAllFakeData(): ERPDatabase {
   const current = getDatabase();
   const purgedDb: ERPDatabase = {
-    users: current.users.filter(u => u.email.toLowerCase() === 'sikandarmungalee@gmail.com' || u.role === 'super_admin'),
+    ...getCleanEmptyDatabase(),
+    users: current.users.filter((u) => u.role === 'super_admin' || u.email.toLowerCase() === 'admin@savoure.co.za'),
     company: current.company || CLEAN_COMPANY,
-    customers: [],
-    products: [],
-    invoices: [],
-    deliveryNotes: [],
-    quotations: [],
-    payments: [],
-    leads: [],
-    communications: [],
     lastUpdated: new Date().toISOString(),
   };
   saveDatabase(purgedDb);

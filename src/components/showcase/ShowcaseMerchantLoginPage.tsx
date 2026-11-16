@@ -11,9 +11,7 @@ import {
   Truck,
   Phone,
   MessageCircle,
-  CheckCircle2,
-  Sparkles,
-  UserCheck
+  CheckCircle2
 } from 'lucide-react';
 import { useERP } from '../../context/ERPContext';
 import { SHOWCASE_CONTACT } from './showcaseData';
@@ -56,12 +54,6 @@ export const ShowcaseMerchantLoginPage: React.FC<ShowcaseMerchantLoginPageProps>
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleFillDemoMerchant = () => {
-    setIdentifier('roksh4');
-    setPassword('ROKSH4');
-    setError(null);
   };
 
   return (
@@ -175,27 +167,6 @@ export const ShowcaseMerchantLoginPage: React.FC<ShowcaseMerchantLoginPageProps>
               </p>
             </div>
 
-            {/* Quick Demo Pill Banner for Instant Login */}
-            <div className="p-3.5 rounded-2xl bg-[#FBF7F1] border border-[#BD896E]/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-lg bg-[#CC8468]/20 text-[#8D5037] flex items-center justify-center shrink-0">
-                  <UserCheck className="w-4 h-4 text-[#8D5037]" />
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-[#2B150A]">Active Merchant Account Demo</div>
-                  <div className="text-[11px] text-[#66483B]">Rookshana · Southern Ambision 1390 CC</div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={handleFillDemoMerchant}
-                className="px-3 py-1.5 rounded-xl bg-[#391E0F] hover:bg-[#2B150A] text-[#FFF9F0] text-xs font-bold transition-all shadow-xs shrink-0 cursor-pointer flex items-center gap-1.5 self-start sm:self-center"
-              >
-                <Sparkles className="w-3 h-3 text-[#DE9E74]" />
-                <span>Fill Demo Login</span>
-              </button>
-            </div>
-
             {/* Error Banner */}
             {error && (
               <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-start gap-2.5 shadow-2xs animate-fade-in">
@@ -216,7 +187,7 @@ export const ShowcaseMerchantLoginPage: React.FC<ShowcaseMerchantLoginPageProps>
                     required
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
-                    placeholder="e.g. roksh4 or rookshanal@icloud.com"
+                    placeholder="merchent@abc.co.xa"
                     autoComplete="username"
                     className="w-full h-12 px-4 rounded-xl bg-[#FBF7F1] border border-stone-200 focus:bg-white focus:border-[#CC8468] text-sm text-[#2B150A] placeholder-stone-400 outline-none transition-all shadow-2xs font-sans"
                   />

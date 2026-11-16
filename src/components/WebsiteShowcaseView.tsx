@@ -189,7 +189,7 @@ export const WebsiteShowcaseView: React.FC<WebsiteShowcaseViewProps> = ({ onGoTo
             </h1>
 
             <p className="text-xs sm:text-sm text-[#C5B7AC] max-w-2xl leading-relaxed">
-              Curate the exact craft specialties displayed on the public Savouré website. Add new dough recipes, update pack specs, and remove items with instant Cloud Firestore synchronization.
+              Curate the exact craft specialties displayed on the public Savouré website. Add new dough recipes, update details, and remove items with instant Cloud Firestore synchronization.
             </p>
           </div>
 
@@ -353,20 +353,15 @@ export const WebsiteShowcaseView: React.FC<WebsiteShowcaseViewProps> = ({ onGoTo
                 </div>
               </div>
 
-              {/* Specs & Actions */}
-              <div className="pt-3 border-t border-[#E8D9CD]/70 flex items-center justify-between text-xs text-[#66483B]">
-                <div>
-                  <div className="font-medium text-[#2B150A]">{prod.packSpec}</div>
-                  <div className="text-[11px] text-[#8D5037]">{prod.sizeSpec}</div>
-                </div>
-
+              {/* Actions */}
+              <div className="pt-3 border-t border-[#E8D9CD]/70 flex items-center justify-end text-xs text-[#66483B]">
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => openEditModal(prod)}
                     className="px-3 py-1.5 rounded-full bg-[#FBF7F1] hover:bg-[#EAD8C6] text-[#2B150A] font-semibold text-xs border border-[#BD896E]/30 cursor-pointer"
                   >
-                    Edit Specs
+                    Edit Product
                   </button>
                   <button
                     type="button"
@@ -392,7 +387,7 @@ export const WebsiteShowcaseView: React.FC<WebsiteShowcaseViewProps> = ({ onGoTo
                   {editingItem ? `Edit Website Specialty: ${editingItem.name}` : 'Add New Specialty to Website Showcase'}
                 </h3>
                 <p className="text-xs text-[#66483B]">
-                  Configures the product tile, packaging details, and description shown to public website visitors.
+                  Configures the product tile and description shown to public website visitors.
                 </p>
               </div>
               <button onClick={() => setIsModalOpen(false)} className="text-stone-400 hover:text-stone-700">
@@ -518,30 +513,6 @@ export const WebsiteShowcaseView: React.FC<WebsiteShowcaseViewProps> = ({ onGoTo
                   placeholder="Or enter custom image URL"
                   className="w-full px-3 py-2 rounded-xl bg-[#FBF7F1] border border-[#BD896E]/30 text-xs text-[#2B150A]"
                 />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-[#75412E] mb-1">Packaging Spec</label>
-                  <input
-                    type="text"
-                    value={formData.packSpec || ''}
-                    onChange={(e) => setFormData({ ...formData, packSpec: e.target.value })}
-                    placeholder="e.g. Pack of 12 Rotis (Dozen) & Catering Crates"
-                    className="w-full px-3 py-2 rounded-xl bg-[#FBF7F1] border border-[#BD896E]/30 text-xs text-[#2B150A]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-[#75412E] mb-1">Size Spec</label>
-                  <input
-                    type="text"
-                    value={formData.sizeSpec || ''}
-                    onChange={(e) => setFormData({ ...formData, sizeSpec: e.target.value })}
-                    placeholder="e.g. 200mm Diameter"
-                    className="w-full px-3 py-2 rounded-xl bg-[#FBF7F1] border border-[#BD896E]/30 text-xs text-[#2B150A]"
-                  />
-                </div>
               </div>
 
               {/* Tags & Highlights */}

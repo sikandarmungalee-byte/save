@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useERP } from '../context/ERPContext';
 import {
   BarcodeScanner,
   parseBarcodeMetadata,
-  SAMPLE_SOUTH_AFRICAN_BARCODES,
   BarcodeMetadata
 } from './BarcodeScanner';
 import {
@@ -49,12 +48,32 @@ export const BarcodeScannerModuleView: React.FC = () => {
   // Print Barcode Sheet Modal
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
 
+  const catalogBarcodes = useMemo(() => {
+    const items: Array<{ barcode: string; name: string; category?: string; unit?: string }> = [];
+    const seen = new Set<string>();
+    products.forEach((p) => {
+      const code = (p.barcode || p.sku || '').trim();
+      if (code && !seen.has(code)) {
+        seen.add(code);
+        items.push({ barcode: code, name: p.name, category: p.category, unit: p.packSize || 'units' });
+      }
+    });
+    stockItemStatuses.forEach((s) => {
+      const code = (s.barcode || '').trim();
+      if (code && !seen.has(code)) {
+        seen.add(code);
+        items.push({ barcode: code, name: s.name, category: s.category, unit: s.unit || 'units' });
+      }
+    });
+    return items;
+  }, [products, stockItemStatuses]);
+
   const handleBarcodeIdentified = (barcode: string) => {
     const clean = (barcode || '').trim().replace(/[-\s]/g, '');
     const meta = parseBarcodeMetadata(clean);
     setActiveMetadata(meta);
 
-    // Find in products catalog or stock item tracking with flexible matching
+    // Find in live ERP products catalog or stock item tracking with flexible matching
     const foundProd =
       products.find((p) => {
         const pBarcode = (p.barcode || '').trim().replace(/[-\s]/g, '');
@@ -68,8 +87,7 @@ export const BarcodeScannerModuleView: React.FC = () => {
       stockItemStatuses.find((s) => {
         const sBarcode = (s.barcode || '').trim().replace(/[-\s]/g, '');
         return sBarcode && (sBarcode === clean || `0${sBarcode}` === clean || sBarcode === `0${clean}`);
-      }) ||
-      SAMPLE_SOUTH_AFRICAN_BARCODES.find((s) => s.barcode === clean);
+      });
 
     setMatchedProduct(foundProd || null);
     setManualBarcode(clean);
@@ -214,28 +232,34 @@ export const BarcodeScannerModuleView: React.FC = () => {
               </div>
             </div>
 
-            {/* Quick 1-Click Preset Barcodes */}
+            {/* Quick Live ERP Catalog Barcodes */}
             <div className="pt-2">
               <span className="text-[10px] uppercase font-bold tracking-wider text-[#8D5037] block mb-2">
-                Quick Test: Verified Product Barcodes
+                Live ERP Catalog Product Barcodes &amp; SKUs
               </span>
-              <div className="grid grid-cols-2 gap-2">
-                {SAMPLE_SOUTH_AFRICAN_BARCODES.slice(0, 4).map((s) => (
-                  <button
-                    key={s.barcode}
-                    type="button"
-                    onClick={() => handleBarcodeIdentified(s.barcode)}
-                    className="p-2.5 rounded-xl bg-[#FBF7F1] hover:bg-[#EAD8C6] border border-[#E8D9CD] text-left transition-colors cursor-pointer group"
-                  >
-                    <div className="font-semibold text-[#2B150A] text-xs truncate group-hover:text-[#8D5037]">
-                      {s.name}
-                    </div>
-                    <div className="font-mono text-[10px] text-[#7A6458]">
-                      {s.barcode}
-                    </div>
-                  </button>
-                ))}
-              </div>
+              {catalogBarcodes.length === 0 ? (
+                <div className="p-3 rounded-xl bg-[#FBF7F1] border border-dashed border-[#E8D9CD] text-[11px] text-[#7A6458]">
+                  No products with barcodes or SKUs in your ERP catalog yet. Add products under Products &amp; Catalog to enable one-tap barcode lookup.
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {catalogBarcodes.slice(0, 6).map((s) => (
+                    <button
+                      key={s.barcode}
+                      type="button"
+                      onClick={() => handleBarcodeIdentified(s.barcode)}
+                      className="p-2.5 rounded-xl bg-[#FBF7F1] hover:bg-[#EAD8C6] border border-[#E8D9CD] text-left transition-colors cursor-pointer group"
+                    >
+                      <div className="font-semibold text-[#2B150A] text-xs truncate group-hover:text-[#8D5037]">
+                        {s.name}
+                      </div>
+                      <div className="font-mono text-[10px] text-[#7A6458]">
+                        {s.barcode}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Rapid Movement Action Form */}
@@ -441,6 +465,7 @@ export const BarcodeScannerModuleView: React.FC = () => {
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
           <div className="w-full max-w-2xl my-auto">
             <BarcodeScanner
+              quickBarcodes={catalogBarcodes}
               onScan={(barcode, meta) => {
                 setActiveMetadata(meta);
                 setManualBarcode(barcode);
@@ -462,7 +487,7 @@ export const BarcodeScannerModuleView: React.FC = () => {
                 <Printer className="w-6 h-6 text-[#D7A77C]" />
                 <div>
                   <h3 className="font-serif font-bold text-lg text-white">Product Barcode Labels Sheet</h3>
-                  <p className="text-xs text-[#F5E8D5]/70">Official product barcodes ready for printing on standard label stock</p>
+                  <p className="text-xs text-[#F5E8D5]/70">Live ERP product barcodes ready for printing on standard label stock</p>
                 </div>
               </div>
               <button
@@ -475,22 +500,30 @@ export const BarcodeScannerModuleView: React.FC = () => {
             </div>
 
             <div className="p-6 overflow-y-auto space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {SAMPLE_SOUTH_AFRICAN_BARCODES.map((item) => (
-                  <div key={item.barcode} className="border-2 border-dashed border-[#CC8468] p-4 rounded-xl text-center bg-[#FFFDFB]">
-                    <div className="text-[10px] uppercase font-bold tracking-widest text-[#8D5037]">Savouré — A Taste of Tradition</div>
-                    <div className="text-sm font-bold text-[#1E0F07] mt-1">{item.name}</div>
-                    <div className="text-xs font-mono text-[#66483B]">{item.category} · {item.unit}</div>
-                    <div className="h-12 my-2 bg-[repeating-linear-gradient(90deg,#1E0F07_0px,#1E0F07_3px,#fff_3px,#fff_6px,#1E0F07_6px,#1E0F07_8px,#fff_8px,#fff_12px)] rounded-xs" />
-                    <div className="font-mono text-sm font-bold tracking-widest text-[#1E0F07]">{item.barcode}</div>
-                    <div className="text-[9px] text-emerald-700 font-bold uppercase mt-1">100% Halal Certified · Verified Product Barcode</div>
-                  </div>
-                ))}
-              </div>
+              {catalogBarcodes.length === 0 ? (
+                <div className="py-12 text-center text-xs text-stone-500">
+                  No ERP products with barcodes or SKUs found. Add products under Products &amp; Catalog to generate printable shelf labels.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {catalogBarcodes.map((item) => (
+                    <div key={item.barcode} className="border-2 border-dashed border-[#CC8468] p-4 rounded-xl text-center bg-[#FFFDFB]">
+                      <div className="text-[10px] uppercase font-bold tracking-widest text-[#8D5037]">
+                        {company?.tradingName || company?.companyName || 'Savouré Artisanal'}
+                      </div>
+                      <div className="text-sm font-bold text-[#1E0F07] mt-1">{item.name}</div>
+                      <div className="text-xs font-mono text-[#66483B]">{item.category || 'Catalog'} · {item.unit || 'units'}</div>
+                      <div className="h-12 my-2 bg-[repeating-linear-gradient(90deg,#1E0F07_0px,#1E0F07_3px,#fff_3px,#fff_6px,#1E0F07_6px,#1E0F07_8px,#fff_8px,#fff_12px)] rounded-xs" />
+                      <div className="font-mono text-sm font-bold tracking-widest text-[#1E0F07]">{item.barcode}</div>
+                      <div className="text-[9px] text-emerald-700 font-bold uppercase mt-1">Verified ERP Product Code</div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="p-4 border-t border-stone-200 bg-stone-50 flex items-center justify-between">
-              <span className="text-xs text-stone-500">Includes 6 official bakery pastry SKUs</span>
+              <span className="text-xs text-stone-500">Includes {catalogBarcodes.length} live ERP product SKUs</span>
               <div className="flex gap-2">
                 <button
                   type="button"

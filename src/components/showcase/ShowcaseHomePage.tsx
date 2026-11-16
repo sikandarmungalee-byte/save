@@ -31,7 +31,8 @@ interface ShowcaseHomePageProps {
 }
 
 export const ShowcaseHomePage: React.FC<ShowcaseHomePageProps> = ({ onNavigate }) => {
-  const { createLead } = useERP();
+  const { createLead, showcaseProducts } = useERP();
+  const productList = (showcaseProducts && showcaseProducts.length > 0) ? showcaseProducts : CRAFT_SPECIALTIES;
 
   // Enquiry modal state
   const [isEnquiryModalOpen, setIsEnquiryModalOpen] = useState(false);
@@ -41,9 +42,8 @@ export const ShowcaseHomePage: React.FC<ShowcaseHomePageProps> = ({ onNavigate }
   const [openFaqId, setOpenFaqId] = useState<string | null>('q1');
 
   // Inline Quick Enquiry Form State
-  const [formSpecialty, setFormSpecialty] = useState(CRAFT_SPECIALTIES[0].name);
+  const [formSpecialty, setFormSpecialty] = useState(productList[0]?.name || CRAFT_SPECIALTIES[0].name);
   const [formPurpose, setFormPurpose] = useState('Wholesale Supply');
-  const [formVolume, setFormVolume] = useState('10 Dozens');
   const [formName, setFormName] = useState('');
   const [formPhone, setFormPhone] = useState('');
   const [formBusiness, setFormBusiness] = useState('');
@@ -65,7 +65,6 @@ export const ShowcaseHomePage: React.FC<ShowcaseHomePageProps> = ({ onNavigate }
       ``,
       `*Specialty Range:* ${formSpecialty}`,
       `*Purpose:* ${formPurpose}`,
-      `*Estimated Volume:* ${formVolume}`,
       `*Delivery Area:* ${formArea.trim() || 'Gauteng'}`,
       `*Contact Name:* ${formName.trim() || 'Prospective Client'}`,
       formPhone.trim() ? `*Phone / WhatsApp:* ${formPhone.trim()}` : '',
@@ -88,7 +87,7 @@ export const ShowcaseHomePage: React.FC<ShowcaseHomePageProps> = ({ onNavigate }
         phone: formPhone.trim(),
         status: 'NEW',
         source: 'WEBSITE',
-        notes: `Enquiry: ${formSpecialty} (${formPurpose}). Volume: ${formVolume}. Area: ${formArea}. Notes: ${formNotes}`,
+        notes: `Enquiry: ${formSpecialty} (${formPurpose}). Area: ${formArea}. Notes: ${formNotes}`,
       });
     } catch (e) {
       console.warn('CRM notice:', e);
@@ -113,7 +112,7 @@ export const ShowcaseHomePage: React.FC<ShowcaseHomePageProps> = ({ onNavigate }
         phone: formPhone.trim(),
         status: 'NEW',
         source: 'WEBSITE',
-        notes: `Form Submission: ${formSpecialty} (${formPurpose}). Volume: ${formVolume}. Delivery Area: ${formArea}. Notes: ${formNotes}`,
+        notes: `Form Submission: ${formSpecialty} (${formPurpose}). Delivery Area: ${formArea}. Notes: ${formNotes}`,
       });
       setFormSubmitted(true);
     } catch (err) {
@@ -238,7 +237,7 @@ export const ShowcaseHomePage: React.FC<ShowcaseHomePageProps> = ({ onNavigate }
                   onClick={() => handleOpenModal()}
                   className="mt-6 w-full py-3 rounded-xl bg-white hover:bg-stone-50 text-[#2B150A] border border-stone-300 font-serif font-bold text-xs tracking-wider shadow-2xs transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <span>Request Product Samples or Quote</span>
+                  <span>Request a Wholesale Quote</span>
                   <ArrowRight className="w-3.5 h-3.5 text-[#C67D5A]" />
                 </button>
               </div>
@@ -263,7 +262,7 @@ export const ShowcaseHomePage: React.FC<ShowcaseHomePageProps> = ({ onNavigate }
 
         {/* 4 Deep Craft Specialty Spotlights */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-10">
-          {CRAFT_SPECIALTIES.map((spec, index) => (
+          {productList.map((spec, index) => (
             <div
               key={spec.id}
               className="bg-white rounded-3xl border border-stone-200/90 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col group"
@@ -309,19 +308,7 @@ export const ShowcaseHomePage: React.FC<ShowcaseHomePageProps> = ({ onNavigate }
                   </div>
                 </div>
 
-                <div className="pt-5 border-t border-stone-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="space-y-0.5">
-                    <span className="text-[10px] text-stone-400 uppercase tracking-wider block font-serif">
-                      Packaging Spec
-                    </span>
-                    <span className="text-xs font-semibold text-[#2B150A] block">
-                      {spec.packSpec}
-                    </span>
-                    <span className="text-[11px] text-stone-500 block">
-                      {spec.sizeSpec}
-                    </span>
-                  </div>
-
+                <div className="pt-5 border-t border-stone-100 flex items-center justify-end gap-4">
                   {/* ENQUIRE NOW BUTTON (No prices) */}
                   <button
                     type="button"
@@ -449,7 +436,7 @@ export const ShowcaseHomePage: React.FC<ShowcaseHomePageProps> = ({ onNavigate }
                 onClick={() => handleOpenModal()}
                 className="px-6 py-3.5 rounded-xl bg-[#2B150A] hover:bg-[#3D2012] text-white font-serif font-bold text-xs tracking-wider shadow-xs transition-all flex items-center gap-2 cursor-pointer"
               >
-                <span>Request Sample Pack for Your Kitchen</span>
+                <span>Enquire for Your Kitchen</span>
                 <ArrowRight className="w-3.5 h-3.5 text-[#C67D5A]" />
               </button>
             </div>
@@ -519,7 +506,7 @@ export const ShowcaseHomePage: React.FC<ShowcaseHomePageProps> = ({ onNavigate }
               Enquire Now
             </h2>
             <p className="text-sm text-stone-300 leading-relaxed">
-              Tell us your catering or wholesale requirements below. Receive prompt pricing, delivery lead times, or tasting samples directly from our production desk.
+              Tell us your catering or wholesale requirements below. Receive prompt pricing and delivery lead times directly from our production desk.
             </p>
           </div>
 
@@ -561,7 +548,7 @@ export const ShowcaseHomePage: React.FC<ShowcaseHomePageProps> = ({ onNavigate }
                     1. Pastry Specialty of Interest <span className="text-[#C67D5A]">*</span>
                   </label>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                    {CRAFT_SPECIALTIES.map((spec) => {
+                    {productList.map((spec) => {
                       const isSelected = formSpecialty === spec.name;
                       return (
                         <button
@@ -575,59 +562,32 @@ export const ShowcaseHomePage: React.FC<ShowcaseHomePageProps> = ({ onNavigate }
                           }`}
                         >
                           <div className="font-serif font-bold text-xs truncate">{spec.name}</div>
-                          <div className={`text-[10px] truncate mt-0.5 ${isSelected ? 'text-stone-300' : 'text-stone-500'}`}>
-                            {spec.packSpec}
-                          </div>
                         </button>
                       );
                     })}
                   </div>
                 </div>
 
-                {/* 2. Purpose & Estimated Quantity */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-serif font-bold uppercase tracking-wider text-stone-700 mb-1.5">
-                      2. Enquiry Purpose
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {['Wholesale Supply', 'Event Catering', 'Retail Stockist', 'Sample Tasting Pack'].map((purp) => (
-                        <button
-                          key={purp}
-                          type="button"
-                          onClick={() => setFormPurpose(purp)}
-                          className={`px-3 py-2 rounded-xl text-xs font-medium text-center transition-all cursor-pointer ${
-                            formPurpose === purp
-                              ? 'bg-[#2B150A] text-white shadow-xs'
-                              : 'bg-stone-50 text-stone-700 border border-stone-200 hover:border-stone-300'
-                          }`}
-                        >
-                          {purp}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-serif font-bold uppercase tracking-wider text-stone-700 mb-1.5">
-                      3. Estimated Quantity
-                    </label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {['5 - 10 Dozens', '20 - 50 Dozens', '100+ Dozens', '10 Packs', '50 Packs', '100+ Packs'].map((vol) => (
-                        <button
-                          key={vol}
-                          type="button"
-                          onClick={() => setFormVolume(vol)}
-                          className={`px-2 py-2 rounded-xl text-[11px] font-mono font-medium text-center transition-all cursor-pointer ${
-                            formVolume === vol
-                              ? 'bg-[#C67D5A] text-white shadow-xs'
-                              : 'bg-stone-50 text-stone-700 border border-stone-200 hover:border-stone-300'
-                          }`}
-                        >
-                          {vol}
-                        </button>
-                      ))}
-                    </div>
+                {/* 2. Enquiry Purpose */}
+                <div>
+                  <label className="block text-xs font-serif font-bold uppercase tracking-wider text-stone-700 mb-1.5">
+                    2. Enquiry Purpose
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {['Wholesale Supply', 'Event Catering', 'Retail Stockist'].map((purp) => (
+                      <button
+                        key={purp}
+                        type="button"
+                        onClick={() => setFormPurpose(purp)}
+                        className={`px-3 py-2 rounded-xl text-xs font-medium text-center transition-all cursor-pointer ${
+                          formPurpose === purp
+                            ? 'bg-[#2B150A] text-white shadow-xs'
+                            : 'bg-stone-50 text-stone-700 border border-stone-200 hover:border-stone-300'
+                        }`}
+                      >
+                        {purp}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
@@ -669,7 +629,7 @@ export const ShowcaseHomePage: React.FC<ShowcaseHomePageProps> = ({ onNavigate }
                         type="text"
                         value={formBusiness}
                         onChange={(e) => setFormBusiness(e.target.value)}
-                        placeholder="e.g. Moola Banqueting / Home Baker"
+                        placeholder="e.g. Catering Co. / Restaurant / Home Baker"
                         className="w-full pl-9 pr-3 py-2.5 text-xs rounded-xl bg-stone-50 border border-stone-200 focus:outline-hidden focus:border-[#C67D5A] text-[#2B150A]"
                       />
                     </div>

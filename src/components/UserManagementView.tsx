@@ -454,7 +454,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
     { key: 'merchants', label: 'Merchant Partners & Branches', desc: 'Manage commercial merchant accounts, order history, and access', icon: Store },
     { key: 'payroll', label: 'Staff & Monthly Payroll', desc: 'Calculate basic pay, overtime rates, allowances, and generate payslips', icon: Wallet },
     { key: 'accounting', label: 'Accounting & General Ledgers', desc: 'General ledger, Trial Balance, P&L, Balance Sheet, and SARS VAT 201', icon: Landmark },
-    { key: 'taskeenAI', label: 'Taskeen Executive AI Advisor', desc: 'Consult Taskeen on daily sales, stock reordering, and business strategy', icon: Sparkles },
+    { key: 'taskeenAI', label: 'Savouré Executive AI Advisor', desc: 'Consult Savouré AI on daily sales, stock reordering, and business strategy', icon: Sparkles },
     { key: 'reports', label: '52-Week Reports & Analytics', desc: 'Access 52-week ISO performance, collections, and audit spreadsheets', icon: BarChart3 },
     { key: 'crmLeads', label: 'Sales Leads Pipeline & CRM', desc: 'Track sales contract deals and log client correspondence history', icon: Flame },
     { key: 'databaseExplorer', label: 'Database Explorer & Backups', desc: 'Inspect live JSON documents, download backups, and restore data', icon: Database },

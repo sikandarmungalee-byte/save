@@ -989,14 +989,14 @@ export const ERP_MODULES: ERPModule[] = [
     ]
   },
 
-  // 12. Ask Taskeen AI
+  // 12. Ask Savouré AI
   {
     id: 'taskeen',
     number: 12,
-    title: 'Ask Taskeen AI',
-    shortTitle: 'Ask Taskeen',
+    title: 'Ask Savouré AI',
+    shortTitle: 'Ask Savouré',
     subtitle: 'Executive Bakery & Business Advisor',
-    description: 'AI business executive powered by Gemini for financial diagnosis, stock projections, and strategy.',
+    description: 'AI business executive powered by Gemini for financial diagnosis, stock projections, and bakery strategy.',
     icon: Sparkles,
     badge: () => 'Advisor',
     subcategories: [

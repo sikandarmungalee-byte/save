@@ -141,7 +141,7 @@ export const MerchantsManagementView: React.FC<MerchantsManagementViewProps> = (
     setName('');
     setEmail('');
     setUsername('');
-    setPassword('password123');
+    setPassword('');
     setBranch('Durban Central');
     setCustomBranch('');
     setMerchantStoreName('');
@@ -633,7 +633,7 @@ export const MerchantsManagementView: React.FC<MerchantsManagementViewProps> = (
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full px-3 py-2 bg-[#120F0D] border border-[#2C211B] rounded-lg text-xs text-white outline-none focus:border-[#C98A5B]"
-                    placeholder="merchant@savoure.co.za"
+                    placeholder="merchent@abc.co.xa"
                   />
                 </div>
 
@@ -646,7 +646,7 @@ export const MerchantsManagementView: React.FC<MerchantsManagementViewProps> = (
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     className="w-full px-3 py-2 bg-[#120F0D] border border-[#2C211B] rounded-lg text-xs text-white outline-none focus:border-[#C98A5B]"
-                    placeholder="e.g. merchant_durban"
+                    placeholder="e.g. merchent_store"
                   />
                 </div>
               </div>

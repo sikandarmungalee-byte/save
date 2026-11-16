@@ -248,7 +248,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenEnquiryMod
           {/* Right: Product Info */}
           <div className="lg:col-span-6 space-y-6">
             <div className="font-mono text-xs uppercase tracking-wider text-[#8d5037]">
-              0{activeIndex + 1} <span className="text-[#bd896e]">/ 04</span>
+              {String(safeIndex + 1).padStart(2, '0')} <span className="text-[#bd896e]">/ {String(productList.length).padStart(2, '0')}</span>
             </div>
 
             <div>
@@ -274,12 +274,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenEnquiryMod
                   {tag}
                 </span>
               ))}
-            </div>
-
-            {/* Spec details */}
-            <div className="p-4 rounded-2xl bg-[#ead8c6]/60 border border-[#bd896e]/30 space-y-1 text-xs text-[#66483b]">
-              <div><strong>Packaging Spec:</strong> {currentProduct.packSpec}</div>
-              <div><strong>Size Spec:</strong> {currentProduct.sizeSpec}</div>
             </div>
 
             {/* Primary Action Button: ENQUIRE NOW (NO PRICES!) */}

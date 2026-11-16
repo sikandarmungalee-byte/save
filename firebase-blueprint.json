@@ -130,9 +130,46 @@
         "vatRate": { "type": "number" }
       },
       "required": ["companyName", "currency"]
+    },
+    "ERPSnapshot": {
+      "title": "ERPSnapshot",
+      "description": "Unified real-time cloud ERP state document synced across devices",
+      "type": "object",
+      "properties": {
+        "users": { "type": "array" },
+        "company": { "type": "object" },
+        "customers": { "type": "array" },
+        "products": { "type": "array" },
+        "categories": { "type": "array" },
+        "invoices": { "type": "array" },
+        "deliveryNotes": { "type": "array" },
+        "quotations": { "type": "array" },
+        "payments": { "type": "array" },
+        "merchantOrders": { "type": "array" },
+        "merchantReports": { "type": "array" },
+        "showcaseProducts": { "type": "array" },
+        "posTransactions": { "type": "array" },
+        "posSessions": { "type": "array" },
+        "productionLines": { "type": "array" },
+        "productionBatches": { "type": "array" },
+        "leads": { "type": "array" },
+        "communications": { "type": "array" },
+        "staff": { "type": "array" },
+        "payrollPayouts": { "type": "array" },
+        "stockPurchases": { "type": "array" },
+        "stockItemStatuses": { "type": "array" },
+        "stockMovements": { "type": "array" },
+        "journalEntries": { "type": "array" },
+        "loginLogs": { "type": "array" },
+        "lastUpdated": { "type": "string" }
+      }
     }
   },
   "firestore": {
+    "/erp/{docId}": {
+      "schema": "ERPSnapshot",
+      "description": "Live synchronized multi-device ERP state document (erp/main)"
+    },
     "/users/{userId}": {
       "schema": "User",
       "description": "User profiles and RBAC permissions"

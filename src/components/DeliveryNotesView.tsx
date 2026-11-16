@@ -385,7 +385,7 @@ export const DeliveryNotesView: React.FC<DeliveryNotesViewProps> = ({ initialSta
                   required
                   value={recipientName}
                   onChange={(e) => setRecipientName(e.target.value)}
-                  placeholder="e.g. Sipho Zulu (Receiving Dock Manager)"
+                  placeholder="e.g. Receiving Dock Manager Name"
                   className="w-full px-3 py-2 text-xs bg-neutral-800 border border-neutral-700 rounded text-white focus:outline-hidden focus:border-[#C98A5B]"
                 />
               </div>

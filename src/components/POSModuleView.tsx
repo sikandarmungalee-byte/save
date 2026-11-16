@@ -3,8 +3,7 @@ import { useERP } from '../context/ERPContext';
 import { Product, POSCartItem, POSTransaction, Customer } from '../types/erp';
 import {
   BarcodeScanner,
-  parseBarcodeMetadata,
-  SAMPLE_SOUTH_AFRICAN_BARCODES
+  parseBarcodeMetadata
 } from './BarcodeScanner';
 import {
   Store,
@@ -207,33 +206,6 @@ export const POSModuleView: React.FC<POSModuleViewProps> = ({ initialSubcategory
       matched = products.find((p) => p.barcode === `0${clean}`);
     } else if (!matched && clean.length === 13 && clean.startsWith('0')) {
       matched = products.find((p) => p.barcode === clean.slice(1));
-    }
-
-    // Check sample South African barcodes
-    if (!matched) {
-      const sample = SAMPLE_SOUTH_AFRICAN_BARCODES.find((s) => s.barcode === clean);
-      if (sample) {
-        const existingByName = products.find(
-          (p) =>
-            p.name.toLowerCase().includes(sample.name.slice(0, 15).toLowerCase()) ||
-            p.category === sample.category
-        );
-        if (existingByName) {
-          matched = existingByName;
-        } else {
-          matched = {
-            id: `prod_scan_${clean}`,
-            name: sample.name,
-            sku: `SKU-${clean.slice(-4)}`,
-            category: sample.category || 'Bakery & Pastry',
-            unitPrice: 42.5,
-            costPrice: 22.0,
-            stockOnHand: 150,
-            barcode: clean,
-            vatApplicable: false,
-          } as Product;
-        }
-      }
     }
 
     if (matched) {
@@ -1074,6 +1046,13 @@ export const POSModuleView: React.FC<POSModuleViewProps> = ({ initialSubcategory
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
           <div className="w-full max-w-xl bg-white rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <BarcodeScanner
+              quickBarcodes={products
+                .filter((p) => Boolean(p.barcode || p.sku))
+                .map((p) => ({
+                  barcode: (p.barcode || p.sku).trim(),
+                  name: p.name,
+                  category: p.category,
+                }))}
               onScan={(scannedCode) => {
                 handleBarcodeScanned(scannedCode);
               }}

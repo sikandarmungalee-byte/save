@@ -31,7 +31,7 @@ import {
   ProductionIngredientUsage,
   ProductionQualityCheck
 } from '../types/erp';
-import { db } from '../lib/firebase';
+import { db, testFirebaseConnection, handleFirestoreError, OperationType } from '../lib/firebase';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { SHOWCASE_COLLECTION, ShowcaseProductItem } from '../components/showcase/showcaseData';
 import { dispatchOrderPushNotification } from '../lib/fcmNotifications';
@@ -123,1179 +123,127 @@ export const INITIAL_COMPANY: CompanySettings = {
   logoUrl: '/images/savoure/savoure-logo.png',
 };
 
-export const INITIAL_CUSTOMER_SOUTHERN_AMBISION: Customer = {
-  id: 'cust_1791911619388',
-  registeredName: 'Southern Ambision 1390 CC',
-  tradingName: 'TBC',
-  accountCode: 'ROKSH4',
-  registrationNumber: '2007/140641/23',
-  vatNumber: '',
-  primaryContact: 'ROOKSHANA',
-  primaryPhone: '0719153630',
-  primaryEmail: 'ROOKSHANAL@ICLOUD.COM',
-  branches: [
-    {
-      id: 'br_1791911619388',
-      branchName: 'Main / HQ',
-      deliveryAddress: '',
-      contactPerson: 'ROOKSHANA',
-      phone: '0719153630',
-      email: 'ROOKSHANAL@ICLOUD.COM',
-    },
-  ],
-  creditLimit: 50000,
-  paymentTermsDays: 7,
-  notes: '',
-  documents: [],
-  createdAt: '2026-10-13T17:13:39.388Z',
+// Exact legacy demo fixture IDs from earlier builds. Stripped cleanly on hydration
+// so existing user-created ERP items are never touched while old cloud/local demo artifacts vanish.
+const LEGACY_DEMO_IDS = {
+  users: new Set(['usr_1791911737847']),
+  emails: new Set(['rookshanal@icloud.com']),
+  usernames: new Set(['roksh4']),
+  customers: new Set(['cust_1791911619388']),
+  products: new Set([
+    'prod_spring_roll',
+    'prod_samoosa_pastry',
+    'prod_flaky_roti',
+    'prod_tortilla_wraps',
+    'prod_samoosa',
+    'prod_tortilla',
+    'prod_roti',
+  ]),
+  stockItemStatuses: new Set([
+    'stk_flour_supreme',
+    'stk_sunflower_oil',
+    'stk_finished_spring_roll',
+    'stk_finished_samoosa',
+    'stk_finished_roti',
+    'stk_finished_tortilla',
+  ]),
+  stockMovements: new Set(['sm_001', 'sm_002', 'sm_003', 'sm_initial_01', 'sm_initial_02']),
+  merchantOrders: new Set(['ord_1001', 'ord_1002', 'ord_1003', 'ord_1004', 'ord_1005', 'ord_1006', 'ord_1007', 'ord_1008']),
+  merchantReports: new Set(['rpt_past_001', 'rpt_past_002', 'rpt_past_003', 'rpt_past_004', 'rpt_past_005']),
+  posSessions: new Set(['pos_ses_001']),
+  posTransactions: new Set(['pos_tx_001']),
+  productionLines: new Set(['line_01', 'line_02', 'line_03', 'line_04']),
+  productionBatches: new Set(['batch_101', 'batch_102']),
 };
 
-export const INITIAL_ROOKSHANA_USER: User = {
-  id: 'usr_1791911737847',
-  name: 'ROOKSHANA',
-  username: 'roksh4',
-  email: 'rookshanal@icloud.com',
-  password: 'ROKSH4',
-  role: 'merchant',
-  customerId: 'cust_1791911619388',
-  customerName: 'Southern Ambision 1390 CC',
-  merchantStoreName: 'TBC',
-  merchantPhone: '0719153630',
-  branch: 'Durban Central',
-  status: 'active',
-  permissions: {
-    manageUsers: false,
-    invoices: true,
-    deliveryNotes: true,
-    quotations: false,
-    payments: false,
-    customers: false,
-    catalog: true,
-    reports: false,
-    crmLeads: false,
-    databaseExplorer: false,
-    companySettings: false,
-    merchants: false,
-  },
-  createdAt: '2026-10-13T17:15:37.847Z',
-  lastLogin: '2026-10-13T17:15:37.847Z',
-};
+function isLegacyDemoUser(u: User | null | undefined): boolean {
+  if (!u) return false;
+  const email = (u.email || '').trim().toLowerCase();
+  const username = ((u as any).username || '').trim().toLowerCase();
+  return (
+    LEGACY_DEMO_IDS.users.has(u.id) ||
+    LEGACY_DEMO_IDS.emails.has(email) ||
+    (Boolean(username) && LEGACY_DEMO_IDS.usernames.has(username))
+  );
+}
 
-// Default South African GS1 Barcode Products (Prefix 600 / 601)
-export const INITIAL_SAVOURE_PRODUCTS: Product[] = [
-  {
-    id: 'prod_spring_roll',
-    sku: 'SAV-SPR-001',
-    name: 'Savouré Spring Roll Pastry Sheets',
-    category: 'Pastry Sheets',
-    packSize: 'Pack of 30 Sheets (20cm / 200g)',
-    physicalSize: 'Standard 20cm',
-    unitPrice: 42.50,
-    costPrice: 22.00,
-    vatApplicable: false,
-    stockOnHand: 480,
-    barcode: '6009800123012',
-    showcase: true,
-    description: 'Ultra-thin, non-porous crispy pastry sheets engineered for restaurant-grade spring rolls. Crisps to a golden amber finish without absorbing grease.',
-    badge: 'Chef Favorite',
-    packagingType: 'dozen',
-    sizes: [
-      {
-        id: 'size_spr_15',
-        name: 'Cocktail / Bite-Size (15cm × 15cm)',
-        shortName: 'Cocktail 15cm',
-        dimensions: '15cm × 15cm',
-        packSpec: '30 Sheets / 150g pack',
-        price: 34.00,
-        badge: 'Cocktail / Bites',
-      },
-      {
-        id: 'size_spr_20',
-        name: 'Standard Restaurant (20cm × 20cm)',
-        shortName: 'Standard 20cm',
-        dimensions: '20cm × 20cm',
-        packSpec: '30 Sheets / 200g pack',
-        price: 42.50,
-        badge: 'Most Popular',
-        isDefault: true,
-      },
-      {
-        id: 'size_spr_25',
-        name: 'Large Deli Sheet (25cm × 25cm)',
-        shortName: 'Large Deli 25cm',
-        dimensions: '25cm × 25cm',
-        packSpec: '40 Sheets / 350g pack',
-        price: 58.00,
-        badge: 'Deli Size',
-      },
-      {
-        id: 'size_spr_bulk',
-        name: 'Commercial Bulk Catering Box',
-        shortName: 'Catering Box 250s',
-        dimensions: '20cm × 20cm',
-        packSpec: '250 Sheets Master Box (2.0kg)',
-        price: 295.00,
-        badge: 'Wholesale Bulk Save',
-      },
-    ],
-  },
-  {
-    id: 'prod_samoosa_pastry',
-    sku: 'SAV-SAM-002',
-    name: 'Savouré Crispy Samoosa Pastry Sheets',
-    category: 'Pastry Sheets',
-    packSize: 'Pack of 50 Strips (7x25cm / 500g)',
-    physicalSize: 'Standard 7x25cm',
-    unitPrice: 48.00,
-    costPrice: 24.50,
-    vatApplicable: false,
-    stockOnHand: 650,
-    barcode: '6001007012342',
-    showcase: true,
-    description: 'Traditional tissue-thin folded samoosa leaves. Separates effortlessly, holds fillings securely, and achieves an unforgettable flaky crackle.',
-    badge: 'Best Seller',
-    packagingType: 'dozen',
-    sizes: [
-      {
-        id: 'size_sam_mini',
-        name: 'Cocktail Mini Strips (5cm × 20cm)',
-        shortName: 'Mini Cocktail 5×20cm',
-        dimensions: '5cm × 20cm',
-        packSpec: '60 Strips / 400g pack',
-        price: 42.00,
-        badge: 'Cocktail & Canapés',
-      },
-      {
-        id: 'size_sam_std',
-        name: 'Standard Golden Strips (7cm × 25cm)',
-        shortName: 'Standard 7×25cm',
-        dimensions: '7cm × 25cm',
-        packSpec: '50 Strips / 500g pack',
-        price: 48.00,
-        badge: 'Best Seller',
-        isDefault: true,
-      },
-      {
-        id: 'size_sam_king',
-        name: 'King Size Triangles (9cm × 30cm)',
-        shortName: 'King Size 9×30cm',
-        dimensions: '9cm × 30cm',
-        packSpec: '50 Strips / 750g pack',
-        price: 65.00,
-        badge: 'Deli Master',
-      },
-      {
-        id: 'size_sam_bulk',
-        name: 'Commercial Foodservice Master Carton',
-        shortName: 'Master Carton 500s',
-        dimensions: '7cm × 25cm',
-        packSpec: '500 Strips Master Box (5.0kg)',
-        price: 440.00,
-        badge: 'Wholesale Bulk Save',
-      },
-    ],
-  },
-  {
-    id: 'prod_flaky_roti',
-    sku: 'SAV-ROT-003',
-    name: 'Savouré Hand-Rolled Flaky Roti',
-    category: 'Artisanal Roti',
-    packSize: 'Pack of 6 Rotis (22cm)',
-    physicalSize: '22cm Round',
-    unitPrice: 38.00,
-    costPrice: 19.00,
-    vatApplicable: false,
-    stockOnHand: 320,
-    barcode: '6009612345671',
-    showcase: true,
-    description: 'Authentic layered Cape Malay & Durban style flaky rotis. Hand-stretched with pure clarified butter for extraordinary tender layers.',
-    badge: 'Artisanal Classic',
-    packagingType: 'dozen',
-    sizes: [
-      {
-        id: 'size_rot_buffet',
-        name: 'Cocktail / Buffet Roti (15cm Round)',
-        shortName: 'Buffet 15cm',
-        dimensions: '15cm Round',
-        packSpec: 'Pack of 10 Rotis / 450g',
-        price: 36.00,
-        badge: 'Buffet Size',
-      },
-      {
-        id: 'size_rot_std',
-        name: 'Classic Table Roti (22cm Round)',
-        shortName: 'Classic 22cm',
-        dimensions: '22cm Round',
-        packSpec: 'Pack of 6 Rotis / 500g',
-        price: 38.00,
-        badge: 'Artisanal Classic',
-        isDefault: true,
-      },
-      {
-        id: 'size_rot_family',
-        name: 'Family Value Pack (22cm Round)',
-        shortName: 'Family Pack of 12',
-        dimensions: '22cm Round',
-        packSpec: 'Pack of 12 Rotis / 1.0kg',
-        price: 68.00,
-        badge: 'Value Pack',
-      },
-      {
-        id: 'size_rot_crate',
-        name: 'Catering Bulk Crate (22cm Round)',
-        shortName: 'Catering Crate 50s',
-        dimensions: '22cm Round',
-        packSpec: '50 Layered Rotis / 4.2kg',
-        price: 265.00,
-        badge: 'Foodservice Master',
-      },
-    ],
-  },
-  {
-    id: 'prod_tortilla_wraps',
-    sku: 'SAV-TOR-004',
-    name: 'Savouré Stone-Ground Tortilla Wraps',
-    category: 'Tortillas & Wraps',
-    packSize: 'Pack of 12 Wraps (30cm)',
-    physicalSize: 'Large 30cm',
-    unitPrice: 54.00,
-    costPrice: 28.00,
-    vatApplicable: false,
-    stockOnHand: 410,
-    barcode: '6002100987650',
-    showcase: true,
-    description: 'Soft-fold stone-ground flour tortillas. Roll tight without cracking or tearing, perfect for Mexican dining, shawarmas, and deli wraps.',
-    badge: 'Wholesale Hero',
-    packagingType: 'pack',
-    sizes: [
-      {
-        id: 'size_tor_med',
-        name: 'Medium Taco / Street Food (20cm / 8")',
-        shortName: 'Medium 8-inch',
-        dimensions: '20cm / 8-inch',
-        packSpec: 'Pack of 12 Wraps / 480g',
-        price: 42.00,
-        badge: 'Taco Size',
-      },
-      {
-        id: 'size_tor_deli',
-        name: 'Large Burrito / Deli (25cm / 10")',
-        shortName: 'Large 10-inch',
-        dimensions: '25cm / 10-inch',
-        packSpec: 'Pack of 12 Wraps / 650g',
-        price: 48.00,
-        badge: 'Burrito & Wraps',
-      },
-      {
-        id: 'size_tor_jumbo',
-        name: 'Jumbo Shawarma (30cm / 12")',
-        shortName: 'Jumbo 12-inch',
-        dimensions: '30cm / 12-inch',
-        packSpec: 'Pack of 12 Wraps / 850g',
-        price: 54.00,
-        badge: 'Wholesale Hero',
-        isDefault: true,
-      },
-      {
-        id: 'size_tor_bulk',
-        name: 'Foodservice Master Case (30cm)',
-        shortName: 'Master Case 100s',
-        dimensions: '30cm / 12-inch',
-        packSpec: '100 Wraps Foodservice Case (7.2kg)',
-        price: 375.00,
-        badge: 'Commercial Master Case',
-      },
-    ],
-  },
-];
+function stripLegacyDemoData(raw: Partial<ERPDatabase>): { cleaned: Partial<ERPDatabase>; stripped: boolean } {
+  let stripped = false;
+  const cleaned: Partial<ERPDatabase> = { ...raw };
 
-export const INITIAL_STOCK_ITEM_STATUSES: StockItemStatus[] = [
-  {
-    id: 'stk_flour_supreme',
-    sku: 'RAW-FLR-001',
-    barcode: '6001234567899',
-    name: 'Supreme Unbleached Pastry Flour (25kg)',
-    category: 'Flour & Grains',
-    branchName: 'Main Bakery',
-    quantityOnHand: 140,
-    unit: 'bags (25kg)',
-    isFinished: false,
-    minThreshold: 20,
-    notes: 'Premium cake and laminating flour from Premier FMCG',
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'stk_sunflower_oil',
-    sku: 'RAW-OIL-002',
-    barcode: '6009876543219',
-    name: 'Pure Sunflower Frying & Laminating Oil (20L)',
-    category: 'Oils & Fats',
-    branchName: 'Main Bakery',
-    quantityOnHand: 45,
-    unit: 'drums (20L)',
-    isFinished: false,
-    minThreshold: 10,
-    notes: 'High-smoke-point pure vegetable oil',
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'stk_finished_spring_roll',
-    sku: 'SAV-SPR-001',
-    barcode: '6009800123012',
-    name: 'Savouré Spring Roll Pastry (20cm / 200g)',
-    category: 'Pastry Sheets',
-    branchName: 'Main Bakery',
-    quantityOnHand: 350,
-    unit: 'packs',
-    isFinished: false,
-    minThreshold: 50,
-    notes: 'Freshly rolled and blast chilled at Main Bakery',
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'stk_finished_samoosa',
-    sku: 'SAV-SAM-002',
-    barcode: '6001007012342',
-    name: 'Savouré Crispy Samoosa Pastry Sheets (500g)',
-    category: 'Pastry Sheets',
-    branchName: 'Main Bakery',
-    quantityOnHand: 420,
-    unit: 'packs',
-    isFinished: false,
-    minThreshold: 60,
-    notes: 'Cut pastry sheets ready for dispatch',
-    updatedAt: new Date().toISOString(),
-  },
-];
-
-export const INITIAL_STOCK_MOVEMENTS: StockMovement[] = [
-  {
-    id: 'sm_001',
-    movementNumber: 'SM-2026-0001',
-    timestamp: new Date(Date.now() - 3600000 * 4).toISOString(),
-    type: 'STOCK_IN',
-    barcode: '6009800123012',
-    sku: 'SAV-SPR-001',
-    productName: 'Savouré Spring Roll Pastry (20cm / 200g)',
-    category: 'Pastry Sheets',
-    quantity: 120,
-    unit: 'packs',
-    sourceBranch: 'Supplier Production',
-    destinationBranch: 'Main Bakery',
-    batchNumber: 'BATCH-2026-0414-A',
-    reason: 'Morning production run completed & quality tested',
-    recordedBy: 'Master Admin',
-    isSouthAfricanBarcode: true,
-  },
-  {
-    id: 'sm_002',
-    movementNumber: 'SM-2026-0002',
-    timestamp: new Date(Date.now() - 3600000 * 2).toISOString(),
-    type: 'TRANSFER',
-    barcode: '6001007012342',
-    sku: 'SAV-SAM-002',
-    productName: 'Savouré Crispy Samoosa Pastry Sheets (500g)',
-    category: 'Pastry Sheets',
-    quantity: 40,
-    unit: 'packs',
-    sourceBranch: 'Main Bakery',
-    destinationBranch: 'Sandton Branch',
-    batchNumber: 'BATCH-2026-0414-B',
-    reason: 'Replenishing Sandton walk-in retail stock',
-    recordedBy: 'Master Admin',
-    isSouthAfricanBarcode: true,
-  },
-  {
-    id: 'sm_003',
-    movementNumber: 'SM-2026-0003',
-    timestamp: new Date(Date.now() - 3600000 * 1).toISOString(),
-    type: 'STOCK_OUT',
-    barcode: '6009612345671',
-    sku: 'SAV-ROT-003',
-    productName: 'Savouré Hand-Rolled Flaky Roti (Pack of 6)',
-    category: 'Artisanal Roti',
-    quantity: 25,
-    unit: 'packs',
-    sourceBranch: 'Main Bakery',
-    reason: 'Dispatched for Southern Ambision 1390 CC wholesale order',
-    recordedBy: 'Master Admin',
-    isSouthAfricanBarcode: true,
-  },
-];
-
-export const INITIAL_MERCHANT_ORDERS: MerchantOrder[] = [
-  {
-    id: 'ord_1001',
-    orderNumber: 'ORD-2026-0001',
-    merchantId: 'usr_1791911737847',
-    merchantName: 'Rookshana Banoo Moola',
-    merchantStoreName: 'Moola Halal Gourmet Deli',
-    merchantEmail: 'orders@moolagourmet.co.za',
-    merchantPhone: '071 915 3630',
-    branch: 'Durban Central Deli',
-    deliveryAddress: '42 Commercial Rd, Durban Central, KwaZulu-Natal',
-    requestedDeliveryDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
-    status: 'ACCEPTED',
-    items: [
-      {
-        productId: 'prod_spring_roll',
-        productName: 'Savouré Spring Roll Pastry Sheets',
-        packSize: 'Standard Restaurant (20cm × 20cm)',
-        quantity: 20,
-        unitPrice: 42.50,
-        lineTotal: 850.00,
-        notes: 'Cold chain dispatch'
-      },
-      {
-        productId: 'prod_samoosa_pastry',
-        productName: 'Savouré Crispy Samoosa Pastry Sheets',
-        packSize: 'Standard Golden Strips (7cm × 25cm)',
-        quantity: 15,
-        unitPrice: 48.00,
-        lineTotal: 720.00,
-        notes: 'Crispy triangle cut'
-      }
-    ],
-    subtotal: 1570.00,
-    vat: 0.00,
-    total: 1570.00,
-    specialInstructions: 'Please deliver before 10:00 AM on Thursday morning for catering weekend preparation.',
-    createdAt: new Date(Date.now() - 3600000 * 5).toISOString(),
-    updatedAt: new Date(Date.now() - 3600000 * 3).toISOString(),
-  },
-  {
-    id: 'ord_1002',
-    orderNumber: 'ORD-2026-0002',
-    merchantId: 'usr_1791911737847',
-    merchantName: 'Rookshana Banoo Moola',
-    merchantStoreName: 'Moola Halal Gourmet Deli',
-    merchantEmail: 'orders@moolagourmet.co.za',
-    merchantPhone: '071 915 3630',
-    branch: 'Durban Central Deli',
-    deliveryAddress: '42 Commercial Rd, Durban Central, KwaZulu-Natal',
-    requestedDeliveryDate: new Date(Date.now() - 86400000 * 2).toISOString().split('T')[0],
-    status: 'DELIVERED',
-    items: [
-      {
-        productId: 'prod_flaky_roti',
-        productName: 'Savouré Hand-Rolled Flaky Roti',
-        packSize: 'Classic Table Roti (22cm Round)',
-        quantity: 25,
-        unitPrice: 38.00,
-        lineTotal: 950.00,
-      },
-      {
-        productId: 'prod_tortilla_wraps',
-        productName: 'Savouré Stone-Ground Tortilla Wraps',
-        packSize: 'Jumbo Shawarma (30cm / 12")',
-        quantity: 15,
-        unitPrice: 54.00,
-        lineTotal: 810.00,
-      }
-    ],
-    subtotal: 1760.00,
-    vat: 0.00,
-    total: 1760.00,
-    specialInstructions: 'Early morning delivery for deli counter stock.',
-    createdAt: new Date(Date.now() - 86400000 * 3).toISOString(),
-    updatedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-  },
-  {
-    id: 'ord_1003',
-    orderNumber: 'ORD-2026-0003',
-    merchantId: 'usr_1791911737847',
-    merchantName: 'Rookshana Banoo Moola',
-    merchantStoreName: 'Moola Halal Gourmet Deli',
-    merchantEmail: 'orders@moolagourmet.co.za',
-    merchantPhone: '071 915 3630',
-    branch: 'Durban Central Deli',
-    deliveryAddress: '42 Commercial Rd, Durban Central, KwaZulu-Natal',
-    requestedDeliveryDate: new Date(Date.now() - 86400000 * 10).toISOString().split('T')[0],
-    status: 'DELIVERED',
-    items: [
-      {
-        productId: 'prod_spring_roll',
-        productName: 'Savouré Spring Roll Pastry Sheets',
-        packSize: 'Commercial Bulk Catering Box',
-        quantity: 6,
-        unitPrice: 295.00,
-        lineTotal: 1770.00,
-      },
-      {
-        productId: 'prod_samoosa_pastry',
-        productName: 'Savouré Crispy Samoosa Pastry Sheets',
-        packSize: 'Standard Golden Strips (7cm × 25cm)',
-        quantity: 20,
-        unitPrice: 48.00,
-        lineTotal: 960.00,
-      }
-    ],
-    subtotal: 2730.00,
-    vat: 0.00,
-    total: 2730.00,
-    specialInstructions: 'Mid-month catering replenishment.',
-    createdAt: new Date(Date.now() - 86400000 * 12).toISOString(),
-    updatedAt: new Date(Date.now() - 86400000 * 10).toISOString(),
-  },
-  {
-    id: 'ord_1004',
-    orderNumber: 'ORD-2026-0004',
-    merchantId: 'usr_1791911737847',
-    merchantName: 'Rookshana Banoo Moola',
-    merchantStoreName: 'Moola Halal Gourmet Deli',
-    merchantEmail: 'orders@moolagourmet.co.za',
-    merchantPhone: '071 915 3630',
-    branch: 'Durban Central Deli',
-    deliveryAddress: '42 Commercial Rd, Durban Central, KwaZulu-Natal',
-    requestedDeliveryDate: new Date(Date.now() - 86400000 * 24).toISOString().split('T')[0],
-    status: 'DELIVERED',
-    items: [
-      {
-        productId: 'prod_flaky_roti',
-        productName: 'Savouré Hand-Rolled Flaky Roti',
-        packSize: 'Catering Bulk Crate (22cm Round)',
-        quantity: 8,
-        unitPrice: 265.00,
-        lineTotal: 2120.00,
-      },
-      {
-        productId: 'prod_tortilla_wraps',
-        productName: 'Savouré Stone-Ground Tortilla Wraps',
-        packSize: 'Large Burrito / Deli (25cm / 10")',
-        quantity: 25,
-        unitPrice: 48.00,
-        lineTotal: 1200.00,
-      }
-    ],
-    subtotal: 3320.00,
-    vat: 0.00,
-    total: 3320.00,
-    createdAt: new Date(Date.now() - 86400000 * 26).toISOString(),
-    updatedAt: new Date(Date.now() - 86400000 * 24).toISOString(),
-  },
-  {
-    id: 'ord_1005',
-    orderNumber: 'ORD-2026-0005',
-    merchantId: 'usr_1791911737847',
-    merchantName: 'Rookshana Banoo Moola',
-    merchantStoreName: 'Moola Halal Gourmet Deli',
-    merchantEmail: 'orders@moolagourmet.co.za',
-    merchantPhone: '071 915 3630',
-    branch: 'Durban Central Deli',
-    deliveryAddress: '42 Commercial Rd, Durban Central, KwaZulu-Natal',
-    requestedDeliveryDate: new Date(Date.now() - 86400000 * 50).toISOString().split('T')[0],
-    status: 'DELIVERED',
-    items: [
-      {
-        productId: 'prod_spring_roll',
-        productName: 'Savouré Spring Roll Pastry Sheets',
-        packSize: 'Standard Restaurant (20cm × 20cm)',
-        quantity: 40,
-        unitPrice: 42.50,
-        lineTotal: 1700.00,
-      },
-      {
-        productId: 'prod_samoosa_pastry',
-        productName: 'Savouré Crispy Samoosa Pastry Sheets',
-        packSize: 'Commercial Foodservice Master Carton',
-        quantity: 5,
-        unitPrice: 440.00,
-        lineTotal: 2200.00,
-      }
-    ],
-    subtotal: 3900.00,
-    vat: 0.00,
-    total: 3900.00,
-    createdAt: new Date(Date.now() - 86400000 * 52).toISOString(),
-    updatedAt: new Date(Date.now() - 86400000 * 50).toISOString(),
-  },
-  {
-    id: 'ord_1006',
-    orderNumber: 'ORD-2026-0006',
-    merchantId: 'usr_1791911737847',
-    merchantName: 'Rookshana Banoo Moola',
-    merchantStoreName: 'Moola Halal Gourmet Deli',
-    merchantEmail: 'orders@moolagourmet.co.za',
-    merchantPhone: '071 915 3630',
-    branch: 'Durban Central Deli',
-    deliveryAddress: '42 Commercial Rd, Durban Central, KwaZulu-Natal',
-    requestedDeliveryDate: new Date(Date.now() - 86400000 * 85).toISOString().split('T')[0],
-    status: 'DELIVERED',
-    items: [
-      {
-        productId: 'prod_flaky_roti',
-        productName: 'Savouré Hand-Rolled Flaky Roti',
-        packSize: 'Classic Table Roti (22cm Round)',
-        quantity: 50,
-        unitPrice: 38.00,
-        lineTotal: 1900.00,
-      },
-      {
-        productId: 'prod_tortilla_wraps',
-        productName: 'Savouré Stone-Ground Tortilla Wraps',
-        packSize: 'Foodservice Master Case (30cm)',
-        quantity: 6,
-        unitPrice: 375.00,
-        lineTotal: 2250.00,
-      }
-    ],
-    subtotal: 4150.00,
-    vat: 0.00,
-    total: 4150.00,
-    createdAt: new Date(Date.now() - 86400000 * 88).toISOString(),
-    updatedAt: new Date(Date.now() - 86400000 * 85).toISOString(),
-  },
-  {
-    id: 'ord_1007',
-    orderNumber: 'ORD-2026-0007',
-    merchantId: 'usr_1791911737847',
-    merchantName: 'Rookshana Banoo Moola',
-    merchantStoreName: 'Moola Halal Gourmet Deli',
-    merchantEmail: 'orders@moolagourmet.co.za',
-    merchantPhone: '071 915 3630',
-    branch: 'Durban Central Deli',
-    deliveryAddress: '42 Commercial Rd, Durban Central, KwaZulu-Natal',
-    requestedDeliveryDate: new Date(Date.now() - 86400000 * 140).toISOString().split('T')[0],
-    status: 'DELIVERED',
-    items: [
-      {
-        productId: 'prod_spring_roll',
-        productName: 'Savouré Spring Roll Pastry Sheets',
-        packSize: 'Cocktail / Bite-Size (15cm × 15cm)',
-        quantity: 45,
-        unitPrice: 34.00,
-        lineTotal: 1530.00,
-      },
-      {
-        productId: 'prod_samoosa_pastry',
-        productName: 'Savouré Crispy Samoosa Pastry Sheets',
-        packSize: 'Cocktail Mini Strips (5cm × 20cm)',
-        quantity: 50,
-        unitPrice: 42.00,
-        lineTotal: 2100.00,
-      }
-    ],
-    subtotal: 3630.00,
-    vat: 0.00,
-    total: 3630.00,
-    createdAt: new Date(Date.now() - 86400000 * 143).toISOString(),
-    updatedAt: new Date(Date.now() - 86400000 * 140).toISOString(),
-  },
-  {
-    id: 'ord_1008',
-    orderNumber: 'ORD-2026-0008',
-    merchantId: 'usr_1791911737847',
-    merchantName: 'Rookshana Banoo Moola',
-    merchantStoreName: 'Moola Halal Gourmet Deli',
-    merchantEmail: 'orders@moolagourmet.co.za',
-    merchantPhone: '071 915 3630',
-    branch: 'Durban Central Deli',
-    deliveryAddress: '42 Commercial Rd, Durban Central, KwaZulu-Natal',
-    requestedDeliveryDate: new Date(Date.now() - 86400000 * 220).toISOString().split('T')[0],
-    status: 'DELIVERED',
-    items: [
-      {
-        productId: 'prod_spring_roll',
-        productName: 'Savouré Spring Roll Pastry Sheets',
-        packSize: 'Large Deli Sheet (25cm × 25cm)',
-        quantity: 35,
-        unitPrice: 58.00,
-        lineTotal: 2030.00,
-      },
-      {
-        productId: 'prod_tortilla_wraps',
-        productName: 'Savouré Stone-Ground Tortilla Wraps',
-        packSize: 'Jumbo Shawarma (30cm / 12")',
-        quantity: 30,
-        unitPrice: 54.00,
-        lineTotal: 1620.00,
-      }
-    ],
-    subtotal: 3650.00,
-    vat: 0.00,
-    total: 3650.00,
-    createdAt: new Date(Date.now() - 86400000 * 223).toISOString(),
-    updatedAt: new Date(Date.now() - 86400000 * 220).toISOString(),
+  if (Array.isArray(raw.users)) {
+    const filteredUsers = raw.users.filter((u) => !isLegacyDemoUser(u));
+    if (filteredUsers.length !== raw.users.length) stripped = true;
+    cleaned.users = filteredUsers.some((u) => u.email?.toLowerCase() === 'admin@savoure.co.za')
+      ? filteredUsers
+      : [MASTER_ADMIN_USER, ...filteredUsers];
   }
-];
 
-export const INITIAL_MERCHANT_REPORTS: MerchantReport[] = [
-  {
-    id: 'rpt_past_001',
-    reportNumber: 'SAV-RPT-2026-W42',
-    merchantId: 'usr_1791911737847',
-    merchantName: 'Rookshana Banoo Moola',
-    merchantStoreName: 'Moola Halal Gourmet Deli',
-    branch: 'Durban Central Deli',
-    merchantEmail: 'orders@moolagourmet.co.za',
-    merchantPhone: '071 915 3630',
-    deliveryAddress: '42 Commercial Rd, Durban Central, KwaZulu-Natal',
-    period: 'WEEKLY',
-    periodLabel: 'Weekly Procurement Statement (Current Week)',
-    startDate: new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0],
-    generatedAt: new Date(Date.now() - 3600000 * 4).toISOString(),
-    totalOrderSpend: 3330.00,
-    totalInvoiced: 3330.00,
-    totalPaid: 3330.00,
-    balanceDue: 0.00,
-    ordersCount: 2,
-    totalPacksOrdered: 75,
-    deliveredOrdersCount: 1,
-    pendingOrdersCount: 1,
-    fulfillmentRate: 100,
-    avgOrderValue: 1665.00,
-    orders: [],
-    invoices: [],
-    productSummaries: [
-      {
-        productId: 'prod_spring_roll',
-        productName: 'Savouré Spring Roll Pastry Sheets',
-        packSize: 'Standard Restaurant (20cm × 20cm)',
-        totalQuantity: 20,
-        unitPrice: 42.50,
-        totalSpend: 850.00
-      },
-      {
-        productId: 'prod_flaky_roti',
-        productName: 'Savouré Hand-Rolled Flaky Roti',
-        packSize: 'Classic Table Roti (22cm Round)',
-        totalQuantity: 25,
-        unitPrice: 38.00,
-        totalSpend: 950.00
-      },
-      {
-        productId: 'prod_tortilla_wraps',
-        productName: 'Savouré Stone-Ground Tortilla Wraps',
-        packSize: 'Jumbo Shawarma (30cm / 12")',
-        totalQuantity: 15,
-        unitPrice: 54.00,
-        totalSpend: 810.00
-      },
-      {
-        productId: 'prod_samoosa_pastry',
-        productName: 'Savouré Crispy Samoosa Pastry Sheets',
-        packSize: 'Standard Golden Strips (7cm × 25cm)',
-        totalQuantity: 15,
-        unitPrice: 48.00,
-        totalSpend: 720.00
-      }
-    ],
-    notes: 'Official audited weekly merchant report. Fast cold-chain fulfillment maintained.'
-  },
-  {
-    id: 'rpt_past_002',
-    reportNumber: 'SAV-RPT-2026-M09',
-    merchantId: 'usr_1791911737847',
-    merchantName: 'Rookshana Banoo Moola',
-    merchantStoreName: 'Moola Halal Gourmet Deli',
-    branch: 'Durban Central Deli',
-    merchantEmail: 'orders@moolagourmet.co.za',
-    merchantPhone: '071 915 3630',
-    deliveryAddress: '42 Commercial Rd, Durban Central, KwaZulu-Natal',
-    period: 'MONTHLY',
-    periodLabel: 'Monthly Procurement Statement (Last 30 Days)',
-    startDate: new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0],
-    generatedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-    totalOrderSpend: 9380.00,
-    totalInvoiced: 9380.00,
-    totalPaid: 9380.00,
-    balanceDue: 0.00,
-    ordersCount: 4,
-    totalPacksOrdered: 181,
-    deliveredOrdersCount: 3,
-    pendingOrdersCount: 1,
-    fulfillmentRate: 98.7,
-    avgOrderValue: 2345.00,
-    orders: [],
-    invoices: [],
-    productSummaries: [
-      {
-        productId: 'prod_flaky_roti',
-        productName: 'Savouré Hand-Rolled Flaky Roti',
-        packSize: 'Catering Bulk Crate (22cm Round)',
-        totalQuantity: 8,
-        unitPrice: 265.00,
-        totalSpend: 2120.00
-      },
-      {
-        productId: 'prod_spring_roll',
-        productName: 'Savouré Spring Roll Pastry Sheets',
-        packSize: 'Commercial Bulk Catering Box',
-        totalQuantity: 6,
-        unitPrice: 295.00,
-        totalSpend: 1770.00
-      },
-      {
-        productId: 'prod_tortilla_wraps',
-        productName: 'Savouré Stone-Ground Tortilla Wraps',
-        packSize: 'Large Burrito / Deli (25cm / 10")',
-        totalQuantity: 25,
-        unitPrice: 48.00,
-        totalSpend: 1200.00
-      },
-      {
-        productId: 'prod_samoosa_pastry',
-        productName: 'Savouré Crispy Samoosa Pastry Sheets',
-        packSize: 'Standard Golden Strips (7cm × 25cm)',
-        totalQuantity: 35,
-        unitPrice: 48.00,
-        totalSpend: 1680.00
-      }
-    ],
-    notes: 'Commercial monthly procurement statement. All deliveries completed with signed digital PODs.'
-  },
-  {
-    id: 'rpt_past_003',
-    reportNumber: 'SAV-RPT-2026-Q2',
-    merchantId: 'usr_1791911737847',
-    merchantName: 'Rookshana Banoo Moola',
-    merchantStoreName: 'Moola Halal Gourmet Deli',
-    branch: 'Durban Central Deli',
-    merchantEmail: 'orders@moolagourmet.co.za',
-    merchantPhone: '071 915 3630',
-    deliveryAddress: '42 Commercial Rd, Durban Central, KwaZulu-Natal',
-    period: '3_MONTHS',
-    periodLabel: 'Quarterly Procurement Audit (3 Months / Q2-Q3)',
-    startDate: new Date(Date.now() - 90 * 86400000).toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0],
-    generatedAt: new Date(Date.now() - 86400000 * 15).toISOString(),
-    totalOrderSpend: 17430.00,
-    totalInvoiced: 17430.00,
-    totalPaid: 17430.00,
-    balanceDue: 0.00,
-    ordersCount: 6,
-    totalPacksOrdered: 342,
-    deliveredOrdersCount: 5,
-    pendingOrdersCount: 1,
-    fulfillmentRate: 99.2,
-    avgOrderValue: 2905.00,
-    orders: [],
-    invoices: [],
-    productSummaries: [
-      {
-        productId: 'prod_samoosa_pastry',
-        productName: 'Savouré Crispy Samoosa Pastry Sheets',
-        packSize: 'Commercial Foodservice Master Carton',
-        totalQuantity: 5,
-        unitPrice: 440.00,
-        totalSpend: 2200.00
-      },
-      {
-        productId: 'prod_flaky_roti',
-        productName: 'Savouré Hand-Rolled Flaky Roti',
-        packSize: 'Classic Table Roti (22cm Round)',
-        totalQuantity: 50,
-        unitPrice: 38.00,
-        totalSpend: 1900.00
-      },
-      {
-        productId: 'prod_tortilla_wraps',
-        productName: 'Savouré Stone-Ground Tortilla Wraps',
-        packSize: 'Foodservice Master Case (30cm)',
-        totalQuantity: 6,
-        unitPrice: 375.00,
-        totalSpend: 2250.00
-      }
-    ],
-    notes: 'Q2 Wholesale partnership review. High-priority tiered pricing applied.'
-  },
-  {
-    id: 'rpt_past_004',
-    reportNumber: 'SAV-RPT-2026-H1',
-    merchantId: 'usr_1791911737847',
-    merchantName: 'Rookshana Banoo Moola',
-    merchantStoreName: 'Moola Halal Gourmet Deli',
-    branch: 'Durban Central Deli',
-    merchantEmail: 'orders@moolagourmet.co.za',
-    merchantPhone: '071 915 3630',
-    deliveryAddress: '42 Commercial Rd, Durban Central, KwaZulu-Natal',
-    period: '6_MONTHS',
-    periodLabel: 'Half-Year Procurement Statement (6 Months)',
-    startDate: new Date(Date.now() - 180 * 86400000).toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0],
-    generatedAt: new Date(Date.now() - 86400000 * 35).toISOString(),
-    totalOrderSpend: 21060.00,
-    totalInvoiced: 21060.00,
-    totalPaid: 21060.00,
-    balanceDue: 0.00,
-    ordersCount: 7,
-    totalPacksOrdered: 437,
-    deliveredOrdersCount: 6,
-    pendingOrdersCount: 1,
-    fulfillmentRate: 98.9,
-    avgOrderValue: 3008.57,
-    orders: [],
-    invoices: [],
-    productSummaries: [
-      {
-        productId: 'prod_spring_roll',
-        productName: 'Savouré Spring Roll Pastry Sheets',
-        packSize: 'Cocktail / Bite-Size (15cm × 15cm)',
-        totalQuantity: 45,
-        unitPrice: 34.00,
-        totalSpend: 1530.00
-      },
-      {
-        productId: 'prod_samoosa_pastry',
-        productName: 'Savouré Crispy Samoosa Pastry Sheets',
-        packSize: 'Cocktail Mini Strips (5cm × 20cm)',
-        totalQuantity: 50,
-        unitPrice: 42.00,
-        totalSpend: 2100.00
-      }
-    ],
-    notes: 'Half-yearly executive wholesale audit. Qualified for premier tier volume discount.'
-  },
-  {
-    id: 'rpt_past_005',
-    reportNumber: 'SAV-RPT-2025-ANNUAL',
-    merchantId: 'usr_1791911737847',
-    merchantName: 'Rookshana Banoo Moola',
-    merchantStoreName: 'Moola Halal Gourmet Deli',
-    branch: 'Durban Central Deli',
-    merchantEmail: 'orders@moolagourmet.co.za',
-    merchantPhone: '071 915 3630',
-    deliveryAddress: '42 Commercial Rd, Durban Central, KwaZulu-Natal',
-    period: 'YEARLY',
-    periodLabel: 'Annual Comprehensive Merchant Report (12 Months)',
-    startDate: new Date(Date.now() - 365 * 86400000).toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0],
-    generatedAt: new Date(Date.now() - 86400000 * 60).toISOString(),
-    totalOrderSpend: 24710.00,
-    totalInvoiced: 24710.00,
-    totalPaid: 24710.00,
-    balanceDue: 0.00,
-    ordersCount: 8,
-    totalPacksOrdered: 502,
-    deliveredOrdersCount: 7,
-    pendingOrdersCount: 1,
-    fulfillmentRate: 99.1,
-    avgOrderValue: 3088.75,
-    orders: [],
-    invoices: [],
-    productSummaries: [
-      {
-        productId: 'prod_spring_roll',
-        productName: 'Savouré Spring Roll Pastry Sheets',
-        packSize: 'Standard Restaurant (20cm × 20cm)',
-        totalQuantity: 120,
-        unitPrice: 42.50,
-        totalSpend: 5100.00
-      },
-      {
-        productId: 'prod_samoosa_pastry',
-        productName: 'Savouré Crispy Samoosa Pastry Sheets',
-        packSize: 'Standard Golden Strips (7cm × 25cm)',
-        totalQuantity: 115,
-        unitPrice: 48.00,
-        totalSpend: 5520.00
-      },
-      {
-        productId: 'prod_flaky_roti',
-        productName: 'Savouré Hand-Rolled Flaky Roti',
-        packSize: 'Classic Table Roti (22cm Round)',
-        totalQuantity: 85,
-        unitPrice: 38.00,
-        totalSpend: 3230.00
-      },
-      {
-        productId: 'prod_tortilla_wraps',
-        productName: 'Savouré Stone-Ground Tortilla Wraps',
-        packSize: 'Jumbo Shawarma (30cm / 12")',
-        totalQuantity: 65,
-        unitPrice: 54.00,
-        totalSpend: 3510.00
-      }
-    ],
-    notes: 'Annual procurement ledger and audited VAT-compliant statement.'
+  if (Array.isArray(raw.customers)) {
+    const filtered = raw.customers.filter((c) => !LEGACY_DEMO_IDS.customers.has(c.id));
+    if (filtered.length !== raw.customers.length) stripped = true;
+    cleaned.customers = filtered;
   }
-];
 
-export const INITIAL_POS_SESSIONS: POSSession[] = [
-  {
-    id: 'pos_ses_001',
-    sessionNumber: 'POS-SES-0001',
-    cashierId: 'usr_master_admin',
-    cashierName: 'Master Admin',
-    branch: 'Main Bakery Counter',
-    openedAt: new Date(Date.now() - 3600000 * 8).toISOString(),
-    openingFloat: 500.00,
-    cashSales: 1450.00,
-    cardSales: 2180.00,
-    eftSales: 0.00,
-    totalSales: 3630.00,
-    transactionCount: 8,
-    status: 'OPEN',
-    notes: 'Morning shift retail & walk-in till',
+  if (Array.isArray(raw.products)) {
+    const filtered = raw.products.filter((p) => !LEGACY_DEMO_IDS.products.has(p.id));
+    if (filtered.length !== raw.products.length) stripped = true;
+    cleaned.products = filtered;
   }
-];
 
-export const INITIAL_POS_TRANSACTIONS: POSTransaction[] = [
-  {
-    id: 'pos_tx_001',
-    receiptNumber: 'REC-2026-0001',
-    sessionId: 'pos_ses_001',
-    cashierId: 'usr_master_admin',
-    cashierName: 'Master Admin',
-    branch: 'Main Bakery Counter',
-    customerName: 'Walk-in Retail Customer',
-    items: [
-      {
-        productId: 'prod_spring_roll',
-        productName: 'Savouré Spring Roll Pastry (20cm / 200g)',
-        sku: 'SAV-SPR-001',
-        barcode: '6009800123012',
-        category: 'Pastry Sheets',
-        packSize: 'Pack of 30 Sheets',
-        unitPrice: 42.50,
-        quantity: 3,
-        discountPercent: 0,
-        lineTotal: 127.50,
-      },
-      {
-        productId: 'prod_flaky_roti',
-        productName: 'Savouré Hand-Rolled Flaky Roti (Pack of 6)',
-        sku: 'SAV-ROT-003',
-        barcode: '6009612345671',
-        category: 'Artisanal Roti',
-        packSize: 'Pack of 6 Rotis',
-        unitPrice: 38.00,
-        quantity: 2,
-        discountPercent: 0,
-        lineTotal: 76.00,
-      }
-    ],
-    subtotal: 203.50,
-    discountTotal: 0.00,
-    vat: 0.00,
-    total: 203.50,
-    paymentMethod: 'CASH',
-    amountTendered: 220.00,
-    changeDue: 16.50,
-    status: 'COMPLETED',
-    createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
+  if (Array.isArray(raw.stockItemStatuses)) {
+    const filtered = raw.stockItemStatuses.filter((s) => !LEGACY_DEMO_IDS.stockItemStatuses.has(s.id));
+    if (filtered.length !== raw.stockItemStatuses.length) stripped = true;
+    cleaned.stockItemStatuses = filtered;
   }
-];
 
-export const INITIAL_PRODUCTION_LINES: ProductionLine[] = [
-  {
-    id: 'line_01',
-    code: 'LINE-01',
-    name: 'High-Speed Pastry Sheeter & Auto-Laminator',
-    section: 'Extrusion & Sheeting',
-    status: 'RUNNING',
-    supervisor: 'Yusuf Patel',
-    capacityPerHour: '1,200 sheets/hr',
-    targetProductSku: 'SAV-SPR-001',
-  },
-  {
-    id: 'line_02',
-    code: 'LINE-02',
-    name: 'Triangle Samoosa Precision Cut & Folding Line',
-    section: 'Folding & Shaping',
-    status: 'RUNNING',
-    supervisor: 'Amina Dawood',
-    capacityPerHour: '3,200 units/hr',
-    targetProductSku: 'SAV-SAM-002',
-  },
-  {
-    id: 'line_03',
-    code: 'LINE-03',
-    name: 'Artisanal Cape Malay Flaky Roti Hot-Griddle Line',
-    section: 'Baking & Griddling',
-    status: 'RUNNING',
-    supervisor: 'Farouk Adams',
-    capacityPerHour: '850 rotis/hr',
-    targetProductSku: 'SAV-ROT-003',
-  },
-  {
-    id: 'line_04',
-    code: 'LINE-04',
-    name: 'Stone-Ground Tortilla Press, Oven Tunnel & Cooling System',
-    section: 'Extrusion & Sheeting',
-    status: 'IDLE',
-    supervisor: 'Tariq Moosa',
-    capacityPerHour: '1,500 wraps/hr',
-    targetProductSku: 'SAV-TOR-004',
-  },
-];
-
-export const INITIAL_PRODUCTION_BATCHES: ProductionBatch[] = [
-  {
-    id: 'batch_101',
-    batchNumber: 'BATCH-20261018-001',
-    lineId: 'line_01',
-    lineName: 'High-Speed Pastry Sheeter & Auto-Laminator',
-    targetProductId: 'prod_spring_roll',
-    targetProductName: 'Savouré Spring Roll Pastry (20cm / 200g)',
-    targetSku: 'SAV-SPR-001',
-    plannedQuantity: 500,
-    actualYield: 485,
-    rejectedQuantity: 15,
-    status: 'PACKAGING',
-    ingredients: [
-      { ingredientId: 'ing_flour', ingredientName: 'Supreme Unbleached Pastry Flour', sku: 'RAW-FLR-001', quantityUsed: 100, unit: 'kg', costPerUnit: 14.50 },
-      { ingredientId: 'ing_oil', ingredientName: 'Pure Sunflower Laminating Oil', sku: 'RAW-OIL-002', quantityUsed: 15, unit: 'litres', costPerUnit: 26.00 },
-      { ingredientId: 'ing_salt', ingredientName: 'Refined Sea Salt', sku: 'RAW-SLT-003', quantityUsed: 2.5, unit: 'kg', costPerUnit: 8.00 },
-    ],
-    qc: {
-      visualAppearance: 'Pass',
-      thicknessMm: 0.85,
-      targetWeightGrams: 200,
-      actualSampleWeightGrams: 201.5,
-      moisturePercent: 12.4,
-      metalDetectorChecked: true,
-      sealIntegrityChecked: true,
-      inspectorName: 'Zainab Cassim (QC Officer)',
-      notes: 'Excellent golden hue, consistent sheet elasticity and non-porous structure.'
-    },
-    operatorName: 'Sipho Ndlovu',
-    supervisorName: 'Yusuf Patel',
-    startTime: new Date(Date.now() - 3600000 * 4).toISOString(),
-    expiryDate: new Date(Date.now() + 86400000 * 60).toISOString().split('T')[0],
-    lotCode: 'LOT-20261018-SPR01',
-    notes: 'Standard morning pastry extrusion for restaurant orders',
-    stockUpdated: false,
-    createdAt: new Date(Date.now() - 3600000 * 5).toISOString(),
-  },
-  {
-    id: 'batch_102',
-    batchNumber: 'BATCH-20261018-002',
-    lineId: 'line_02',
-    lineName: 'Triangle Samoosa Precision Cut & Folding Line',
-    targetProductId: 'prod_samoosa_pastry',
-    targetProductName: 'Savouré Crispy Samoosa Pastry Sheets (500g)',
-    targetSku: 'SAV-SAM-002',
-    plannedQuantity: 650,
-    actualYield: 640,
-    rejectedQuantity: 10,
-    status: 'FORMING_CUTTING',
-    ingredients: [
-      { ingredientId: 'ing_flour', ingredientName: 'Supreme Unbleached Pastry Flour', sku: 'RAW-FLR-001', quantityUsed: 130, unit: 'kg', costPerUnit: 14.50 },
-      { ingredientId: 'ing_oil', ingredientName: 'Pure Sunflower Laminating Oil', sku: 'RAW-OIL-002', quantityUsed: 18, unit: 'litres', costPerUnit: 26.00 },
-    ],
-    qc: {
-      visualAppearance: 'Pass',
-      thicknessMm: 0.65,
-      targetWeightGrams: 500,
-      actualSampleWeightGrams: 502,
-      moisturePercent: 11.8,
-      metalDetectorChecked: true,
-      sealIntegrityChecked: false,
-      inspectorName: 'Pending Final Pack Inspection',
-    },
-    operatorName: 'Bongani Khumalo',
-    supervisorName: 'Amina Dawood',
-    startTime: new Date(Date.now() - 3600000 * 2).toISOString(),
-    expiryDate: new Date(Date.now() + 86400000 * 60).toISOString().split('T')[0],
-    lotCode: 'LOT-20261018-SAM02',
-    notes: 'Crispy triangle folding run',
-    stockUpdated: false,
-    createdAt: new Date(Date.now() - 3600000 * 3).toISOString(),
+  if (Array.isArray(raw.stockMovements)) {
+    const filtered = raw.stockMovements.filter((m) => !LEGACY_DEMO_IDS.stockMovements.has(m.id));
+    if (filtered.length !== raw.stockMovements.length) stripped = true;
+    cleaned.stockMovements = filtered;
   }
-];
+
+  if (Array.isArray(raw.merchantOrders)) {
+    const filtered = raw.merchantOrders.filter((o) => !LEGACY_DEMO_IDS.merchantOrders.has(o.id));
+    if (filtered.length !== raw.merchantOrders.length) stripped = true;
+    cleaned.merchantOrders = filtered;
+  }
+
+  if (Array.isArray(raw.merchantReports)) {
+    const filtered = raw.merchantReports.filter((r) => !LEGACY_DEMO_IDS.merchantReports.has(r.id));
+    if (filtered.length !== raw.merchantReports.length) stripped = true;
+    cleaned.merchantReports = filtered;
+  }
+
+  if (Array.isArray(raw.posSessions)) {
+    const filtered = raw.posSessions.filter((s) => !LEGACY_DEMO_IDS.posSessions.has(s.id));
+    if (filtered.length !== raw.posSessions.length) stripped = true;
+    cleaned.posSessions = filtered;
+  }
+
+  if (Array.isArray(raw.posTransactions)) {
+    const filtered = raw.posTransactions.filter((t) => !LEGACY_DEMO_IDS.posTransactions.has(t.id));
+    if (filtered.length !== raw.posTransactions.length) stripped = true;
+    cleaned.posTransactions = filtered;
+  }
+
+  if (Array.isArray(raw.productionLines)) {
+    const demoSupervisors = new Set(['Yusuf Patel', 'Amina Dawood', 'Farouk Adams', 'Tariq Moosa']);
+    const filtered = raw.productionLines.filter(
+      (l) => !(LEGACY_DEMO_IDS.productionLines.has(l.id) && demoSupervisors.has(l.supervisor))
+    );
+    if (filtered.length !== raw.productionLines.length) stripped = true;
+    cleaned.productionLines = filtered;
+  }
+
+  if (Array.isArray(raw.productionBatches)) {
+    const filtered = raw.productionBatches.filter((b) => !LEGACY_DEMO_IDS.productionBatches.has(b.id));
+    if (filtered.length !== raw.productionBatches.length) stripped = true;
+    cleaned.productionBatches = filtered;
+  }
+
+  return { cleaned, stripped };
+}
 
 interface ERPContextType {
   currentUser: User | null;
@@ -1440,6 +388,7 @@ interface ERPContextType {
   // Factory Production Lines & Bakery Runs
   productionLines: ProductionLine[];
   productionBatches: ProductionBatch[];
+  addProductionLine: (data: Partial<ProductionLine>) => Promise<ProductionLine>;
   updateProductionLineStatus: (id: string, status: ProductionLine['status']) => Promise<void>;
   createProductionBatch: (data: Partial<ProductionBatch>) => Promise<ProductionBatch>;
   updateProductionBatchStatus: (batchId: string, status: ProductionBatch['status'], updates?: Partial<ProductionBatch>) => Promise<void>;
@@ -1541,16 +490,23 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
       const saved = localStorage.getItem(USER_KEY) || sessionStorage.getItem(USER_KEY);
-      return saved ? JSON.parse(saved) : null;
+      if (!saved) return null;
+      const parsed = JSON.parse(saved) as User;
+      if (isLegacyDemoUser(parsed)) {
+        localStorage.removeItem(USER_KEY);
+        sessionStorage.removeItem(USER_KEY);
+        return null;
+      }
+      return parsed;
     } catch {
       return null;
     }
   });
 
-  const [users, setUsers] = useState<User[]>([MASTER_ADMIN_USER, INITIAL_ROOKSHANA_USER]);
+  const [users, setUsers] = useState<User[]>([MASTER_ADMIN_USER]);
   const [company, setCompany] = useState<CompanySettings>(INITIAL_COMPANY);
-  const [customers, setCustomers] = useState<Customer[]>([INITIAL_CUSTOMER_SOUTHERN_AMBISION]);
-  const [products, setProducts] = useState<Product[]>(INITIAL_SAVOURE_PRODUCTS);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<string[]>(['Pastry Sheets', 'Artisanal Roti', 'Tortillas & Wraps', 'Flour & Grains', 'Oils & Fats']);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [deliveryNotes, setDeliveryNotes] = useState<DeliveryNote[]>([]);
@@ -1561,30 +517,35 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [payrollPayouts, setPayrollPayouts] = useState<PayrollPayout[]>([]);
   const [stockPurchases, setStockPurchases] = useState<StockPurchase[]>([]);
-  const [stockItemStatuses, setStockItemStatuses] = useState<StockItemStatus[]>(INITIAL_STOCK_ITEM_STATUSES);
-  const [stockMovements, setStockMovements] = useState<StockMovement[]>(INITIAL_STOCK_MOVEMENTS);
+  const [stockItemStatuses, setStockItemStatuses] = useState<StockItemStatus[]>([]);
+  const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [loginLogs, setLoginLogs] = useState<UserLoginLog[]>([]);
-  const [merchantOrders, setMerchantOrders] = useState<MerchantOrder[]>(INITIAL_MERCHANT_ORDERS);
+  const [merchantOrders, setMerchantOrders] = useState<MerchantOrder[]>([]);
   const [merchantReports, setMerchantReports] = useState<MerchantReport[]>(() => {
     try {
       const saved = localStorage.getItem('savoure_merchant_reports');
-      return saved ? JSON.parse(saved) : INITIAL_MERCHANT_REPORTS;
+      if (!saved) return [];
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((r: MerchantReport) => !LEGACY_DEMO_IDS.merchantReports.has(r.id));
     } catch {
-      return INITIAL_MERCHANT_REPORTS;
+      return [];
     }
   });
   const [showcaseProducts, setShowcaseProducts] = useState<ShowcaseProductItem[]>(SHOWCASE_COLLECTION);
-  const [posTransactions, setPosTransactions] = useState<POSTransaction[]>(INITIAL_POS_TRANSACTIONS);
-  const [posSessions, setPosSessions] = useState<POSSession[]>(INITIAL_POS_SESSIONS);
-  const [productionLines, setProductionLines] = useState<ProductionLine[]>(INITIAL_PRODUCTION_LINES);
-  const [productionBatches, setProductionBatches] = useState<ProductionBatch[]>(INITIAL_PRODUCTION_BATCHES);
+  const [posTransactions, setPosTransactions] = useState<POSTransaction[]>([]);
+  const [posSessions, setPosSessions] = useState<POSSession[]>([]);
+  const [productionLines, setProductionLines] = useState<ProductionLine[]>([]);
+  const [productionBatches, setProductionBatches] = useState<ProductionBatch[]>([]);
 
   const [isLocked, setIsLocked] = useState<boolean>(false);
-  const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'offline'>('synced');
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'offline'>('syncing');
   const [lastSynced, setLastSynced] = useState<string | null>(null);
 
   const isWritingCloud = useRef(false);
+  const lastSyncedTimestampRef = useRef<number>(0);
+  const hasCleanedCloudDemoRef = useRef<boolean>(false);
 
   // Helper to persist state to local cache
   const persistToLocal = useCallback((override?: Partial<ERPDatabase>) => {
@@ -1622,7 +583,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.warn('Cache write warning:', e);
     }
-  }, [users, company, customers, products, categories, invoices, deliveryNotes, quotations, payments, merchantOrders, showcaseProducts, posTransactions, posSessions, productionLines, productionBatches, leads, communications, staff, payrollPayouts, stockPurchases, stockItemStatuses, stockMovements, journalEntries, loginLogs]);
+  }, [users, company, customers, products, categories, invoices, deliveryNotes, quotations, payments, merchantOrders, merchantReports, showcaseProducts, posTransactions, posSessions, productionLines, productionBatches, leads, communications, staff, payrollPayouts, stockPurchases, stockItemStatuses, stockMovements, journalEntries, loginLogs]);
 
   // Helper to sanitize payload and remove all undefined values recursively for Firestore compatibility
   const sanitizeForCloud = (obj: any): any => {
@@ -1634,276 +595,330 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
-  // Synchronize state directly to Cloud Firestore (so phone and laptop sync in real-time)
+  // Synchronize state directly to Cloud Firestore (multi-device real-time sync)
   const syncToCloud = useCallback(async (data: Partial<ERPDatabase>) => {
     isWritingCloud.current = true;
     setSyncStatus('syncing');
+    const nowIso = new Date().toISOString();
+    lastSyncedTimestampRef.current = Date.now();
     const sanitized = sanitizeForCloud(data);
-    const keys = Object.keys(data).join(', ');
-    console.log(`[Firebase Cloud Sync] Initiating persist for keys: [${keys}]`);
+    let firestoreOk = false;
 
     try {
       await setDoc(doc(db, 'erp', 'main'), {
         ...sanitized,
-        lastUpdated: new Date().toISOString(),
+        lastUpdated: nowIso,
       }, { merge: true });
-      console.log(`[Firebase Cloud Sync] Successfully saved [${keys}] to Cloud Firestore.`);
+      firestoreOk = true;
       setSyncStatus('synced');
       setLastSynced(new Date().toLocaleTimeString());
     } catch (err: any) {
-      console.error('[Firebase Cloud Sync Error] Failed to write to Firestore:', err);
+      if (err?.message && (err.message.includes('offline') || err.message.includes('unavailable'))) {
+        console.warn('[Firebase Cloud Sync] Client operating offline; changes cached locally.');
+      } else {
+        handleFirestoreError(err, OperationType.WRITE, 'erp/main');
+      }
+      setSyncStatus('offline');
     }
 
-    // Also background-sync to server if reachable
+    // Background mirror to Node.js backend database when reachable
     try {
       await safeFetchJson('/api/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(sanitized),
+        body: JSON.stringify({ ...sanitized, lastUpdated: nowIso }),
       });
-      console.log(`[Server Sync] Successfully synced [${keys}] to backend database.`);
     } catch (serverErr: any) {
-      console.warn('[Server Sync Notice] Backend sync notice:', serverErr?.message);
+      if (!firestoreOk) {
+        console.warn('[Server Sync Notice]:', serverErr?.message);
+      }
     }
 
     setTimeout(() => {
       isWritingCloud.current = false;
-    }, 800);
+    }, 600);
   }, []);
+
+  // Apply an authoritative database snapshot across all 24 collections
+  const applyDatabaseSnapshot = useCallback((
+    raw: Partial<ERPDatabase>,
+    options: { respectEmptyArrays?: boolean; persistCleanedToCloud?: boolean } = {}
+  ): { cleaned: Partial<ERPDatabase>; stripped: boolean } => {
+    const { respectEmptyArrays = true, persistCleanedToCloud = false } = options;
+    const { cleaned, stripped } = stripLegacyDemoData(raw);
+
+    if (cleaned.company) setCompany(cleaned.company);
+    if (Array.isArray(cleaned.categories) && (respectEmptyArrays || cleaned.categories.length > 0)) {
+      setCategories(cleaned.categories);
+    }
+
+    const activeUsers = Array.isArray(cleaned.users) ? cleaned.users : [MASTER_ADMIN_USER];
+    if (Array.isArray(cleaned.users)) {
+      setUsers(activeUsers);
+    }
+
+    const activeCustomers = Array.isArray(cleaned.customers) ? cleaned.customers : [];
+    if (Array.isArray(cleaned.customers) && (respectEmptyArrays || cleaned.customers.length > 0)) {
+      setCustomers(activeCustomers);
+    }
+
+    if (Array.isArray(cleaned.products) && (respectEmptyArrays || cleaned.products.length > 0)) {
+      setProducts(cleaned.products.map((p, i) => normalizeProduct(p, i)));
+    }
+
+    if (Array.isArray(cleaned.invoices) && (respectEmptyArrays || cleaned.invoices.length > 0)) {
+      const { invoices: healedInvs, changed } = healInvoicesList(
+        cleaned.invoices,
+        activeCustomers,
+        activeUsers
+      );
+      setInvoices(healedInvs);
+      cleaned.invoices = healedInvs;
+      if (changed && !isWritingCloud.current && persistCleanedToCloud) {
+        syncToCloud({ invoices: healedInvs });
+      }
+    }
+
+    if (Array.isArray(cleaned.deliveryNotes) && (respectEmptyArrays || cleaned.deliveryNotes.length > 0)) {
+      setDeliveryNotes(cleaned.deliveryNotes);
+    }
+    if (Array.isArray(cleaned.quotations) && (respectEmptyArrays || cleaned.quotations.length > 0)) {
+      setQuotations(cleaned.quotations);
+    }
+    if (Array.isArray(cleaned.payments) && (respectEmptyArrays || cleaned.payments.length > 0)) {
+      setPayments(cleaned.payments);
+    }
+    if (Array.isArray(cleaned.merchantOrders) && (respectEmptyArrays || cleaned.merchantOrders.length > 0)) {
+      setMerchantOrders(cleaned.merchantOrders);
+    }
+    if (Array.isArray(cleaned.merchantReports) && (respectEmptyArrays || cleaned.merchantReports.length > 0)) {
+      setMerchantReports(cleaned.merchantReports);
+      try {
+        localStorage.setItem('savoure_merchant_reports', JSON.stringify(cleaned.merchantReports));
+      } catch {}
+    }
+    if (Array.isArray(cleaned.showcaseProducts) && cleaned.showcaseProducts.length > 0) {
+      setShowcaseProducts(cleaned.showcaseProducts);
+    }
+    if (Array.isArray(cleaned.posTransactions) && (respectEmptyArrays || cleaned.posTransactions.length > 0)) {
+      setPosTransactions(cleaned.posTransactions);
+    }
+    if (Array.isArray(cleaned.posSessions) && (respectEmptyArrays || cleaned.posSessions.length > 0)) {
+      setPosSessions(cleaned.posSessions);
+    }
+    if (Array.isArray(cleaned.productionLines) && (respectEmptyArrays || cleaned.productionLines.length > 0)) {
+      setProductionLines(cleaned.productionLines);
+    }
+    if (Array.isArray(cleaned.productionBatches) && (respectEmptyArrays || cleaned.productionBatches.length > 0)) {
+      setProductionBatches(cleaned.productionBatches);
+    }
+    if (Array.isArray(cleaned.leads) && (respectEmptyArrays || cleaned.leads.length > 0)) {
+      setLeads(cleaned.leads);
+    }
+    if (Array.isArray(cleaned.communications) && (respectEmptyArrays || cleaned.communications.length > 0)) {
+      setCommunications(cleaned.communications);
+    }
+    if (Array.isArray(cleaned.staff) && (respectEmptyArrays || cleaned.staff.length > 0)) {
+      setStaff(cleaned.staff);
+    }
+    if (Array.isArray(cleaned.payrollPayouts) && (respectEmptyArrays || cleaned.payrollPayouts.length > 0)) {
+      setPayrollPayouts(cleaned.payrollPayouts);
+    }
+    if (Array.isArray(cleaned.stockPurchases) && (respectEmptyArrays || cleaned.stockPurchases.length > 0)) {
+      setStockPurchases(cleaned.stockPurchases);
+    }
+    if (Array.isArray(cleaned.stockItemStatuses) && (respectEmptyArrays || cleaned.stockItemStatuses.length > 0)) {
+      setStockItemStatuses(cleaned.stockItemStatuses);
+    }
+    if (Array.isArray(cleaned.stockMovements) && (respectEmptyArrays || cleaned.stockMovements.length > 0)) {
+      setStockMovements(cleaned.stockMovements);
+    }
+    if (Array.isArray(cleaned.journalEntries) && (respectEmptyArrays || cleaned.journalEntries.length > 0)) {
+      setJournalEntries(cleaned.journalEntries);
+    }
+    if (Array.isArray(cleaned.loginLogs) && (respectEmptyArrays || cleaned.loginLogs.length > 0)) {
+      setLoginLogs(cleaned.loginLogs);
+    }
+
+    if (cleaned.lastUpdated) {
+      const ts = new Date(cleaned.lastUpdated).getTime();
+      if (!Number.isNaN(ts)) {
+        lastSyncedTimestampRef.current = Math.max(lastSyncedTimestampRef.current, ts);
+      }
+    }
+
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify(cleaned));
+    } catch {}
+
+    return { cleaned, stripped };
+  }, [syncToCloud]);
 
   // Synchronize current user in local and session storage
   useEffect(() => {
     try {
-      if (currentUser) {
+      if (currentUser && !isLegacyDemoUser(currentUser)) {
         localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
         sessionStorage.setItem(USER_KEY, JSON.stringify(currentUser));
       } else {
         localStorage.removeItem(USER_KEY);
         sessionStorage.removeItem(USER_KEY);
       }
-    } catch (e) {}
+    } catch {}
   }, [currentUser]);
 
-  // Load from local storage initially
+  // Manual refresh trigger (Cloud Firestore authoritative, server /api/sync fallback)
+  const refreshData = useCallback(async () => {
+    try {
+      setSyncStatus('syncing');
+      let firestoreLoaded = false;
+
+      try {
+        const snap = await getDoc(doc(db, 'erp', 'main'));
+        firestoreLoaded = true;
+        if (snap.exists()) {
+          const cloudData = snap.data() as Partial<ERPDatabase>;
+          applyDatabaseSnapshot(cloudData, { respectEmptyArrays: true });
+        }
+        setSyncStatus('synced');
+        setLastSynced(new Date().toLocaleTimeString());
+      } catch (fsErr) {
+        if (fsErr instanceof Error && fsErr.message.includes('the client is offline')) {
+          setSyncStatus('offline');
+        } else {
+          handleFirestoreError(fsErr, OperationType.GET, 'erp/main');
+          setSyncStatus('offline');
+        }
+      }
+
+      if (!firestoreLoaded) {
+        const res = await safeFetchJson<ERPDatabase>('/api/sync');
+        if (res.ok && res.data) {
+          applyDatabaseSnapshot(res.data, { respectEmptyArrays: true });
+          setLastSynced(new Date().toLocaleTimeString());
+        }
+      }
+    } catch {
+      setSyncStatus('offline');
+    }
+  }, [applyDatabaseSnapshot]);
+
+  // Load from local storage initially (stripping any legacy demo records)
   useEffect(() => {
     try {
       const cached = localStorage.getItem(CACHE_KEY);
       if (cached) {
         const parsed: ERPDatabase = JSON.parse(cached);
-        if (parsed.company) setCompany(parsed.company);
-        if (parsed.customers) setCustomers(parsed.customers);
-        if (parsed.products && Array.isArray(parsed.products)) {
-          setProducts(parsed.products.map((p, i) => normalizeProduct(p, i)));
-        }
-        if (parsed.categories) setCategories(parsed.categories);
-        if (parsed.invoices) setInvoices(parsed.invoices);
-        if (parsed.deliveryNotes) setDeliveryNotes(parsed.deliveryNotes);
-        if (parsed.quotations) setQuotations(parsed.quotations);
-        if (parsed.payments) setPayments(parsed.payments);
-        if (parsed.leads) setLeads(parsed.leads);
-        if (parsed.communications) setCommunications(parsed.communications);
-        if (parsed.staff) setStaff(parsed.staff);
-        if (parsed.stockPurchases) setStockPurchases(parsed.stockPurchases);
-        if (parsed.stockItemStatuses) setStockItemStatuses(parsed.stockItemStatuses);
-        if (parsed.stockMovements) setStockMovements(parsed.stockMovements);
-        if (parsed.journalEntries) setJournalEntries(parsed.journalEntries);
-        if (parsed.loginLogs) setLoginLogs(parsed.loginLogs);
-        if (Array.isArray(parsed.merchantOrders)) setMerchantOrders(parsed.merchantOrders);
-        if (Array.isArray(parsed.showcaseProducts)) setShowcaseProducts(parsed.showcaseProducts);
-        if (Array.isArray(parsed.posTransactions)) setPosTransactions(parsed.posTransactions);
-        if (Array.isArray(parsed.posSessions)) setPosSessions(parsed.posSessions);
-        if (Array.isArray(parsed.productionLines)) setProductionLines(parsed.productionLines);
-        if (Array.isArray(parsed.productionBatches)) setProductionBatches(parsed.productionBatches);
-
-        let loadedUsers = parsed.users || [];
-        if (!loadedUsers.some((u) => u.email.toLowerCase() === 'admin@savoure.co.za')) {
-          loadedUsers = [MASTER_ADMIN_USER, ...loadedUsers];
-        }
-        setUsers(loadedUsers);
+        applyDatabaseSnapshot(parsed, { respectEmptyArrays: true });
       }
     } catch (e) {
       console.warn('Cache parse error:', e);
     }
-  }, []);
+  }, [applyDatabaseSnapshot]);
 
   // REAL-TIME CLOUD FIRESTORE & SERVER SYNCHRONIZATION
-  // Connects phone, laptop, tablet and any device via live Cloud Firestore listener and server sync
   useEffect(() => {
-    // 1. Initial hydration from server backend (/api/sync)
-    safeFetchJson<ERPDatabase>('/api/sync').then((res) => {
-      if (res.ok && res.data) {
-        const srv = res.data;
-        if (srv.company) setCompany(srv.company);
-        if (Array.isArray(srv.customers)) setCustomers(srv.customers);
-        if (Array.isArray(srv.products)) setProducts(srv.products.map((p, i) => normalizeProduct(p, i)));
-        if (Array.isArray(srv.invoices)) {
-          const { invoices: healedInvs } = healInvoicesList(srv.invoices, srv.customers || [], srv.users || []);
-          setInvoices(healedInvs);
-        }
-        if (Array.isArray(srv.deliveryNotes)) setDeliveryNotes(srv.deliveryNotes);
-        if (Array.isArray(srv.quotations)) setQuotations(srv.quotations);
-        if (Array.isArray(srv.payments)) setPayments(srv.payments);
-        if (Array.isArray(srv.leads)) setLeads(srv.leads);
-        if (Array.isArray(srv.communications)) setCommunications(srv.communications);
-        if (Array.isArray(srv.staff)) setStaff(srv.staff);
-        if (Array.isArray(srv.payrollPayouts)) setPayrollPayouts(srv.payrollPayouts);
-        if (Array.isArray(srv.stockPurchases)) setStockPurchases(srv.stockPurchases);
-        if (Array.isArray(srv.stockItemStatuses)) setStockItemStatuses(srv.stockItemStatuses);
-        if (Array.isArray(srv.stockMovements)) setStockMovements(srv.stockMovements);
-        if (Array.isArray(srv.journalEntries)) setJournalEntries(srv.journalEntries);
-        if (Array.isArray(srv.loginLogs)) setLoginLogs(srv.loginLogs);
-        if (Array.isArray(srv.merchantOrders)) setMerchantOrders(srv.merchantOrders);
-        if (Array.isArray(srv.merchantReports)) setMerchantReports(srv.merchantReports);
-        if (Array.isArray(srv.categories)) setCategories(srv.categories);
-        if (Array.isArray(srv.showcaseProducts)) setShowcaseProducts(srv.showcaseProducts);
-        if (Array.isArray(srv.posTransactions)) setPosTransactions(srv.posTransactions);
-        if (Array.isArray(srv.posSessions)) setPosSessions(srv.posSessions);
-        if (Array.isArray(srv.productionLines)) setProductionLines(srv.productionLines);
-        if (Array.isArray(srv.productionBatches)) setProductionBatches(srv.productionBatches);
-        if (Array.isArray(srv.users) && srv.users.length > 0) {
-          let uList = srv.users;
-          if (!uList.some((u) => u.email.toLowerCase() === 'admin@savoure.co.za')) {
-            uList = [MASTER_ADMIN_USER, ...uList];
-          }
-          setUsers(uList);
-        }
-      }
-    }).catch(() => {});
-
-    // 2. Real-time Cloud Firestore subscription
+    let mounted = true;
     setSyncStatus('syncing');
-    const unsub = onSnapshot(doc(db, 'erp', 'main'), (snapshot) => {
-      if (snapshot.exists()) {
-        const cloudData = snapshot.data() as Partial<ERPDatabase>;
-        
-        if (cloudData.company) setCompany(cloudData.company);
-        
-        if (Array.isArray(cloudData.products) && cloudData.products.length > 0) {
-          setProducts(cloudData.products.map((p, i) => normalizeProduct(p, i)));
-        } else if (!cloudData.products || cloudData.products.length === 0) {
-          setProducts(INITIAL_SAVOURE_PRODUCTS);
-        }
 
-        if (Array.isArray(cloudData.customers) && cloudData.customers.length > 0) {
-          setCustomers(cloudData.customers);
-        } else if (!cloudData.customers || cloudData.customers.length === 0) {
-          setCustomers([INITIAL_CUSTOMER_SOUTHERN_AMBISION]);
-        }
-
-        if (Array.isArray(cloudData.categories) && cloudData.categories.length > 0) {
-          setCategories(cloudData.categories);
-        }
-
-        let cloudUsers = cloudData.users || [];
-        if (Array.isArray(cloudData.users) && cloudData.users.length > 0) {
-          if (!cloudUsers.some((u) => u.email.toLowerCase() === 'admin@savoure.co.za')) {
-            cloudUsers = [MASTER_ADMIN_USER, ...cloudUsers];
-          }
-          if (!cloudUsers.some((u) => u.email.toLowerCase() === 'rookshanal@icloud.com')) {
-            cloudUsers = [...cloudUsers, INITIAL_ROOKSHANA_USER];
-          }
-          setUsers(cloudUsers);
-        }
-
-        if (Array.isArray(cloudData.invoices)) {
-          const { invoices: healedInvs, changed } = healInvoicesList(
-            cloudData.invoices,
-            cloudData.customers || [],
-            cloudUsers
-          );
-          setInvoices(healedInvs);
-          if (changed && !isWritingCloud.current) {
-            syncToCloud({ invoices: healedInvs });
-          }
-        }
-        if (Array.isArray(cloudData.deliveryNotes)) setDeliveryNotes(cloudData.deliveryNotes);
-        if (Array.isArray(cloudData.quotations)) setQuotations(cloudData.quotations);
-        if (Array.isArray(cloudData.payments)) setPayments(cloudData.payments);
-        
-        if (Array.isArray(cloudData.merchantOrders) && cloudData.merchantOrders.length > 0) {
-          setMerchantOrders(cloudData.merchantOrders);
-        } else if (!cloudData.merchantOrders || cloudData.merchantOrders.length === 0) {
-          setMerchantOrders(INITIAL_MERCHANT_ORDERS);
-        }
-
-        if (Array.isArray(cloudData.merchantReports) && cloudData.merchantReports.length > 0) {
-          setMerchantReports(cloudData.merchantReports);
-        } else if (!cloudData.merchantReports || cloudData.merchantReports.length === 0) {
-          setMerchantReports(INITIAL_MERCHANT_REPORTS);
-        }
-
-        if (Array.isArray(cloudData.showcaseProducts)) setShowcaseProducts(cloudData.showcaseProducts);
-        if (Array.isArray(cloudData.posTransactions)) setPosTransactions(cloudData.posTransactions);
-        if (Array.isArray(cloudData.posSessions)) setPosSessions(cloudData.posSessions);
-        if (Array.isArray(cloudData.productionLines)) setProductionLines(cloudData.productionLines);
-        if (Array.isArray(cloudData.productionBatches)) setProductionBatches(cloudData.productionBatches);
-        if (Array.isArray(cloudData.leads)) setLeads(cloudData.leads);
-        if (Array.isArray(cloudData.communications)) setCommunications(cloudData.communications);
-        if (Array.isArray(cloudData.staff)) setStaff(cloudData.staff);
-        if (Array.isArray(cloudData.payrollPayouts)) setPayrollPayouts(cloudData.payrollPayouts);
-        if (cloudData.stockPurchases) setStockPurchases(cloudData.stockPurchases);
-        if (Array.isArray(cloudData.stockItemStatuses)) setStockItemStatuses(cloudData.stockItemStatuses);
-        if (Array.isArray(cloudData.stockMovements)) setStockMovements(cloudData.stockMovements);
-        if (Array.isArray(cloudData.journalEntries)) setJournalEntries(cloudData.journalEntries);
-        if (Array.isArray(cloudData.loginLogs)) setLoginLogs(cloudData.loginLogs);
-
-        // Update local storage cache
-        try {
-          localStorage.setItem(CACHE_KEY, JSON.stringify(cloudData));
-        } catch (e) {}
-
-        setSyncStatus('synced');
-        setLastSynced(new Date().toLocaleTimeString());
-      } else {
-        // Initialize cloud database with initial Master Admin and company settings
-        const initialPayload = {
-          users: [MASTER_ADMIN_USER, INITIAL_ROOKSHANA_USER],
-          company: INITIAL_COMPANY,
-          products: INITIAL_SAVOURE_PRODUCTS,
-          customers: [INITIAL_CUSTOMER_SOUTHERN_AMBISION],
-          categories: ['Pastry Sheets', 'Artisanal Roti', 'Tortillas & Wraps', 'Ready Savouries'],
-          invoices: [],
-          deliveryNotes: [],
-          quotations: [],
-          payments: [],
-          merchantOrders: INITIAL_MERCHANT_ORDERS,
-          merchantReports: INITIAL_MERCHANT_REPORTS,
-          leads: [],
-          communications: [],
-          lastUpdated: new Date().toISOString(),
-        };
-        setDoc(doc(db, 'erp', 'main'), initialPayload).catch(() => {});
-        setSyncStatus('synced');
-      }
-    }, (error) => {
-      // Gracefully handle offline or network transition events
-      if (error && error.message && (error.message.includes('offline') || error.message.includes('unavailable') || error.message.includes('timeout'))) {
-        console.warn('[Cloud Sync] Client operating in resilient offline cache mode.');
-        setSyncStatus('offline');
-      } else {
-        console.warn('[Cloud Sync] Firestore real-time notice:', error?.message || error);
+    // Verify live Cloud Firestore connectivity on boot
+    testFirebaseConnection().then((connected) => {
+      if (!mounted) return;
+      if (!connected) {
         setSyncStatus('offline');
       }
     });
 
-    // 3. Resilient Periodic Background Heartbeat & Cross-Device Reconnect
-    const heartbeatInterval = setInterval(() => {
-      safeFetchJson<ERPDatabase>('/api/sync').then((res) => {
-        if (res.ok && res.data) {
-          const srv = res.data;
-          if (Array.isArray(srv.merchantOrders) && srv.merchantOrders.length > 0) {
-            setMerchantOrders(srv.merchantOrders);
-          }
-          if (Array.isArray(srv.merchantReports) && srv.merchantReports.length > 0) {
-            setMerchantReports(srv.merchantReports);
-          }
-          if (Array.isArray(srv.invoices)) setInvoices(srv.invoices);
-          if (Array.isArray(srv.deliveryNotes)) setDeliveryNotes(srv.deliveryNotes);
-          if (Array.isArray(srv.payments)) setPayments(srv.payments);
-          setLastSynced(new Date().toLocaleTimeString());
+    // Hydrate from server backend only if Firestore has not yet delivered newer data
+    safeFetchJson<ERPDatabase>('/api/sync').then((res) => {
+      if (!mounted || !res.ok || !res.data) return;
+      const srvTs = res.data.lastUpdated ? new Date(res.data.lastUpdated).getTime() : 0;
+      if (lastSyncedTimestampRef.current === 0 || srvTs > lastSyncedTimestampRef.current) {
+        applyDatabaseSnapshot(res.data, { respectEmptyArrays: true });
+      }
+    }).catch(() => {});
+
+    // Real-time Cloud Firestore subscription (single source of truth across devices)
+    const unsub = onSnapshot(doc(db, 'erp', 'main'), (snapshot) => {
+      if (!mounted) return;
+      if (snapshot.exists()) {
+        const cloudData = snapshot.data() as Partial<ERPDatabase>;
+        const { cleaned, stripped } = applyDatabaseSnapshot(cloudData, {
+          respectEmptyArrays: true,
+          persistCleanedToCloud: true,
+        });
+
+        // If cloud document still held legacy demo artifacts, permanently scrub them once
+        if (stripped && !hasCleanedCloudDemoRef.current) {
+          hasCleanedCloudDemoRef.current = true;
+          const scrubPayload = sanitizeForCloud({
+            users: cleaned.users,
+            customers: cleaned.customers,
+            products: cleaned.products,
+            stockItemStatuses: cleaned.stockItemStatuses,
+            stockMovements: cleaned.stockMovements,
+            merchantOrders: cleaned.merchantOrders,
+            merchantReports: cleaned.merchantReports,
+            posSessions: cleaned.posSessions,
+            posTransactions: cleaned.posTransactions,
+            productionLines: cleaned.productionLines,
+            productionBatches: cleaned.productionBatches,
+            lastUpdated: new Date().toISOString(),
+          });
+          setDoc(doc(db, 'erp', 'main'), scrubPayload, { merge: true }).catch(() => {});
+          safeFetchJson('/api/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(scrubPayload),
+          }).catch(() => {});
         }
-      }).catch(() => {});
-    }, 12000);
+
+        setSyncStatus('synced');
+        setLastSynced(new Date().toLocaleTimeString());
+      } else {
+        // Initialize clean Cloud Firestore document without fake/demo records
+        const initialPayload = sanitizeForCloud({
+          users: [MASTER_ADMIN_USER],
+          company: INITIAL_COMPANY,
+          products: [],
+          customers: [],
+          categories: ['Pastry Sheets', 'Artisanal Roti', 'Tortillas & Wraps', 'Flour & Grains', 'Oils & Fats'],
+          invoices: [],
+          deliveryNotes: [],
+          quotations: [],
+          payments: [],
+          merchantOrders: [],
+          merchantReports: [],
+          posTransactions: [],
+          posSessions: [],
+          productionLines: [],
+          productionBatches: [],
+          staff: [],
+          payrollPayouts: [],
+          stockPurchases: [],
+          stockItemStatuses: [],
+          stockMovements: [],
+          journalEntries: [],
+          leads: [],
+          communications: [],
+          loginLogs: [],
+          lastUpdated: new Date().toISOString(),
+        });
+        setDoc(doc(db, 'erp', 'main'), initialPayload).catch((err) => {
+          handleFirestoreError(err, OperationType.WRITE, 'erp/main');
+        });
+        setSyncStatus('synced');
+        setLastSynced(new Date().toLocaleTimeString());
+      }
+    }, (error) => {
+      if (!mounted) return;
+      if (error && error.message && (error.message.includes('offline') || error.message.includes('unavailable') || error.message.includes('timeout'))) {
+        console.warn('[Cloud Sync] Client operating in resilient offline cache mode.');
+      } else {
+        handleFirestoreError(error, OperationType.GET, 'erp/main');
+      }
+      setSyncStatus('offline');
+    });
 
     const handleFocusSync = () => {
       refreshData();
@@ -1919,63 +934,13 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     document.addEventListener('visibilitychange', handleVisibilitySync);
 
     return () => {
+      mounted = false;
       unsub();
-      clearInterval(heartbeatInterval);
       window.removeEventListener('focus', handleFocusSync);
       window.removeEventListener('online', handleFocusSync);
       document.removeEventListener('visibilitychange', handleVisibilitySync);
     };
-  }, []);
-
-  // Manual refresh trigger
-  const refreshData = useCallback(async () => {
-    try {
-      setSyncStatus('syncing');
-      // 1. Fetch server
-      const res = await safeFetchJson<ERPDatabase>('/api/sync');
-      if (res.ok && res.data) {
-        const srv = res.data;
-        if (srv.company) setCompany(srv.company);
-        if (srv.products && Array.isArray(srv.products) && srv.products.length > 0) {
-          setProducts(srv.products.map((p, i) => normalizeProduct(p, i)));
-        }
-        if (Array.isArray(srv.categories) && srv.categories.length > 0) setCategories(srv.categories);
-        if (srv.customers && srv.customers.length > 0) setCustomers(srv.customers);
-        if (srv.invoices && srv.invoices.length > 0) setInvoices(srv.invoices);
-        if (srv.deliveryNotes && srv.deliveryNotes.length > 0) setDeliveryNotes(srv.deliveryNotes);
-        if (srv.quotations && srv.quotations.length > 0) setQuotations(srv.quotations);
-        if (srv.payments && srv.payments.length > 0) setPayments(srv.payments);
-        if (srv.merchantOrders && srv.merchantOrders.length > 0) setMerchantOrders(srv.merchantOrders);
-        if (srv.merchantReports && srv.merchantReports.length > 0) setMerchantReports(srv.merchantReports);
-        if (srv.leads && srv.leads.length > 0) setLeads(srv.leads);
-        if (srv.users && srv.users.length > 0) setUsers(srv.users);
-      }
-
-      // 2. Fetch Firestore
-      const snap = await getDoc(doc(db, 'erp', 'main'));
-      if (snap.exists()) {
-        const cloudData = snap.data() as Partial<ERPDatabase>;
-        if (cloudData.company) setCompany(cloudData.company);
-        if (cloudData.products && Array.isArray(cloudData.products) && cloudData.products.length > 0) {
-          setProducts(cloudData.products.map((p, i) => normalizeProduct(p, i)));
-        }
-        if (Array.isArray(cloudData.categories) && cloudData.categories.length > 0) setCategories(cloudData.categories);
-        if (cloudData.customers && cloudData.customers.length > 0) setCustomers(cloudData.customers);
-        if (cloudData.invoices && cloudData.invoices.length > 0) setInvoices(cloudData.invoices);
-        if (cloudData.deliveryNotes && cloudData.deliveryNotes.length > 0) setDeliveryNotes(cloudData.deliveryNotes);
-        if (cloudData.quotations && cloudData.quotations.length > 0) setQuotations(cloudData.quotations);
-        if (cloudData.payments && cloudData.payments.length > 0) setPayments(cloudData.payments);
-        if (cloudData.merchantOrders && cloudData.merchantOrders.length > 0) setMerchantOrders(cloudData.merchantOrders);
-        if (cloudData.merchantReports && cloudData.merchantReports.length > 0) setMerchantReports(cloudData.merchantReports);
-        if (cloudData.leads && cloudData.leads.length > 0) setLeads(cloudData.leads);
-        if (cloudData.users && cloudData.users.length > 0) setUsers(cloudData.users);
-      }
-      setSyncStatus('synced');
-      setLastSynced(new Date().toLocaleTimeString());
-    } catch (e) {
-      setSyncStatus('synced');
-    }
-  }, []);
+  }, [applyDatabaseSnapshot, refreshData]);
 
   // User Login Logs & Security Audit
   const recordLoginLog = useCallback(async (logData: Partial<UserLoginLog>) => {
@@ -2043,27 +1008,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Check users in state / cloud by email, username, phone, or name
     let matchedUser = users.find(
       (u) =>
-        u.email.toLowerCase() === cleanId ||
-        (u as any).username?.toLowerCase() === cleanId ||
-        u.name.toLowerCase() === cleanId ||
-        (cleanId === 'roksh4' && (u.id === 'usr_1791911737847' || u.role === 'merchant')) ||
-        (cleanId === '0719153630' && (u as any).merchantPhone === '0719153630')
-    );
-
-    // Fallback 1: check built-in known users
-    if (!matchedUser) {
-      const knownUsers = [MASTER_ADMIN_USER, INITIAL_ROOKSHANA_USER];
-      matchedUser = knownUsers.find(
-        (u) =>
-          u.email.toLowerCase() === cleanId ||
+        !isLegacyDemoUser(u) &&
+        (u.email.toLowerCase() === cleanId ||
           (u as any).username?.toLowerCase() === cleanId ||
           u.name.toLowerCase() === cleanId ||
-          (cleanId === 'roksh4' && u.role === 'merchant') ||
-          (cleanId === '0719153630' && (u as any).merchantPhone === '0719153630')
-      );
-    }
+          (Boolean((u as any).merchantPhone) && (u as any).merchantPhone.toLowerCase() === cleanId))
+    );
 
-    // Fallback 2: check live Firestore directly in case state is still hydrating
+    // Fallback 1: check live Firestore directly in case state is still hydrating
     if (!matchedUser) {
       try {
         const snap = await getDoc(doc(db, 'erp', 'main'));
@@ -2072,11 +1024,11 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (Array.isArray(cloud.users)) {
             matchedUser = cloud.users.find(
               (u) =>
-                u.email.toLowerCase() === cleanId ||
-                (u as any).username?.toLowerCase() === cleanId ||
-                u.name.toLowerCase() === cleanId ||
-                (cleanId === 'roksh4' && (u.id === 'usr_1791911737847' || u.role === 'merchant')) ||
-                (cleanId === '0719153630' && (u as any).merchantPhone === '0719153630')
+                !isLegacyDemoUser(u) &&
+                (u.email.toLowerCase() === cleanId ||
+                  (u as any).username?.toLowerCase() === cleanId ||
+                  u.name.toLowerCase() === cleanId ||
+                  (Boolean((u as any).merchantPhone) && (u as any).merchantPhone.toLowerCase() === cleanId))
             );
           }
         }
@@ -2085,7 +1037,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    // Fallback 3: check server endpoint if reachable
+    // Fallback 2: check server endpoint if reachable
     if (!matchedUser) {
       try {
         const res = await safeFetchJson<{ success: boolean; user: User }>('/api/auth/login', {
@@ -2093,7 +1045,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: identifier.trim(), password: password.trim() }),
         });
-        if (res.ok && res.data?.user) {
+        if (res.ok && res.data?.user && !isLegacyDemoUser(res.data.user)) {
           matchedUser = res.data.user;
         }
       } catch {}
@@ -2103,18 +1055,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const isPasswordMatch =
         !matchedUser.password ||
         matchedUser.password === cleanPassword ||
-        matchedUser.password.toLowerCase() === cleanPassword.toLowerCase() ||
-        (matchedUser.id === 'usr_1791911737847' && (
-          cleanPassword === 'Shazia' ||
-          cleanPassword === 'ROKSH4' ||
-          cleanPassword.toLowerCase() === 'shazia' ||
-          cleanPassword.toLowerCase() === 'roksh4' ||
-          cleanPassword === 'password123'
-        )) ||
-        (matchedUser.role === 'super_admin' && (
-          cleanPassword === 'Shazia' ||
-          cleanPassword.toLowerCase() === 'shazia'
-        ));
+        matchedUser.password.toLowerCase() === cleanPassword.toLowerCase();
 
       if (!isPasswordMatch) {
         await recordLoginLog({
@@ -3326,38 +2267,64 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Database Tools
   const purgeMockData = async () => {
-    setCustomers([INITIAL_CUSTOMER_SOUTHERN_AMBISION]);
+    const cleanUsers = users.filter((u) => u.role === 'super_admin');
+    const finalUsers = cleanUsers.length > 0 ? cleanUsers : [MASTER_ADMIN_USER];
+
+    setUsers(finalUsers);
+    setCustomers([]);
     setProducts([]);
     setCategories([]);
     setInvoices([]);
     setDeliveryNotes([]);
     setQuotations([]);
     setPayments([]);
+    setMerchantOrders([]);
+    setMerchantReports([]);
+    setPosTransactions([]);
+    setPosSessions([]);
+    setProductionLines([]);
+    setProductionBatches([]);
     setLeads([]);
     setCommunications([]);
     setStaff([]);
     setPayrollPayouts([]);
     setStockPurchases([]);
     setStockItemStatuses([]);
+    setStockMovements([]);
     setJournalEntries([]);
-    const purgedData = {
-      customers: [INITIAL_CUSTOMER_SOUTHERN_AMBISION],
+    setLoginLogs([]);
+
+    const purgedData: Partial<ERPDatabase> = {
+      users: finalUsers,
+      customers: [],
       products: [],
       categories: [],
       invoices: [],
       deliveryNotes: [],
       quotations: [],
       payments: [],
+      merchantOrders: [],
+      merchantReports: [],
+      posTransactions: [],
+      posSessions: [],
+      productionLines: [],
+      productionBatches: [],
       leads: [],
       communications: [],
       staff: [],
       payrollPayouts: [],
       stockPurchases: [],
       stockItemStatuses: [],
+      stockMovements: [],
       journalEntries: [],
+      loginLogs: [],
     };
+    try {
+      localStorage.removeItem('savoure_merchant_reports');
+    } catch {}
     persistToLocal(purgedData);
     await syncToCloud(purgedData);
+    await safeFetchJson('/api/database/purge', { method: 'POST' }).catch(() => {});
   };
 
   const restoreBackup = async (importedDb: ERPDatabase) => {
@@ -3953,13 +2920,29 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       billingAddress: order.deliveryAddress,
       deliveryAddress: order.deliveryAddress,
       branch: order.branch,
-      items: order.items.map((it) => ({
-        description: it.productName,
-        packSize: it.packSize,
-        quantity: it.quantity,
-        unitPrice: it.unitPrice,
-        amount: it.lineTotal,
-      })),
+      items: order.items.map((it) => {
+        const matchedProd = products.find(
+          (p) =>
+            (it.productId && p.id === it.productId) ||
+            p.name.toLowerCase() === (it.productName || '').toLowerCase()
+        );
+        const lineSubtotal = Number(it.lineTotal) || Number(it.quantity) * Number(it.unitPrice);
+        return {
+          id: 'inv_it_' + Math.random().toString(36).substring(2, 9),
+          productId: matchedProd?.id || it.productId || '',
+          sku: matchedProd?.sku || 'SKU',
+          description: it.productName,
+          packSize: it.packSize || matchedProd?.packSize || 'Standard Pack',
+          quantity: it.quantity,
+          unitPrice: it.unitPrice,
+          vatRate: 0,
+          discountPercent: 0,
+          subtotal: lineSubtotal,
+          vatAmount: 0,
+          total: lineSubtotal,
+          amount: lineSubtotal,
+        };
+      }),
       notes: `Generated from Merchant Order ${order.orderNumber}. ${order.specialInstructions || ''}`.trim(),
       merchantId: order.merchantId,
       merchantName: order.merchantName,
@@ -4263,6 +3246,25 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // ------------------------------------------------------------------
   // Factory Production Lines & Bakery Runs
   // ------------------------------------------------------------------
+  const addProductionLine = async (data: Partial<ProductionLine>): Promise<ProductionLine> => {
+    const seq = productionLines.length + 1;
+    const newLine: ProductionLine = {
+      id: `line_${Date.now()}`,
+      code: data.code || `LINE-${String(seq).padStart(2, '0')}`,
+      name: data.name || `Production Line ${seq}`,
+      section: data.section || 'Extrusion & Sheeting',
+      status: data.status || 'IDLE',
+      supervisor: data.supervisor || currentUser?.name || 'Floor Supervisor',
+      capacityPerHour: data.capacityPerHour || '1,000 units/hr',
+      targetProductSku: data.targetProductSku || products[0]?.sku || '',
+    };
+    const nextLines = [...productionLines, newLine];
+    setProductionLines(nextLines);
+    persistToLocal({ productionLines: nextLines });
+    await syncToCloud({ productionLines: nextLines });
+    return newLine;
+  };
+
   const updateProductionLineStatus = async (
     id: string,
     status: ProductionLine['status']
@@ -4277,23 +3279,22 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const seq = productionBatches.length + 1;
     const batchNumber = data.batchNumber || `BATCH-${dateStr}-${String(seq).padStart(3, '0')}`;
+    const defaultProduct = products[0];
+    const defaultLine = productionLines[0];
 
     const newBatch: ProductionBatch = {
       id: `batch_${Date.now()}`,
       batchNumber,
-      lineId: data.lineId || 'line_01',
-      lineName: data.lineName || 'High-Speed Pastry Sheeter & Auto-Laminator',
-      targetProductId: data.targetProductId || 'prod_spring_roll',
-      targetProductName: data.targetProductName || 'Savouré Spring Roll Pastry (20cm / 200g)',
-      targetSku: data.targetSku || 'SAV-SPR-001',
-      plannedQuantity: data.plannedQuantity || 500,
+      lineId: data.lineId || defaultLine?.id || 'line_main',
+      lineName: data.lineName || defaultLine?.name || 'Main Bakery Floor',
+      targetProductId: data.targetProductId || defaultProduct?.id || '',
+      targetProductName: data.targetProductName || defaultProduct?.name || 'Bakery Product',
+      targetSku: data.targetSku || defaultProduct?.sku || '',
+      plannedQuantity: data.plannedQuantity || 100,
       actualYield: data.actualYield || 0,
       rejectedQuantity: data.rejectedQuantity || 0,
       status: data.status || 'PLANNED',
-      ingredients: data.ingredients || [
-        { ingredientId: 'ing_flour', ingredientName: 'Supreme Unbleached Pastry Flour', sku: 'RAW-FLR-001', quantityUsed: 100, unit: 'kg', costPerUnit: 14.50 },
-        { ingredientId: 'ing_oil', ingredientName: 'Pure Sunflower Laminating Oil', sku: 'RAW-OIL-002', quantityUsed: 15, unit: 'litres', costPerUnit: 26.00 },
-      ],
+      ingredients: data.ingredients || [],
       qc: data.qc || {
         visualAppearance: 'Pass',
         thicknessMm: 0.8,
@@ -4305,7 +3306,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         inspectorName: currentUser?.name || 'QC Officer',
       },
       operatorName: data.operatorName || currentUser?.name || 'Operator',
-      supervisorName: data.supervisorName || 'Yusuf Patel',
+      supervisorName: data.supervisorName || currentUser?.name || 'Production Supervisor',
       startTime: data.startTime || new Date().toISOString(),
       expiryDate: data.expiryDate || new Date(Date.now() + 86400000 * 60).toISOString().split('T')[0],
       lotCode: data.lotCode || `LOT-${dateStr}-${String(seq).padStart(2, '0')}`,
@@ -4368,15 +3369,18 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
     setProducts(updatedProducts);
 
+    const matchedProd = products.find(
+      (p) => p.id === target.targetProductId || p.sku === target.targetSku
+    );
     const newMovement: StockMovement = {
       id: `sm_${Date.now()}`,
       movementNumber: `SM-PROD-${Date.now().toString().slice(-4)}`,
       timestamp: new Date().toISOString(),
       type: 'STOCK_IN',
-      barcode: target.lotCode || target.targetSku || '6009800123014',
+      barcode: matchedProd?.barcode || target.lotCode || target.targetSku || '',
       sku: target.targetSku,
       productName: target.targetProductName,
-      category: 'Pastry Sheets',
+      category: matchedProd?.category || 'Production Output',
       quantity: actualYield,
       unit: 'packs',
       sourceBranch: `Production (${target.lineName})`,
@@ -4384,7 +3388,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       batchNumber: target.batchNumber,
       reason: `Completed Production Run (${actualYield} packs produced, ${rejectedQuantity} scrap)`,
       recordedBy: currentUser?.name || 'Production Supervisor',
-      isSouthAfricanBarcode: true,
+      isSouthAfricanBarcode: Boolean(matchedProd?.barcode && (matchedProd.barcode.startsWith('600') || matchedProd.barcode.startsWith('601'))),
     };
     const nextMovements = [newMovement, ...stockMovements];
     setStockMovements(nextMovements);
@@ -4445,6 +3449,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         refundPOSTransaction,
         productionLines,
         productionBatches,
+        addProductionLine,
         updateProductionLineStatus,
         createProductionBatch,
         updateProductionBatchStatus,

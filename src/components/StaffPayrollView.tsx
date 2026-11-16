@@ -834,7 +834,7 @@ export const StaffPayrollView: React.FC<StaffPayrollViewProps> = ({
                     required
                     value={staffForm.name}
                     onChange={(e) => setStaffForm({ ...staffForm, name: e.target.value })}
-                    placeholder="e.g. Sipho Ndlovu"
+                    placeholder="e.g. Employee Full Name"
                     className="w-full px-3 py-2 bg-[#120F0D] border border-[#2C211B] rounded-lg text-white focus:outline-hidden focus:border-[#C98A5B]"
                   />
                 </div>

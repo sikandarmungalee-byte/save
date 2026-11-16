@@ -8,13 +8,14 @@ interface ContactPageProps {
 }
 
 export const ContactPage: React.FC<ContactPageProps> = () => {
-  const { createLead } = useERP();
+  const { createLead, showcaseProducts } = useERP();
+  const productList = (showcaseProducts && showcaseProducts.length > 0) ? showcaseProducts : SHOWCASE_COLLECTION;
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [businessName, setBusinessName] = useState('');
-  const [subject, setSubject] = useState(SHOWCASE_COLLECTION[0].name);
+  const [subject, setSubject] = useState(productList[0]?.name || SHOWCASE_COLLECTION[0].name);
   const [enquiryType, setEnquiryType] = useState('Wholesale Supply');
   const [message, setMessage] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -254,7 +255,7 @@ export const ContactPage: React.FC<ContactPageProps> = () => {
                       type="text"
                       value={businessName}
                       onChange={(e) => setBusinessName(e.target.value)}
-                      placeholder="e.g. Moola Catering / Home Baker"
+                      placeholder="e.g. Catering Co. / Restaurant / Home Baker"
                       className="w-full px-4 py-2.5 rounded-xl bg-[#f5eee5]/60 border border-[#bd896e]/30 text-xs text-[#3d2117] focus:outline-hidden focus:border-[#b86643]"
                     />
                   </div>
@@ -268,13 +269,12 @@ export const ContactPage: React.FC<ContactPageProps> = () => {
                       onChange={(e) => setSubject(e.target.value)}
                       className="w-full px-4 py-2.5 rounded-xl bg-[#f5eee5]/60 border border-[#bd896e]/30 text-xs text-[#3d2117] focus:outline-hidden focus:border-[#b86643]"
                     >
-                      {SHOWCASE_COLLECTION.map((c) => (
+                      {productList.map((c) => (
                         <option key={c.id} value={c.name}>
                           {c.name} ({c.detail})
                         </option>
                       ))}
                       <option value="Complete Pastry Range">Complete Pastry Range</option>
-                      <option value="Chef Tasting Samples">Chef Tasting Samples</option>
                     </select>
                   </div>
 
@@ -288,19 +288,18 @@ export const ContactPage: React.FC<ContactPageProps> = () => {
                       <option value="Wholesale Supply">Wholesale Supply</option>
                       <option value="Event Catering">Event Catering</option>
                       <option value="Retail Shelving">Retail Shelving</option>
-                      <option value="Sample Tasting Pack">Sample Tasting Pack</option>
                       <option value="General Question">General Question</option>
                     </select>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-[#75412e] mb-1">Your message or volume requirements</label>
+                  <label className="block text-xs font-medium text-[#75412e] mb-1">Your message or requirements</label>
                   <textarea
                     rows={3}
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
-                    placeholder="Tell us about your event date, required dozens/packs, or delivery location across South Africa..."
+                    placeholder="Tell us about your event date, product requirements, or delivery location across South Africa..."
                     className="w-full px-4 py-2.5 rounded-xl bg-[#f5eee5]/60 border border-[#bd896e]/30 text-xs text-[#3d2117] focus:outline-hidden focus:border-[#b86643]"
                   />
                 </div>

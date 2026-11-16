@@ -436,22 +436,22 @@ const MainLayout: React.FC<MainLayoutProps> = ({ onGoToWebsite }) => {
         </div>
       )}
 
-      {/* Floating Ask Taskeen AI Launcher (available across all screens) */}
+      {/* Floating Ask Savouré AI Launcher (available across all screens) */}
       {currentModuleId !== 'taskeen' && (
         <button
           onClick={() => setIsTaskeenModalOpen(true)}
           className="fixed bottom-12 right-5 z-40 px-3.5 py-2 rounded-full bg-gradient-to-r from-[#CC8468] to-[#E0A282] text-[#1E0F07] font-bold text-xs shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2 border border-white/20 group cursor-pointer"
-          title="Ask Taskeen - Executive Bakery & Business Advisor"
+          title="Ask Savouré - Executive Bakery & Business Advisor"
         >
           <div className="w-5 h-5 rounded-full bg-[#1E0F07] flex items-center justify-center text-[#E0A282] shrink-0">
             <Sparkles className="w-3 h-3 animate-pulse" />
           </div>
-          <span className="font-serif tracking-wide">Ask Taskeen</span>
+          <span className="font-serif tracking-wide">Ask Savouré</span>
           <span className="text-[9px] font-sans font-semibold uppercase px-1 py-0.2 rounded bg-black/20 text-[#1E0F07]">AI</span>
         </button>
       )}
 
-      {/* Floating Taskeen AI Modal Drawer */}
+      {/* Floating Savouré AI Modal Drawer */}
       {isTaskeenModalOpen && (
         <TaskeenAIAdvisor isModal={true} onClose={() => setIsTaskeenModalOpen(false)} />
       )}

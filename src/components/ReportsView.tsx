@@ -31,8 +31,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ initialPeriod = 'weekl
 
   const [period, setPeriod] = useState<'weekly' | 'monthly' | 'quarterly' | 'annual'>(initialPeriod);
   const [reportSection, setReportSection] = useState<'summary' | 'pnl' | 'customers' | 'products' | 'aging'>('summary');
-  const [currentWeek, setCurrentWeek] = useState<number>(12); // ISO Batch Week
-  const currentYear = 2026;
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const [currentWeek, setCurrentWeek] = useState<number>(() => {
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    const days = Math.floor((now.getTime() - startOfYear.getTime()) / 86400000);
+    return Math.max(1, Math.min(52, Math.ceil((days + startOfYear.getDay() + 1) / 7)));
+  });
 
   // Key Financial Metrics
   const grossInvoiced = invoices.reduce((acc, i) => acc + (Number(i.grandTotal) || 0), 0);
@@ -81,12 +86,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ initialPeriod = 'weekl
           }
         });
       });
-
-      // Default baseline for demo display if 0
-      if (totalQty === 0 && p.unitPrice > 0) {
-        totalQty = Math.floor(p.unitPrice * 2.5);
-        totalSales = totalQty * p.unitPrice;
-      }
 
       const share = grossInvoiced > 0 ? ((totalSales / grossInvoiced) * 100).toFixed(1) : '0';
 

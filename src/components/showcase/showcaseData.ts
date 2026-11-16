@@ -122,13 +122,6 @@ export const SHOWCASE_FAQS: FAQItem[] = [
       'Yes, we cater to both. Dozens (calculated in 12s) are ideal for banquet caterers, restaurants, and home cooks calculating per-portion prep. We also supply sealed commercial packs (such as 30 sheets per spring roll pack, 50 strips per samoosa pack, or 12 rotis per pack) suited for retail shelves and high-volume prep lines.',
   },
   {
-    id: 'q3',
-    category: 'wholesale',
-    question: 'Do you offer sample tasting packs for executive chefs and restaurants?',
-    answer:
-      'Yes! We provide complimentary tasting sample packs to verified commercial caterers, restaurant groups, and retail delis looking to test our pastry crispness, folding strength, and frying performance. Click "Enquire now" and select "Sample Tasting Pack" to request yours.',
-  },
-  {
     id: 'q4',
     category: 'products',
     question: 'Are Savouré pastry sheets, wraps, and rotis Halaal certified?',

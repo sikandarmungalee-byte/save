@@ -107,13 +107,8 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onNavigate, onOpenEn
                   </div>
                 </div>
 
-                {/* Bottom spec & Enquire Now action */}
-                <div className="pt-4 border-t border-[#bd896e]/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="text-xs text-[#66483b] space-y-0.5">
-                    <div className="font-medium text-[#3d2117]">{product.packSpec}</div>
-                    <div className="text-[11px] text-[#8d5037]">{product.sizeSpec}</div>
-                  </div>
-
+                {/* Bottom Enquire Now action */}
+                <div className="pt-4 border-t border-[#bd896e]/20 flex items-center justify-end gap-4">
                   <button
                     type="button"
                     onClick={() => onOpenEnquiryModal(product.id)}

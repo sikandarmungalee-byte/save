@@ -89,29 +89,6 @@ export const WholesalePage: React.FC<WholesalePageProps> = ({ onNavigate, onOpen
             </p>
           </div>
         </div>
-
-        {/* Chef Tasting Sample Box Callout */}
-        <div className="bg-[#dfc4ae] rounded-3xl p-8 sm:p-12 border border-[#bd896e]/50 flex flex-col md:flex-row items-center justify-between gap-8 shadow-sm">
-          <div className="space-y-2 max-w-xl text-center md:text-left">
-            <span className="text-[10px] uppercase font-bold tracking-[0.2em] text-[#8d5037]">
-              Complimentary Chef Evaluation
-            </span>
-            <h3 className="font-serif text-2xl sm:text-3xl font-normal text-[#3d2117]">
-              Request a Tasting Sample Kit
-            </h3>
-            <p className="text-xs sm:text-sm text-[#66483b] leading-relaxed">
-              Are you an executive chef, banquet director, or procurement manager? We gladly provide tasting sample packs so you can test our folding strength, frying blister, and taste in your kitchen.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => onOpenEnquiryModal()}
-            className="shrink-0 px-6 py-3.5 rounded-full bg-[#b86643] hover:bg-[#a55635] text-[#fff8f0] text-[10px] font-bold uppercase tracking-[0.16em] transition-all hover:-translate-y-0.5 cursor-pointer shadow-sm whitespace-nowrap"
-          >
-            <span>Request Sample Pack</span>
-          </button>
-        </div>
       </div>
     </div>
   );

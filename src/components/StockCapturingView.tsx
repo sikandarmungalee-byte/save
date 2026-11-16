@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useERP } from '../context/ERPContext';
 import { StockPurchase, StockItemStatus, StockPurchaseItem, StockMovement, StockMovementType, Product } from '../types/erp';
-import { BarcodeScanner, BarcodeMetadata, parseBarcodeMetadata, SAMPLE_SOUTH_AFRICAN_BARCODES } from './BarcodeScanner';
+import { BarcodeScanner, BarcodeMetadata, parseBarcodeMetadata } from './BarcodeScanner';
 import {
   Package,
   Plus,
@@ -218,15 +218,34 @@ export const StockCapturingView: React.FC<StockCapturingViewProps> = ({
     (m) => m.isSouthAfricanBarcode || m.barcode.startsWith('600') || m.barcode.startsWith('601')
   ).length;
 
+  const liveCatalogBarcodes = useMemo(() => {
+    const items: Array<{ barcode: string; name: string; category?: string; unit?: string }> = [];
+    const seen = new Set<string>();
+    products.forEach((p) => {
+      const code = (p.barcode || p.sku || '').trim();
+      if (code && !seen.has(code)) {
+        seen.add(code);
+        items.push({ barcode: code, name: p.name, category: p.category, unit: p.packSize || 'packs' });
+      }
+    });
+    stockItemStatuses.forEach((s) => {
+      const code = (s.barcode || '').trim();
+      if (code && !seen.has(code)) {
+        seen.add(code);
+        items.push({ barcode: code, name: s.name, category: s.category, unit: s.unit || 'packs' });
+      }
+    });
+    return items;
+  }, [products, stockItemStatuses]);
+
   const handleBarcodeScanned = (scannedBarcode: string, _metadata: BarcodeMetadata) => {
     const raw = scannedBarcode.trim();
-    const matchedProduct = products.find((p) => p.barcode && p.barcode.trim() === raw);
+    const matchedProduct = products.find((p) => (p.barcode && p.barcode.trim() === raw) || p.sku.trim() === raw);
     const matchedStockItem = stockItemStatuses.find((s) => s.barcode && s.barcode.trim() === raw);
-    const matchedSample = SAMPLE_SOUTH_AFRICAN_BARCODES.find((s) => s.barcode === raw);
 
-    const itemName = matchedProduct?.name || matchedStockItem?.name || matchedSample?.name || '';
-    const itemCategory = matchedProduct?.category || matchedStockItem?.category || matchedSample?.category || 'Pastry Sheets';
-    const itemUnit = matchedStockItem?.unit || matchedSample?.unit || 'packs';
+    const itemName = matchedProduct?.name || matchedStockItem?.name || '';
+    const itemCategory = matchedProduct?.category || matchedStockItem?.category || 'General Stock';
+    const itemUnit = matchedStockItem?.unit || 'packs';
 
     setMovementForm((prev) => ({
       ...prev,
@@ -779,39 +798,47 @@ export const StockCapturingView: React.FC<StockCapturingViewProps> = ({
               </div>
             </div>
 
-            {/* Quick 1-Tap Demo Test Barcodes */}
+            {/* Quick Live Catalog Barcodes */}
             <div className="mt-6 pt-5 border-t border-[#2C211B]/80">
               <div className="flex items-center justify-between mb-2.5">
                 <span className="text-xs font-semibold text-[#DE9E74] flex items-center gap-1.5 uppercase tracking-wider">
                   <Sparkles className="w-3.5 h-3.5" />
-                  One-Tap Test Barcodes
+                  Live ERP Catalog Barcodes
                 </span>
-                <span className="text-[11px] text-[#A69385]">Click any item to scan & adjust immediately</span>
+                <span className="text-[11px] text-[#A69385]">
+                  {liveCatalogBarcodes.length > 0 ? 'Click any item to scan & adjust immediately' : 'Add barcodes in Products & Catalog or scan via camera'}
+                </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                {SAMPLE_SOUTH_AFRICAN_BARCODES.map((item) => (
-                  <button
-                    key={item.barcode}
-                    type="button"
-                    onClick={() => handleBarcodeScanned(item.barcode, parseBarcodeMetadata(item.barcode))}
-                    className="p-3 rounded-xl bg-[#120F0D] hover:bg-[#221B17] border border-[#2C211B] hover:border-[#DE9E74]/60 transition-all text-left flex items-center justify-between group cursor-pointer"
-                  >
-                    <div className="min-w-0 pr-2">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-xs font-bold text-white group-hover:text-[#DE9E74]">
-                          {item.barcode}
-                        </span>
-                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800/40">
-                          🇿🇦 SA
-                        </span>
+              {liveCatalogBarcodes.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                  {liveCatalogBarcodes.slice(0, 6).map((item) => (
+                    <button
+                      key={item.barcode}
+                      type="button"
+                      onClick={() => handleBarcodeScanned(item.barcode, parseBarcodeMetadata(item.barcode))}
+                      className="p-3 rounded-xl bg-[#120F0D] hover:bg-[#221B17] border border-[#2C211B] hover:border-[#DE9E74]/60 transition-all text-left flex items-center justify-between group cursor-pointer"
+                    >
+                      <div className="min-w-0 pr-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-xs font-bold text-white group-hover:text-[#DE9E74]">
+                            {item.barcode}
+                          </span>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800/40">
+                            ERP
+                          </span>
+                        </div>
+                        <p className="text-xs text-[#A69385] truncate mt-0.5">{item.name}</p>
                       </div>
-                      <p className="text-xs text-[#A69385] truncate mt-0.5">{item.name}</p>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-[#8A776B] group-hover:text-white shrink-0 transition-transform group-hover:translate-x-0.5" />
-                  </button>
-                ))}
-              </div>
+                      <ChevronRight className="w-4 h-4 text-[#8A776B] group-hover:text-white shrink-0 transition-transform group-hover:translate-x-0.5" />
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-3.5 rounded-xl bg-[#120F0D] border border-dashed border-[#2C211B] text-xs text-[#8A776B]">
+                  No catalog barcodes configured yet. Use Launch Phone Camera or Manual Movement Form to record live stock.
+                </div>
+              )}
             </div>
           </div>
 
@@ -1983,6 +2010,7 @@ export const StockCapturingView: React.FC<StockCapturingViewProps> = ({
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
           <div className="w-full max-w-xl my-auto">
             <BarcodeScanner
+              quickBarcodes={liveCatalogBarcodes}
               onScan={(scannedBarcode, metadata) => {
                 handleBarcodeScanned(scannedBarcode, metadata);
               }}
