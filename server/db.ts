@@ -2,7 +2,9 @@ import fs from 'fs';
 import path from 'path';
 import type { ERPDatabase, User, CompanySettings, Customer } from '../src/types/erp.js';
 
-const DATA_DIR = path.resolve(process.cwd(), 'data');
+const IS_VERCEL = Boolean(process.env.VERCEL);
+const BUNDLED_DB_FILE = path.resolve(process.cwd(), 'data', 'erp-database.json');
+const DATA_DIR = IS_VERCEL ? path.resolve('/tmp', 'savoure-data') : path.resolve(process.cwd(), 'data');
 const DB_FILE = path.resolve(DATA_DIR, 'erp-database.json');
 
 // Clean production baseline: Savouré Luxury Artisanal Brand
@@ -88,9 +90,13 @@ export function getDatabase(): ERPDatabase {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
     if (!fs.existsSync(DB_FILE)) {
-      const initialDb = getCleanEmptyDatabase();
-      fs.writeFileSync(DB_FILE, JSON.stringify(initialDb, null, 2), 'utf-8');
-      return initialDb;
+      if (IS_VERCEL && fs.existsSync(BUNDLED_DB_FILE)) {
+        fs.copyFileSync(BUNDLED_DB_FILE, DB_FILE);
+      } else {
+        const initialDb = getCleanEmptyDatabase();
+        fs.writeFileSync(DB_FILE, JSON.stringify(initialDb, null, 2), 'utf-8');
+        return initialDb;
+      }
     }
     const raw = fs.readFileSync(DB_FILE, 'utf-8');
     const parsed = JSON.parse(raw) as ERPDatabase;
