@@ -1,9 +1,8 @@
-import express, { Request, Response } from 'express';
+import express, { type Request, type Response } from 'express';
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
-import { getDatabase, saveDatabase } from './server/db';
-import {
+import { getDatabase, saveDatabase } from './server/db.js';
+import type {
   User,
   CompanySettings,
   Customer,
@@ -15,7 +14,7 @@ import {
   Lead,
   CommunicationLog,
   ERPDatabase
-} from './src/types/erp';
+} from './src/types/erp.js';
 
 const app = express();
 
@@ -1464,6 +1463,7 @@ async function startServer() {
       res.sendFile(path.resolve('dist', 'index.html'));
     });
   } else {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',

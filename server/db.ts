@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { ERPDatabase, User, CompanySettings, Customer } from '../src/types/erp';
+import type { ERPDatabase, User, CompanySettings, Customer } from '../src/types/erp.js';
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const DB_FILE = path.resolve(DATA_DIR, 'erp-database.json');
