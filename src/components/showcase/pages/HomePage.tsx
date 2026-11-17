@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { ArrowRight, ChevronLeft, ChevronRight, Sparkles, Check } from 'lucide-react';
-import { SHOWCASE_COLLECTION, ShowcaseProductItem } from '../showcaseData';
+import React, { useMemo, useState } from 'react';
+import { ArrowRight, ChevronLeft, ChevronRight, Sparkles, Check, Package } from 'lucide-react';
+import { buildLiveWebsiteProducts } from '../showcaseData';
 import { useERP } from '../../../context/ERPContext';
 
 interface HomePageProps {
@@ -9,17 +9,22 @@ interface HomePageProps {
 }
 
 export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenEnquiryModal }) => {
-  const { showcaseProducts } = useERP();
-  const productList = (showcaseProducts && showcaseProducts.length > 0) ? showcaseProducts : SHOWCASE_COLLECTION;
+  const { products, showcaseProducts } = useERP();
+  const productList = useMemo(
+    () => buildLiveWebsiteProducts(products, showcaseProducts),
+    [products, showcaseProducts]
+  );
   const [activeIndex, setActiveIndex] = useState(0);
   const safeIndex = activeIndex >= productList.length ? 0 : activeIndex;
-  const currentProduct = productList[safeIndex] || productList[0] || SHOWCASE_COLLECTION[0];
+  const currentProduct = productList[safeIndex] || productList[0] || null;
 
   const handlePrev = () => {
+    if (productList.length === 0) return;
     setActiveIndex((prev) => (prev + productList.length - 1) % productList.length);
   };
 
   const handleNext = () => {
+    if (productList.length === 0) return;
     setActiveIndex((prev) => (prev + 1) % productList.length);
   };
 
@@ -169,124 +174,32 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenEnquiryMod
           </p>
         </div>
 
-        {/* Product Layout Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-center">
-          {/* Left: Product Art Card + Prev/Next Controls */}
-          <div className="lg:col-span-6 space-y-4">
-            <div className={`relative h-[400px] sm:h-[460px] bg-gradient-to-b ${toneBackdrops[currentProduct.tone] || 'from-[#fcf6f0] via-[#faebd9] to-[#ebd0ba]'} rounded-3xl p-8 flex flex-col items-center justify-center border border-[#bd896e]/40 overflow-hidden shadow-md group transition-all duration-500`}>
-              {/* Architectural concentric curves */}
-              <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                <div className="w-[130%] h-[130%] rounded-full border border-[#bd896e]/25 transform -rotate-25" />
-                <div className="w-80 h-80 rounded-full bg-white/40 blur-xl pointer-events-none" />
-              </div>
-
-              {/* Stamp Badge */}
-              <div className="absolute top-6 right-6 w-14 h-14 rounded-full border border-[#ae7057] text-[#9d5a40] text-[10px] flex flex-col items-center justify-center font-serif rotate-12 bg-[#f5eee5]/70 backdrop-blur-xs z-10">
-                <span className="font-bold leading-none">100%</span>
-                <span className="text-[7px] uppercase tracking-wider mt-0.5">Halal</span>
-              </div>
-
-              {/* Product Pack Mockup with Integrated Lighting & Pedestal Shadow */}
-              <div className="relative z-1 w-64 h-64 sm:w-76 sm:h-76 flex items-center justify-center group-hover:scale-105 transition-transform duration-500">
-                <img
-                  src={currentProduct.image}
-                  alt={currentProduct.name}
-                  className="w-full h-full object-contain drop-shadow-xl"
-                />
-              </div>
-
-              {/* Grounding physical shadow below pack to integrate it into the surface */}
-              <div className="relative z-1 w-52 sm:w-60 h-4 rounded-full bg-[#522919]/20 blur-md -mt-4 pointer-events-none group-hover:scale-95 transition-transform duration-500" />
-
-              {/* Category mark */}
-              <div className="absolute bottom-6 left-8 font-mono text-xs uppercase tracking-widest text-[#75412e] z-10">
-                {currentProduct.mark}
-              </div>
+        {/* Product Layout Grid or Empty State */}
+        {!currentProduct ? (
+          <div className="rounded-3xl bg-white border border-[#bd896e]/30 p-10 sm:p-14 text-center max-w-3xl mx-auto space-y-5 shadow-xs">
+            <div className="w-16 h-16 rounded-full bg-[#ead8c6] text-[#8d5037] border border-[#bd896e]/40 flex items-center justify-center mx-auto">
+              <Package className="w-7 h-7" />
             </div>
-
-            {/* Navigation Arrows */}
-            <div className="flex items-center justify-between px-2">
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handlePrev}
-                  aria-label="Previous product"
-                  className="w-10 h-10 rounded-full bg-white hover:bg-[#ead8c6] border border-[#bd896e]/40 text-[#75412e] flex items-center justify-center transition-colors cursor-pointer"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={handleNext}
-                  aria-label="Next product"
-                  className="w-10 h-10 rounded-full bg-white hover:bg-[#ead8c6] border border-[#bd896e]/40 text-[#75412e] flex items-center justify-center transition-colors cursor-pointer"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Numbered indicators */}
-              <div className="flex items-center gap-2 font-mono text-xs text-[#75412e]">
-                {productList.map((item, idx) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setActiveIndex(idx)}
-                    className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
-                      activeIndex === idx
-                        ? 'bg-[#b86643] text-white font-bold'
-                        : 'text-[#75412e] hover:bg-[#dfc4ae]/50'
-                    }`}
-                  >
-                    0{idx + 1}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Right: Product Info */}
-          <div className="lg:col-span-6 space-y-6">
-            <div className="font-mono text-xs uppercase tracking-wider text-[#8d5037]">
-              {String(safeIndex + 1).padStart(2, '0')} <span className="text-[#bd896e]">/ {String(productList.length).padStart(2, '0')}</span>
-            </div>
-
-            <div>
-              <span className="text-xs uppercase tracking-widest text-[#a95d3f] font-semibold block mb-1">
-                {currentProduct.detail}
+            <div className="space-y-2">
+              <span className="text-[10px] uppercase font-bold tracking-[0.22em] text-[#8d5037] block">
+                0 products currently published
               </span>
-              <h3 className="font-serif text-3xl sm:text-4xl font-normal text-[#3d2117]">
-                {currentProduct.name}
+              <h3 className="font-serif text-2xl sm:text-3xl font-normal text-[#3d2117]">
+                Our live catalogue is being prepared.
               </h3>
+              <p className="text-sm text-[#66483b] max-w-lg mx-auto leading-relaxed">
+                No products have been added yet. Any product added in your Savouré ERP Bakery Catalogue will appear here automatically.
+              </p>
             </div>
-
-            <p className="text-sm sm:text-base text-[#66483b] leading-relaxed">
-              {currentProduct.description}
-            </p>
-
-            {/* Tags */}
-            <div className="flex flex-wrap items-center gap-3 text-xs text-[#75412e]">
-              {currentProduct.tags.map((tag, i) => (
-                <span
-                  key={i}
-                  className="px-3 py-1 rounded-full bg-white/70 border border-[#bd896e]/30 font-medium"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-
-            {/* Primary Action Button: ENQUIRE NOW (NO PRICES!) */}
-            <div className="pt-2 flex flex-wrap items-center gap-4">
+            <div className="pt-2 flex flex-wrap items-center justify-center gap-4">
               <button
                 type="button"
-                onClick={() => onOpenEnquiryModal(currentProduct.id)}
-                className="inline-flex items-center gap-2.5 px-6 py-3.5 rounded-full bg-[#b86643] hover:bg-[#a55635] text-[#fff8f0] text-[10px] font-bold uppercase tracking-[0.16em] transition-all hover:-translate-y-0.5 cursor-pointer shadow-sm"
+                onClick={() => onOpenEnquiryModal()}
+                className="inline-flex items-center gap-2.5 px-6 py-3.5 rounded-full bg-[#b86643] hover:bg-[#a55635] text-[#fff8f0] text-[10px] font-bold uppercase tracking-[0.16em] transition-all cursor-pointer shadow-sm"
               >
                 <span>Enquire now</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
-
               <button
                 type="button"
                 onClick={() => onNavigate('contact')}
@@ -297,19 +210,150 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenEnquiryMod
               </button>
             </div>
           </div>
-        </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-center">
+              {/* Left: Product Art Card + Prev/Next Controls */}
+              <div className="lg:col-span-6 space-y-4">
+                <div className={`relative h-[400px] sm:h-[460px] bg-gradient-to-b ${toneBackdrops[currentProduct.tone] || 'from-[#fcf6f0] via-[#faebd9] to-[#ebd0ba]'} rounded-3xl p-8 flex flex-col items-center justify-center border border-[#bd896e]/40 overflow-hidden shadow-md group transition-all duration-500`}>
+                  {/* Architectural concentric curves */}
+                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                    <div className="w-[130%] h-[130%] rounded-full border border-[#bd896e]/25 transform -rotate-25" />
+                    <div className="w-80 h-80 rounded-full bg-white/40 blur-xl pointer-events-none" />
+                  </div>
 
-        {/* View all products link */}
-        <div className="mt-16 text-center">
-          <button
-            type="button"
-            onClick={() => onNavigate('products')}
-            className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-[#75412e] hover:text-[#3d2117] border-b border-[#c79176] py-1 transition-colors cursor-pointer"
-          >
-            <span>View full collection</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
-        </div>
+                  {/* Stamp Badge */}
+                  <div className="absolute top-6 right-6 w-14 h-14 rounded-full border border-[#ae7057] text-[#9d5a40] text-[10px] flex flex-col items-center justify-center font-serif rotate-12 bg-[#f5eee5]/70 backdrop-blur-xs z-10">
+                    <span className="font-bold leading-none">100%</span>
+                    <span className="text-[7px] uppercase tracking-wider mt-0.5">Halal</span>
+                  </div>
+
+                  {/* Product Pack Mockup with Integrated Lighting & Pedestal Shadow */}
+                  <div className="relative z-1 w-64 h-64 sm:w-76 sm:h-76 flex items-center justify-center group-hover:scale-105 transition-transform duration-500">
+                    <img
+                      src={currentProduct.image}
+                      alt={currentProduct.name}
+                      className="w-full h-full object-contain drop-shadow-xl"
+                    />
+                  </div>
+
+                  {/* Grounding physical shadow below pack to integrate it into the surface */}
+                  <div className="relative z-1 w-52 sm:w-60 h-4 rounded-full bg-[#522919]/20 blur-md -mt-4 pointer-events-none group-hover:scale-95 transition-transform duration-500" />
+
+                  {/* Category mark */}
+                  <div className="absolute bottom-6 left-8 font-mono text-xs uppercase tracking-widest text-[#75412e] z-10">
+                    {currentProduct.mark}
+                  </div>
+                </div>
+
+                {/* Navigation Arrows */}
+                <div className="flex items-center justify-between px-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handlePrev}
+                      aria-label="Previous product"
+                      className="w-10 h-10 rounded-full bg-white hover:bg-[#ead8c6] border border-[#bd896e]/40 text-[#75412e] flex items-center justify-center transition-colors cursor-pointer"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleNext}
+                      aria-label="Next product"
+                      className="w-10 h-10 rounded-full bg-white hover:bg-[#ead8c6] border border-[#bd896e]/40 text-[#75412e] flex items-center justify-center transition-colors cursor-pointer"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Numbered indicators */}
+                  <div className="flex items-center gap-2 font-mono text-xs text-[#75412e]">
+                    {productList.map((item, idx) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setActiveIndex(idx)}
+                        className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                          safeIndex === idx
+                            ? 'bg-[#b86643] text-white font-bold'
+                            : 'text-[#75412e] hover:bg-[#dfc4ae]/50'
+                        }`}
+                      >
+                        {String(idx + 1).padStart(2, '0')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right: Product Info */}
+              <div className="lg:col-span-6 space-y-6">
+                <div className="font-mono text-xs uppercase tracking-wider text-[#8d5037]">
+                  {String(safeIndex + 1).padStart(2, '0')} <span className="text-[#bd896e]">/ {String(productList.length).padStart(2, '0')}</span>
+                </div>
+
+                <div>
+                  <span className="text-xs uppercase tracking-widest text-[#a95d3f] font-semibold block mb-1">
+                    {currentProduct.detail}
+                  </span>
+                  <h3 className="font-serif text-3xl sm:text-4xl font-normal text-[#3d2117]">
+                    {currentProduct.name}
+                  </h3>
+                </div>
+
+                <p className="text-sm sm:text-base text-[#66483b] leading-relaxed">
+                  {currentProduct.description}
+                </p>
+
+                {/* Tags */}
+                <div className="flex flex-wrap items-center gap-3 text-xs text-[#75412e]">
+                  {currentProduct.tags.map((tag, i) => (
+                    <span
+                      key={i}
+                      className="px-3 py-1 rounded-full bg-white/70 border border-[#bd896e]/30 font-medium"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+
+                {/* Primary Action Button: ENQUIRE NOW (NO PRICES!) */}
+                <div className="pt-2 flex flex-wrap items-center gap-4">
+                  <button
+                    type="button"
+                    onClick={() => onOpenEnquiryModal(currentProduct.id)}
+                    className="inline-flex items-center gap-2.5 px-6 py-3.5 rounded-full bg-[#b86643] hover:bg-[#a55635] text-[#fff8f0] text-[10px] font-bold uppercase tracking-[0.16em] transition-all hover:-translate-y-0.5 cursor-pointer shadow-sm"
+                  >
+                    <span>Enquire now</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('contact')}
+                    className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[#75412e] hover:text-[#3d2117] border-b border-[#c79176] py-1 transition-colors cursor-pointer"
+                  >
+                    <span>Wholesale & catering desk</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* View all products link */}
+            <div className="mt-16 text-center">
+              <button
+                type="button"
+                onClick={() => onNavigate('products')}
+                className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-[#75412e] hover:text-[#3d2117] border-b border-[#c79176] py-1 transition-colors cursor-pointer"
+              >
+                <span>View full collection</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          </>
+        )}
       </section>
 
       {/* 4. STORY TEASE SECTION */}

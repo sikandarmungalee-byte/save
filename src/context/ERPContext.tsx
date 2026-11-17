@@ -33,7 +33,7 @@ import {
 } from '../types/erp';
 import { db, testFirebaseConnection, handleFirestoreError, OperationType } from '../lib/firebase';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
-import { SHOWCASE_COLLECTION, ShowcaseProductItem } from '../components/showcase/showcaseData';
+import { LEGACY_SHOWCASE_IDS, SHOWCASE_COLLECTION, ShowcaseProductItem } from '../components/showcase/showcaseData';
 import { dispatchOrderPushNotification } from '../lib/fcmNotifications';
 
 // Safe API caller for local / server endpoints
@@ -154,6 +154,7 @@ const LEGACY_DEMO_IDS = {
   posTransactions: new Set(['pos_tx_001']),
   productionLines: new Set(['line_01', 'line_02', 'line_03', 'line_04']),
   productionBatches: new Set(['batch_101', 'batch_102']),
+  showcaseProducts: LEGACY_SHOWCASE_IDS,
 };
 
 function isLegacyDemoUser(u: User | null | undefined): boolean {
@@ -240,6 +241,12 @@ function stripLegacyDemoData(raw: Partial<ERPDatabase>): { cleaned: Partial<ERPD
     const filtered = raw.productionBatches.filter((b) => !LEGACY_DEMO_IDS.productionBatches.has(b.id));
     if (filtered.length !== raw.productionBatches.length) stripped = true;
     cleaned.productionBatches = filtered;
+  }
+
+  if (Array.isArray(raw.showcaseProducts)) {
+    const filtered = raw.showcaseProducts.filter((s: any) => !LEGACY_DEMO_IDS.showcaseProducts.has(s?.id));
+    if (filtered.length !== raw.showcaseProducts.length) stripped = true;
+    cleaned.showcaseProducts = filtered;
   }
 
   return { cleaned, stripped };
@@ -533,7 +540,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return [];
     }
   });
-  const [showcaseProducts, setShowcaseProducts] = useState<ShowcaseProductItem[]>(SHOWCASE_COLLECTION);
+  const [showcaseProducts, setShowcaseProducts] = useState<ShowcaseProductItem[]>([]);
   const [posTransactions, setPosTransactions] = useState<POSTransaction[]>([]);
   const [posSessions, setPosSessions] = useState<POSSession[]>([]);
   const [productionLines, setProductionLines] = useState<ProductionLine[]>([]);
@@ -697,7 +704,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         localStorage.setItem('savoure_merchant_reports', JSON.stringify(cleaned.merchantReports));
       } catch {}
     }
-    if (Array.isArray(cleaned.showcaseProducts) && cleaned.showcaseProducts.length > 0) {
+    if (Array.isArray(cleaned.showcaseProducts) && (respectEmptyArrays || cleaned.showcaseProducts.length > 0)) {
       setShowcaseProducts(cleaned.showcaseProducts);
     }
     if (Array.isArray(cleaned.posTransactions) && (respectEmptyArrays || cleaned.posTransactions.length > 0)) {
@@ -863,6 +870,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             posTransactions: cleaned.posTransactions,
             productionLines: cleaned.productionLines,
             productionBatches: cleaned.productionBatches,
+            showcaseProducts: cleaned.showcaseProducts ?? [],
             lastUpdated: new Date().toISOString(),
           });
           setDoc(doc(db, 'erp', 'main'), scrubPayload, { merge: true }).catch(() => {});
@@ -889,6 +897,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           payments: [],
           merchantOrders: [],
           merchantReports: [],
+          showcaseProducts: [],
           posTransactions: [],
           posSessions: [],
           productionLines: [],
@@ -2280,6 +2289,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPayments([]);
     setMerchantOrders([]);
     setMerchantReports([]);
+    setShowcaseProducts([]);
     setPosTransactions([]);
     setPosSessions([]);
     setProductionLines([]);
@@ -2305,6 +2315,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       payments: [],
       merchantOrders: [],
       merchantReports: [],
+      showcaseProducts: [],
       posTransactions: [],
       posSessions: [],
       productionLines: [],

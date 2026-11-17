@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useERP } from '../context/ERPContext';
-import { ShowcaseProductItem } from './showcase/showcaseData';
+import { ShowcaseProductItem, buildLiveWebsiteProducts } from './showcase/showcaseData';
 import {
   Globe,
   Plus,
@@ -36,11 +36,18 @@ const PRESET_SHOWCASE_IMAGES = [
 
 export const WebsiteShowcaseView: React.FC<WebsiteShowcaseViewProps> = ({ onGoToWebsite }) => {
   const {
+    products,
     showcaseProducts,
+    toggleProductShowcase,
     addShowcaseProduct,
     updateShowcaseProduct,
     removeShowcaseProduct
   } = useERP();
+
+  const liveProducts = useMemo(
+    () => buildLiveWebsiteProducts(products, showcaseProducts),
+    [products, showcaseProducts]
+  );
 
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -66,7 +73,7 @@ export const WebsiteShowcaseView: React.FC<WebsiteShowcaseViewProps> = ({ onGoTo
   const [tagInput, setTagInput] = useState('');
   const [highlightInput, setHighlightInput] = useState('');
 
-  const filteredProducts = showcaseProducts.filter((p) => {
+  const filteredProducts = liveProducts.filter((p) => {
     const q = search.toLowerCase().trim();
     if (!q) return true;
     return (
@@ -103,6 +110,14 @@ export const WebsiteShowcaseView: React.FC<WebsiteShowcaseViewProps> = ({ onGoTo
   };
 
   const handleRemove = async (item: ShowcaseProductItem) => {
+    if (item.sourceType === 'erp') {
+      if (confirm(`Hide "${item.name}" from the public website? (It stays in your ERP Bakery Catalogue.)`)) {
+        await toggleProductShowcase(item.id);
+        setBannerMessage(`Hidden "${item.name}" from public website.`);
+        setTimeout(() => setBannerMessage(null), 4000);
+      }
+      return;
+    }
     if (confirm(`Remove "${item.name}" from the public website showcase?`)) {
       await removeShowcaseProduct(item.id);
       setBannerMessage(`Removed "${item.name}" from public website.`);
@@ -236,9 +251,9 @@ export const WebsiteShowcaseView: React.FC<WebsiteShowcaseViewProps> = ({ onGoTo
             Featured on Website
           </span>
           <div className="text-2xl font-serif font-bold text-[#2B150A] mt-2">
-            {showcaseProducts.length} Specialties
+            {liveProducts.length} {liveProducts.length === 1 ? 'Product' : 'Products'}
           </div>
-          <span className="text-[11px] text-[#7A6458]">Displayed on Home & Products pages</span>
+          <span className="text-[11px] text-[#7A6458]">Displayed live on Home & Products pages</span>
         </div>
 
         <div className="p-5 rounded-2xl bg-white border border-[#E8D9CD] shadow-sm">
@@ -278,104 +293,129 @@ export const WebsiteShowcaseView: React.FC<WebsiteShowcaseViewProps> = ({ onGoTo
       </div>
 
       {/* 4. SHOWCASE PRODUCTS GRID */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {filteredProducts.map((prod, idx) => (
-          <div
-            key={prod.id}
-            className="bg-white rounded-3xl border border-[#E8D9CD] overflow-hidden shadow-sm flex flex-col justify-between group hover:shadow-md transition-shadow"
-          >
-            {/* Visual Canvas */}
-            <div className="h-48 bg-gradient-to-b from-[#FCF6F0] to-[#EBD0BA] p-4 relative flex items-center justify-center border-b border-[#E8D9CD]">
-              <div className="w-36 h-36 flex items-center justify-center">
-                <img
-                  src={prod.image}
-                  alt={prod.name}
-                  className="w-full h-full object-contain drop-shadow-md group-hover:scale-105 transition-transform"
-                />
-              </div>
+      {filteredProducts.length === 0 ? (
+        <div className="bg-white rounded-3xl border border-[#E8D9CD] p-10 text-center space-y-3 shadow-xs">
+          <div className="w-12 h-12 rounded-full bg-[#FCF6F0] text-[#8D5037] border border-[#E8D9CD] flex items-center justify-center mx-auto">
+            <Package className="w-5 h-5" />
+          </div>
+          <h3 className="font-serif text-lg font-bold text-[#2B150A]">
+            {liveProducts.length === 0 ? '0 products live on your website' : 'No matching products found'}
+          </h3>
+          <p className="text-xs text-[#7A6458] max-w-md mx-auto">
+            {liveProducts.length === 0
+              ? 'Products you add to the ERP Bakery Catalogue (or directly here) appear automatically on the live website.'
+              : 'Try clearing your search filter to see all live website products.'}
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {filteredProducts.map((prod, idx) => (
+            <div
+              key={prod.id}
+              className="bg-white rounded-3xl border border-[#E8D9CD] overflow-hidden shadow-sm flex flex-col justify-between group hover:shadow-md transition-shadow"
+            >
+              {/* Visual Canvas */}
+              <div className="h-48 bg-gradient-to-b from-[#FCF6F0] to-[#EBD0BA] p-4 relative flex items-center justify-center border-b border-[#E8D9CD]">
+                <div className="w-36 h-36 flex items-center justify-center">
+                  <img
+                    src={prod.image}
+                    alt={prod.name}
+                    className="w-full h-full object-contain drop-shadow-md group-hover:scale-105 transition-transform"
+                  />
+                </div>
 
-              <div className="absolute top-3 left-3 flex items-center gap-1.5">
-                <span className="px-2.5 py-0.5 rounded-full bg-white/80 text-[10px] font-mono font-bold text-[#75412E] border border-[#BD896E]/30">
-                  #{idx + 1} · {prod.mark}
-                </span>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[9px] font-bold uppercase">
-                  Live on Website
-                </span>
-              </div>
-
-              <div className="absolute top-3 right-3 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => openEditModal(prod)}
-                  className="p-1.5 rounded-full bg-white/90 hover:bg-white text-[#75412E] shadow-2xs transition-colors cursor-pointer"
-                  title="Edit Product"
-                >
-                  <Edit2 className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleRemove(prod)}
-                  className="p-1.5 rounded-full bg-white/90 hover:bg-rose-50 text-rose-600 shadow-2xs transition-colors cursor-pointer"
-                  title="Remove from Website"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Product Meta */}
-            <div className="p-6 space-y-4 flex-1 flex flex-col justify-between">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-bold tracking-widest text-[#8D5037]">
-                    {prod.category}
+                <div className="absolute top-3 left-3 flex items-center gap-1.5 flex-wrap">
+                  <span className="px-2.5 py-0.5 rounded-full bg-white/80 text-[10px] font-mono font-bold text-[#75412E] border border-[#BD896E]/30">
+                    #{idx + 1} · {prod.mark}
                   </span>
-                  <span className="text-xs text-[#7A6458] font-medium">{prod.detail}</span>
-                </div>
-
-                <h3 className="font-serif text-xl font-bold text-[#2B150A]">
-                  {prod.name}
-                </h3>
-
-                <p className="text-xs text-[#66483B] leading-relaxed line-clamp-2">
-                  {prod.description}
-                </p>
-
-                <div className="pt-1 flex flex-wrap gap-1.5">
-                  {(prod.tags || []).map((t, i) => (
-                    <span
-                      key={i}
-                      className="px-2 py-0.5 rounded-md bg-[#FBF7F1] border border-[#BD896E]/30 text-[10px] text-[#75412E]"
-                    >
-                      {t}
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[9px] font-bold uppercase">
+                    Live on Website
+                  </span>
+                  {prod.sourceType === 'erp' && (
+                    <span className="px-2 py-0.5 rounded-full bg-[#EAD8C6] text-[#75412E] text-[9px] font-bold uppercase">
+                      ERP Catalog
                     </span>
-                  ))}
+                  )}
                 </div>
-              </div>
 
-              {/* Actions */}
-              <div className="pt-3 border-t border-[#E8D9CD]/70 flex items-center justify-end text-xs text-[#66483B]">
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => openEditModal(prod)}
-                    className="px-3 py-1.5 rounded-full bg-[#FBF7F1] hover:bg-[#EAD8C6] text-[#2B150A] font-semibold text-xs border border-[#BD896E]/30 cursor-pointer"
-                  >
-                    Edit Product
-                  </button>
+                <div className="absolute top-3 right-3 flex items-center gap-2">
+                  {prod.sourceType !== 'erp' && (
+                    <button
+                      type="button"
+                      onClick={() => openEditModal(prod)}
+                      className="p-1.5 rounded-full bg-white/90 hover:bg-white text-[#75412E] shadow-2xs transition-colors cursor-pointer"
+                      title="Edit Product"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => handleRemove(prod)}
-                    className="px-3 py-1.5 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-xs border border-rose-200 cursor-pointer"
+                    className="p-1.5 rounded-full bg-white/90 hover:bg-rose-50 text-rose-600 shadow-2xs transition-colors cursor-pointer"
+                    title={prod.sourceType === 'erp' ? 'Hide from Website' : 'Remove from Website'}
                   >
-                    Remove
+                    {prod.sourceType === 'erp' ? <EyeOff className="w-3.5 h-3.5" /> : <Trash2 className="w-3.5 h-3.5" />}
                   </button>
                 </div>
               </div>
+
+              {/* Product Meta */}
+              <div className="p-6 space-y-4 flex-1 flex flex-col justify-between">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold tracking-widest text-[#8D5037]">
+                      {prod.category}
+                    </span>
+                    <span className="text-xs text-[#7A6458] font-medium">{prod.detail}</span>
+                  </div>
+
+                  <h3 className="font-serif text-xl font-bold text-[#2B150A]">
+                    {prod.name}
+                  </h3>
+
+                  <p className="text-xs text-[#66483B] leading-relaxed line-clamp-2">
+                    {prod.description}
+                  </p>
+
+                  <div className="pt-1 flex flex-wrap gap-1.5">
+                    {(prod.tags || []).map((t, i) => (
+                      <span
+                        key={i}
+                        className="px-2 py-0.5 rounded-md bg-[#FBF7F1] border border-[#BD896E]/30 text-[10px] text-[#75412E]"
+                      >
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="pt-3 border-t border-[#E8D9CD]/70 flex items-center justify-end text-xs text-[#66483B]">
+                  <div className="flex items-center gap-2">
+                    {prod.sourceType !== 'erp' && (
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(prod)}
+                        className="px-3 py-1.5 rounded-full bg-[#FBF7F1] hover:bg-[#EAD8C6] text-[#2B150A] font-semibold text-xs border border-[#BD896E]/30 cursor-pointer"
+                      >
+                        Edit Product
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleRemove(prod)}
+                      className="px-3 py-1.5 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-xs border border-rose-200 cursor-pointer"
+                    >
+                      {prod.sourceType === 'erp' ? 'Hide from Website' : 'Remove'}
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* 5. ADD / EDIT PRODUCT MODAL */}
       {isModalOpen && (

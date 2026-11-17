@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   MessageCircle,
   X,
@@ -13,7 +13,7 @@ import {
   Send,
   Calendar
 } from 'lucide-react';
-import { SHOWCASE_CONTACT, SHOWCASE_COLLECTION } from './showcaseData';
+import { SHOWCASE_CONTACT, buildLiveWebsiteProducts } from './showcaseData';
 import { useERP } from '../../context/ERPContext';
 
 interface WhatsAppEnquiryModalProps {
@@ -27,11 +27,14 @@ export const WhatsAppEnquiryModal: React.FC<WhatsAppEnquiryModalProps> = ({
   onClose,
   selectedSpecialtyId,
 }) => {
-  const { createLead, showcaseProducts } = useERP();
-  const productList = (showcaseProducts && showcaseProducts.length > 0) ? showcaseProducts : SHOWCASE_COLLECTION;
+  const { createLead, products, showcaseProducts } = useERP();
+  const productList = useMemo(
+    () => buildLiveWebsiteProducts(products, showcaseProducts),
+    [products, showcaseProducts]
+  );
 
   const [specialtyId, setSpecialtyId] = useState<string>(
-    selectedSpecialtyId || productList[0]?.id || SHOWCASE_COLLECTION[0].id
+    selectedSpecialtyId || productList[0]?.id || 'general'
   );
   const [enquiryType, setEnquiryType] = useState<string>('Wholesale Supply');
   const [clientName, setClientName] = useState('');
@@ -45,17 +48,22 @@ export const WhatsAppEnquiryModal: React.FC<WhatsAppEnquiryModalProps> = ({
   const [isSending, setIsSending] = useState(false);
 
   useEffect(() => {
-    if (selectedSpecialtyId) {
+    if (selectedSpecialtyId && productList.some((p) => p.id === selectedSpecialtyId)) {
       setSpecialtyId(selectedSpecialtyId);
-    } else if (!productList.some((p) => p.id === specialtyId) && productList[0]) {
-      setSpecialtyId(productList[0].id);
+    } else if (!productList.some((p) => p.id === specialtyId)) {
+      setSpecialtyId(productList[0]?.id || 'general');
     }
-  }, [selectedSpecialtyId, productList]);
+  }, [selectedSpecialtyId, productList, specialtyId]);
 
   if (!isOpen) return null;
 
   const currentSpecialty =
-    productList.find((s) => s.id === specialtyId) || productList[0] || SHOWCASE_COLLECTION[0];
+    productList.find((s) => s.id === specialtyId) ||
+    productList[0] || {
+      id: 'general',
+      name: 'General Wholesale & Catering Enquiry',
+      detail: 'Custom bakery & catering supply',
+    };
 
   // Format professional WhatsApp message text (Zero prices!)
   const generateWhatsAppMessage = () => {
@@ -195,43 +203,52 @@ export const WhatsAppEnquiryModal: React.FC<WhatsAppEnquiryModalProps> = ({
           </div>
         ) : (
           <div className="p-6 overflow-y-auto space-y-6 flex-1 text-sm text-[#3d2117]">
-            {/* 1. Select Specialty Range */}
-            <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-[#8d5037] mb-2">
-                1. Select Pastry Specialty <span className="text-[#b86643]">*</span>
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {productList.map((spec) => {
-                  const isSelected = spec.id === currentSpecialty.id;
-                  return (
-                    <button
-                      key={spec.id}
-                      type="button"
-                      onClick={() => setSpecialtyId(spec.id)}
-                      className={`p-3.5 rounded-2xl text-left border transition-all flex items-start justify-between cursor-pointer ${
-                        isSelected
-                          ? 'bg-[#dfc4ae] border-[#b86643] shadow-xs'
-                          : 'bg-white border-[#bd896e]/30 hover:border-[#bd896e]'
-                      }`}
-                    >
-                      <div className="min-w-0 pr-2">
-                        <div className="font-serif font-normal text-base text-[#3d2117] truncate">
-                          {spec.name}
+            {/* 1. Select Specialty Range (only when products exist) */}
+            {productList.length > 0 ? (
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-[#8d5037] mb-2">
+                  1. Select Product <span className="text-[#b86643]">*</span>
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {productList.map((spec) => {
+                    const isSelected = spec.id === currentSpecialty.id;
+                    return (
+                      <button
+                        key={spec.id}
+                        type="button"
+                        onClick={() => setSpecialtyId(spec.id)}
+                        className={`p-3.5 rounded-2xl text-left border transition-all flex items-start justify-between cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#dfc4ae] border-[#b86643] shadow-xs'
+                            : 'bg-white border-[#bd896e]/30 hover:border-[#bd896e]'
+                        }`}
+                      >
+                        <div className="min-w-0 pr-2">
+                          <div className="font-serif font-normal text-base text-[#3d2117] truncate">
+                            {spec.name}
+                          </div>
+                          <div className="text-xs text-[#66483b] mt-0.5 truncate">
+                            {spec.detail}
+                          </div>
                         </div>
-                        <div className="text-xs text-[#66483b] mt-0.5 truncate">
-                          {spec.detail}
-                        </div>
-                      </div>
-                      {isSelected && (
-                        <div className="w-5 h-5 rounded-full bg-[#b86643] text-white flex items-center justify-center shrink-0 mt-0.5">
-                          <Check className="w-3 h-3 stroke-[3]" />
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
+                        {isSelected && (
+                          <div className="w-5 h-5 rounded-full bg-[#b86643] text-white flex items-center justify-center shrink-0 mt-0.5">
+                            <Check className="w-3 h-3 stroke-[3]" />
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="p-4 rounded-2xl bg-white border border-[#bd896e]/30 text-xs text-[#66483b]">
+                <span className="block text-[11px] font-bold uppercase tracking-wider text-[#8d5037] mb-1">
+                  1. Enquiry Subject
+                </span>
+                General Wholesale & Catering Enquiry — share your requirements below.
+              </div>
+            )}
 
             {/* 2. Enquiry Purpose */}
             <div className="p-4 rounded-2xl bg-white border border-[#bd896e]/30">

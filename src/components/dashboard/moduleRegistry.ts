@@ -1,4 +1,5 @@
 import React from 'react';
+import { buildLiveWebsiteProducts } from '../showcase/showcaseData';
 import {
   LayoutDashboard,
   FileText,
@@ -656,7 +657,7 @@ export const ERP_MODULES: ERPModule[] = [
         subtitle: 'Add or remove products shown on website with WhatsApp order options',
         icon: Globe,
         actionType: 'tab',
-        badge: (erp) => `${(erp.products || []).filter((p) => p.showcase !== false).length} live`,
+        badge: (erp) => `${buildLiveWebsiteProducts(erp.products || [], erp.showcaseProducts || []).length} live`,
         targetConfig: { initialTab: 'catalog', initialCategoryFilter: 'ALL' }
       },
       {
@@ -1438,7 +1439,7 @@ export const ERP_MODULES: ERPModule[] = [
     subtitle: 'Add & Remove Products on Website',
     description: 'Directly manage the products presented on the public Savouré website showcase, upload images, set badges, and configure WhatsApp lead routing.',
     icon: Globe,
-    badge: (erp) => `${erp.showcaseProducts?.length || 4} live`,
+    badge: (erp) => `${buildLiveWebsiteProducts(erp.products || [], erp.showcaseProducts || []).length} live`,
     subcategories: [
       {
         id: 'showcase-catalog',

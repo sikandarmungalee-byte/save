@@ -1,3 +1,5 @@
+import type { Product } from '../../types/erp';
+
 export const SHOWCASE_CONTACT = {
   phone: '+27 61 364 5712',
   phoneDisplay: '+27 61 364 5712',
@@ -28,6 +30,95 @@ export interface ShowcaseProductItem {
   sizeSpec: string;
   tags: string[];
   highlights: string[];
+  sourceType?: 'erp' | 'custom';
+}
+
+export const LEGACY_SHOWCASE_IDS = new Set(['roti', 'tortilla', 'samoosa', 'springroll']);
+
+function inferToneAndImage(name: string, category: string): {
+  tone: ShowcaseProductItem['tone'];
+  image: string;
+} {
+  const text = `${name} ${category}`.toLowerCase();
+  if (text.includes('roti') || text.includes('naan') || text.includes('paratha') || text.includes('flatbread')) {
+    return { tone: 'roti', image: '/showcase/savoure-roti.png' };
+  }
+  if (text.includes('tortilla') || text.includes('wrap')) {
+    return { tone: 'wrap', image: '/showcase/savoure-tortilla.png' };
+  }
+  if (text.includes('samoosa') || text.includes('samosa')) {
+    return { tone: 'samosa', image: '/showcase/savoure-samoosa.png' };
+  }
+  if (text.includes('spring roll') || text.includes('springroll') || text.includes('sheet')) {
+    return { tone: 'springroll', image: '/showcase/savoure-springroll.png' };
+  }
+  return { tone: 'roti', image: '/showcase/savoure-logo.png' };
+}
+
+export function mapERPProductToShowcase(product: Product): ShowcaseProductItem {
+  const { tone, image } = inferToneAndImage(product.name || '', product.category || '');
+  const detailParts = [product.packSize, product.physicalSize]
+    .map((v) => (v || '').trim())
+    .filter((v) => v && v.toLowerCase() !== 'standard');
+  const detail = detailParts.join(' · ') || product.category || 'Artisanal Batch';
+
+  const tags = [
+    product.badge?.trim(),
+    product.category?.trim(),
+    'Halal',
+  ].filter((v): v is string => Boolean(v));
+
+  const highlights = [
+    product.packSize ? `Format: ${product.packSize}` : '',
+    product.physicalSize && product.physicalSize.toLowerCase() !== 'standard'
+      ? `Size: ${product.physicalSize}`
+      : '',
+    'Prepared daily in our Halaal-certified bakery',
+  ].filter(Boolean);
+
+  return {
+    id: product.id,
+    name: product.name,
+    detail,
+    tone,
+    mark: (product.category || product.name || 'SAVOURÉ').toUpperCase().slice(0, 14),
+    category: product.category || 'Bakery Specialty',
+    tagline: product.badge ? `${product.badge} · ${product.category || 'Artisanal Range'}` : (product.category || 'Artisanal Range'),
+    description:
+      product.description?.trim() ||
+      `Handcrafted ${product.name} prepared fresh daily for wholesale kitchens, caterers, and retail grocers.`,
+    image,
+    packSpec: product.packSize || '',
+    sizeSpec: product.physicalSize || '',
+    tags: Array.from(new Set(tags)),
+    highlights,
+    sourceType: 'erp',
+  };
+}
+
+export function buildLiveWebsiteProducts(
+  erpProducts: Product[] = [],
+  customShowcaseProducts: ShowcaseProductItem[] = []
+): ShowcaseProductItem[] {
+  const erpItems = (erpProducts || [])
+    .filter((p) => p && p.name && p.showcase !== false)
+    .map(mapERPProductToShowcase);
+
+  const seenIds = new Set(erpItems.map((i) => i.id));
+  const seenNames = new Set(erpItems.map((i) => i.name.trim().toLowerCase()));
+
+  const customItems = (customShowcaseProducts || [])
+    .filter((item) => item && item.name && !LEGACY_SHOWCASE_IDS.has(item.id))
+    .filter((item) => {
+      const normName = item.name.trim().toLowerCase();
+      if (seenIds.has(item.id) || seenNames.has(normName)) return false;
+      seenIds.add(item.id);
+      seenNames.add(normName);
+      return true;
+    })
+    .map((item) => ({ ...item, sourceType: 'custom' as const }));
+
+  return [...erpItems, ...customItems];
 }
 
 export const SHOWCASE_COLLECTION: ShowcaseProductItem[] = [

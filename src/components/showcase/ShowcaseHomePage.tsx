@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   MessageCircle,
   Phone,
@@ -22,7 +22,7 @@ import {
   User
 } from 'lucide-react';
 import { useERP } from '../../context/ERPContext';
-import { SHOWCASE_CONTACT, SHOWCASE_FAQS, SHOWCASE_TESTIMONIALS, CRAFT_SPECIALTIES, CraftSpecialty } from './showcaseData';
+import { SHOWCASE_CONTACT, SHOWCASE_FAQS, SHOWCASE_TESTIMONIALS, buildLiveWebsiteProducts } from './showcaseData';
 import { WhatsAppEnquiryModal } from './WhatsAppEnquiryModal';
 
 interface ShowcaseHomePageProps {
@@ -31,8 +31,11 @@ interface ShowcaseHomePageProps {
 }
 
 export const ShowcaseHomePage: React.FC<ShowcaseHomePageProps> = ({ onNavigate }) => {
-  const { createLead, showcaseProducts } = useERP();
-  const productList = (showcaseProducts && showcaseProducts.length > 0) ? showcaseProducts : CRAFT_SPECIALTIES;
+  const { createLead, products, showcaseProducts } = useERP();
+  const productList = useMemo(
+    () => buildLiveWebsiteProducts(products, showcaseProducts),
+    [products, showcaseProducts]
+  );
 
   // Enquiry modal state
   const [isEnquiryModalOpen, setIsEnquiryModalOpen] = useState(false);
@@ -42,7 +45,9 @@ export const ShowcaseHomePage: React.FC<ShowcaseHomePageProps> = ({ onNavigate }
   const [openFaqId, setOpenFaqId] = useState<string | null>('q1');
 
   // Inline Quick Enquiry Form State
-  const [formSpecialty, setFormSpecialty] = useState(productList[0]?.name || CRAFT_SPECIALTIES[0].name);
+  const [formSpecialty, setFormSpecialty] = useState(
+    () => productList[0]?.name || 'General Wholesale & Catering Enquiry'
+  );
   const [formPurpose, setFormPurpose] = useState('Wholesale Supply');
   const [formName, setFormName] = useState('');
   const [formPhone, setFormPhone] = useState('');
@@ -260,69 +265,91 @@ export const ShowcaseHomePage: React.FC<ShowcaseHomePageProps> = ({ onNavigate }
           </p>
         </div>
 
-        {/* 4 Deep Craft Specialty Spotlights */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-10">
-          {productList.map((spec, index) => (
-            <div
-              key={spec.id}
-              className="bg-white rounded-3xl border border-stone-200/90 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col group"
-            >
-              {/* Product Visual Container */}
-              <div className="bg-gradient-to-b from-[#FBF8F4] to-[#F3ECE4] p-8 flex items-center justify-center relative border-b border-stone-100">
-                <div className="w-60 h-60 sm:w-72 sm:h-72 relative flex items-center justify-center group-hover:scale-105 transition-transform duration-500">
-                  <img
-                    src={spec.image}
-                    alt={spec.name}
-                    className="w-full h-full object-contain drop-shadow-md"
-                  />
-                </div>
-                <div className="absolute top-5 left-5 font-mono text-xs font-bold text-[#C67D5A]">
-                  0{index + 1}
-                </div>
-                <div className="absolute top-5 right-5 text-[11px] font-serif uppercase tracking-wider text-stone-500">
-                  {spec.category}
-                </div>
-              </div>
-
-              {/* Specialty Details & Enquire Trigger */}
-              <div className="p-6 sm:p-8 flex-1 flex flex-col justify-between space-y-6">
-                <div className="space-y-3">
-                  <h3 className="font-serif text-2xl font-bold text-[#2B150A] group-hover:text-[#C67D5A] transition-colors">
-                    {spec.name}
-                  </h3>
-                  <div className="text-xs font-medium text-[#C67D5A] italic">
-                    {spec.tagline}
-                  </div>
-                  <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
-                    {spec.description}
-                  </p>
-
-                  {/* Highlights list */}
-                  <div className="pt-2 space-y-1.5">
-                    {spec.highlights.map((h, i) => (
-                      <div key={i} className="flex items-center gap-2 text-xs text-stone-600">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#C67D5A]" />
-                        <span>{h}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="pt-5 border-t border-stone-100 flex items-center justify-end gap-4">
-                  {/* ENQUIRE NOW BUTTON (No prices) */}
-                  <button
-                    type="button"
-                    onClick={() => handleOpenModal(spec.id)}
-                    className="px-5 py-3 rounded-xl bg-[#2B150A] hover:bg-[#3D2012] active:scale-95 text-white font-serif font-bold text-xs tracking-wider shadow-2xs transition-all flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
-                  >
-                    <span>Enquire for This Range</span>
-                    <ArrowRight className="w-3.5 h-3.5 text-[#C67D5A]" />
-                  </button>
-                </div>
-              </div>
+        {/* Deep Craft Specialty Spotlights or Clean Empty State */}
+        {productList.length === 0 ? (
+          <div className="bg-white rounded-3xl border border-stone-200/90 p-10 sm:p-14 text-center max-w-2xl mx-auto space-y-4 shadow-xs">
+            <div className="w-14 h-14 rounded-full bg-[#FAF8F5] border border-stone-200 text-[#C67D5A] flex items-center justify-center mx-auto">
+              <Package className="w-6 h-6" />
             </div>
-          ))}
-        </div>
+            <h3 className="font-serif text-2xl font-bold text-[#2B150A]">
+              0 products published yet
+            </h3>
+            <p className="text-sm text-stone-600 leading-relaxed">
+              Add products in your ERP Bakery Catalogue to publish them live here automatically.
+            </p>
+            <button
+              type="button"
+              onClick={() => handleOpenModal()}
+              className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-[#2B150A] hover:bg-[#3D2012] text-white font-serif font-bold text-xs tracking-wider cursor-pointer"
+            >
+              <span>Send Wholesale Enquiry</span>
+              <ArrowRight className="w-3.5 h-3.5 text-[#C67D5A]" />
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-10">
+            {productList.map((spec, index) => (
+              <div
+                key={spec.id}
+                className="bg-white rounded-3xl border border-stone-200/90 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col group"
+              >
+                {/* Product Visual Container */}
+                <div className="bg-gradient-to-b from-[#FBF8F4] to-[#F3ECE4] p-8 flex items-center justify-center relative border-b border-stone-100">
+                  <div className="w-60 h-60 sm:w-72 sm:h-72 relative flex items-center justify-center group-hover:scale-105 transition-transform duration-500">
+                    <img
+                      src={spec.image}
+                      alt={spec.name}
+                      className="w-full h-full object-contain drop-shadow-md"
+                    />
+                  </div>
+                  <div className="absolute top-5 left-5 font-mono text-xs font-bold text-[#C67D5A]">
+                    {String(index + 1).padStart(2, '0')}
+                  </div>
+                  <div className="absolute top-5 right-5 text-[11px] font-serif uppercase tracking-wider text-stone-500">
+                    {spec.category}
+                  </div>
+                </div>
+
+                {/* Specialty Details & Enquire Trigger */}
+                <div className="p-6 sm:p-8 flex-1 flex flex-col justify-between space-y-6">
+                  <div className="space-y-3">
+                    <h3 className="font-serif text-2xl font-bold text-[#2B150A] group-hover:text-[#C67D5A] transition-colors">
+                      {spec.name}
+                    </h3>
+                    <div className="text-xs font-medium text-[#C67D5A] italic">
+                      {spec.tagline}
+                    </div>
+                    <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
+                      {spec.description}
+                    </p>
+
+                    {/* Highlights list */}
+                    <div className="pt-2 space-y-1.5">
+                      {spec.highlights.map((h, i) => (
+                        <div key={i} className="flex items-center gap-2 text-xs text-stone-600">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#C67D5A]" />
+                          <span>{h}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="pt-5 border-t border-stone-100 flex items-center justify-end gap-4">
+                    {/* ENQUIRE NOW BUTTON (No prices) */}
+                    <button
+                      type="button"
+                      onClick={() => handleOpenModal(spec.id)}
+                      className="px-5 py-3 rounded-xl bg-[#2B150A] hover:bg-[#3D2012] active:scale-95 text-white font-serif font-bold text-xs tracking-wider shadow-2xs transition-all flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
+                    >
+                      <span>Enquire for This Range</span>
+                      <ArrowRight className="w-3.5 h-3.5 text-[#C67D5A]" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* 4. WHO WE SUPPLY / B2B FOODSERVICE CAPABILITIES */}

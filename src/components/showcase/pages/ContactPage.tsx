@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { Mail, Phone, MapPin, Clock, MessageCircle, Send, CheckCircle2, ArrowRight } from 'lucide-react';
-import { SHOWCASE_CONTACT, SHOWCASE_COLLECTION } from '../showcaseData';
+import React, { useEffect, useMemo, useState } from 'react';
+import { MessageCircle, Send, CheckCircle2, ArrowRight } from 'lucide-react';
+import { SHOWCASE_CONTACT, buildLiveWebsiteProducts } from '../showcaseData';
 import { useERP } from '../../../context/ERPContext';
 
 interface ContactPageProps {
@@ -8,18 +8,35 @@ interface ContactPageProps {
 }
 
 export const ContactPage: React.FC<ContactPageProps> = () => {
-  const { createLead, showcaseProducts } = useERP();
-  const productList = (showcaseProducts && showcaseProducts.length > 0) ? showcaseProducts : SHOWCASE_COLLECTION;
+  const { createLead, products, showcaseProducts } = useERP();
+  const productList = useMemo(
+    () => buildLiveWebsiteProducts(products, showcaseProducts),
+    [products, showcaseProducts]
+  );
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [businessName, setBusinessName] = useState('');
-  const [subject, setSubject] = useState(productList[0]?.name || SHOWCASE_COLLECTION[0].name);
+  const [subject, setSubject] = useState(
+    () => productList[0]?.name || 'General Wholesale & Catering Enquiry'
+  );
   const [enquiryType, setEnquiryType] = useState('Wholesale Supply');
   const [message, setMessage] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (productList.length > 0 && subject === 'General Wholesale & Catering Enquiry') {
+      setSubject(productList[0].name);
+    } else if (
+      productList.length === 0 &&
+      subject !== 'General Wholesale & Catering Enquiry' &&
+      subject !== 'Complete Pastry Range'
+    ) {
+      setSubject('General Wholesale & Catering Enquiry');
+    }
+  }, [productList, subject]);
 
   const handleWhatsAppSend = async () => {
     const lines = [
@@ -274,6 +291,9 @@ export const ContactPage: React.FC<ContactPageProps> = () => {
                           {c.name} ({c.detail})
                         </option>
                       ))}
+                      <option value="General Wholesale & Catering Enquiry">
+                        General Wholesale & Catering Enquiry
+                      </option>
                       <option value="Complete Pastry Range">Complete Pastry Range</option>
                     </select>
                   </div>
