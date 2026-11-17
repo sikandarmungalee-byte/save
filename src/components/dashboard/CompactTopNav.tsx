@@ -89,8 +89,6 @@ export const CompactTopNav: React.FC<CompactTopNavProps> = ({
         return Boolean(perms.payroll);
       case 'accounting':
         return Boolean(perms.accounting);
-      case 'taskeen':
-        return Boolean(perms.taskeenAI ?? true);
       case 'reports':
         return Boolean(perms.reports);
       case 'crm':
@@ -158,7 +156,7 @@ export const CompactTopNav: React.FC<CompactTopNavProps> = ({
 
             {/* Quick Module Switcher Dropdown */}
             {showModuleSwitcher && (
-              <div className="absolute left-0 mt-2 w-72 bg-white border border-stone-200 rounded-2xl shadow-xl p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 max-h-96 overflow-y-auto">
+              <div className="absolute left-0 mt-2 w-72 bg-white border border-stone-200 rounded-2xl shadow-xl p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 max-h-96 overflow-y-auto overscroll-contain">
                 <div className="px-3 py-2 text-[11px] font-sans uppercase font-bold text-[#391E0F] border-b border-stone-100">
                   Switch Module
                 </div>
@@ -244,7 +242,7 @@ export const CompactTopNav: React.FC<CompactTopNavProps> = ({
                   )}
                 </div>
 
-                <div className="max-h-60 overflow-y-auto space-y-1">
+                <div className="max-h-60 overflow-y-auto overscroll-contain space-y-1">
                   {searchResults.map(({ module: mod, subcategory: sub }) => (
                     <button
                       key={`${mod.id}-${sub.id}`}

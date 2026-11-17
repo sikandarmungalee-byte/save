@@ -1043,8 +1043,8 @@ export const POSModuleView: React.FC<POSModuleViewProps> = ({ initialSubcategory
 
       {/* ---------------- CAMERA BARCODE SCANNER MODAL ---------------- */}
       {isScannerOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
-          <div className="w-full max-w-xl bg-white rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs overflow-y-auto overscroll-contain">
+          <div className="w-full max-w-xl max-h-[92vh] overflow-y-auto overscroll-contain bg-white rounded-3xl shadow-2xl my-auto animate-in fade-in zoom-in-95 duration-150">
             <BarcodeScanner
               quickBarcodes={products
                 .filter((p) => Boolean(p.barcode || p.sku))
@@ -1066,8 +1066,8 @@ export const POSModuleView: React.FC<POSModuleViewProps> = ({ initialSubcategory
 
       {/* ---------------- PRINTABLE THERMAL SLIP MODAL ---------------- */}
       {isReceiptModalOpen && lastCompletedTx && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
-          <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden border border-stone-200 p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs overflow-y-auto overscroll-contain">
+          <div className="w-full max-w-sm max-h-[92vh] overflow-y-auto overscroll-contain bg-white rounded-2xl shadow-2xl border border-stone-200 p-6 space-y-4 my-auto">
             <div className="flex items-center justify-between pb-2 border-b border-stone-100">
               <div className="flex items-center gap-1.5 text-xs font-bold text-stone-700">
                 <Printer className="w-4 h-4 text-[#CC8468]" />
@@ -1089,11 +1089,11 @@ export const POSModuleView: React.FC<POSModuleViewProps> = ({ initialSubcategory
               {/* Slip Header */}
               <div className="text-center space-y-0.5">
                 <div className="font-serif font-black text-sm tracking-tight text-stone-900 uppercase">
-                  {company.companyName || 'Savouré Artisanal Pastry'}
+                  {company.companyName || 'Savouré (Pty) Ltd'}
                 </div>
-                <div className="text-[10px] text-stone-600">{company.address || '42 Commercial Rd, Durban Central'}</div>
-                <div className="text-[10px] text-stone-600">VAT Reg: {company.vatNumber || '4890284712'}</div>
-                <div className="text-[10px] text-stone-600">Tel: {company.phone || '061 364 5712'}</div>
+                {company.address && <div className="text-[10px] text-stone-600">{company.address}</div>}
+                {company.vatNumber && <div className="text-[10px] text-stone-600">VAT Reg: {company.vatNumber}</div>}
+                {company.phone && <div className="text-[10px] text-stone-600">Tel: {company.phone}</div>}
               </div>
 
               <div className="border-t border-dashed border-stone-300 my-1.5" />
@@ -1207,8 +1207,8 @@ export const POSModuleView: React.FC<POSModuleViewProps> = ({ initialSubcategory
 
       {/* ---------------- TILL SESSION OPEN/CLOSE MODAL ---------------- */}
       {isSessionModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
-          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden border border-stone-200 p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs overflow-y-auto overscroll-contain">
+          <div className="w-full max-w-md max-h-[92vh] overflow-y-auto overscroll-contain bg-white rounded-2xl shadow-2xl border border-stone-200 p-6 space-y-4 my-auto">
             <div className="flex items-center justify-between pb-2 border-b border-stone-100">
               <div className="flex items-center gap-2">
                 <Store className="w-5 h-5 text-[#CC8468]" />

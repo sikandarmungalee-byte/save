@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ERPProvider, useERP } from './context/ERPContext';
 import { PinLockModal } from './components/PinLockModal';
 import { UserLoginModal } from './components/UserLoginModal';
@@ -18,17 +18,16 @@ import { InvoiceStudioView } from './components/invoice/InvoiceStudioView';
 import { StaffPayrollView } from './components/StaffPayrollView';
 import { StockCapturingView } from './components/StockCapturingView';
 import { AccountingView } from './components/AccountingView';
-import { TaskeenAIAdvisor } from './components/TaskeenAIAdvisor';
 import { MerchantsManagementView } from './components/MerchantsManagementView';
 import { WebsiteShowcaseView } from './components/WebsiteShowcaseView';
 import { MerchantOrdersView } from './components/MerchantOrdersView';
 import { BarcodeScannerModuleView } from './components/BarcodeScannerModuleView';
 import { POSModuleView } from './components/POSModuleView';
 import { ProductionLineModuleView } from './components/ProductionLineModuleView';
+import { MerchantControlsView } from './components/MerchantControlsView';
 import { ShowcaseApp } from './components/showcase/ShowcaseApp';
-import { News24Ticker } from './components/News24Ticker';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { Sparkles, ShieldCheck } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 
 // New Square-Tile Architecture Components
 import { ERP_MODULES, ERPModule, ModuleSubcategory } from './components/dashboard/moduleRegistry';
@@ -50,7 +49,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ onGoToWebsite }) => {
   const [currentSubcategoryId, setCurrentSubcategoryId] = useState<string | null>(null);
 
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
-  const [isTaskeenModalOpen, setIsTaskeenModalOpen] = useState<boolean>(false);
 
   // Automatically prompt for sign-in or initial setup if no user is active
   const shouldShowLogin = isLoginModalOpen || !currentUser;
@@ -121,8 +119,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ onGoToWebsite }) => {
         return Boolean(perms.payroll);
       case 'accounting':
         return Boolean(perms.accounting);
-      case 'taskeen':
-        return Boolean(perms.taskeenAI ?? true);
       case 'reports':
         return Boolean(perms.reports);
       case 'crm':
@@ -131,6 +127,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ onGoToWebsite }) => {
         return Boolean(perms.manageUsers);
       case 'merchants':
         return Boolean(perms.merchants ?? perms.manageUsers);
+      case 'merchant-controls':
+        return Boolean(perms.merchantControls ?? perms.merchants ?? perms.manageUsers);
       case 'pos':
         return Boolean(perms.pos ?? true);
       case 'production-line':
@@ -271,14 +269,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ onGoToWebsite }) => {
           />
         );
 
-      case 'taskeen':
-        return (
-          <TaskeenAIAdvisor
-            key={currentSubcategoryId || 'taskeen'}
-            initialPrompt={targetConfig.initialPrompt}
-          />
-        );
-
       case 'reports':
         return (
           <ReportsView
@@ -364,6 +354,15 @@ const MainLayout: React.FC<MainLayoutProps> = ({ onGoToWebsite }) => {
           />
         );
 
+      case 'merchant-controls':
+        return (
+          <MerchantControlsView
+            key={currentSubcategoryId || 'merchant-controls'}
+            initialTab={targetConfig.initialTab || 'hours'}
+            onNavigateModule={handleSelectModule}
+          />
+        );
+
       default:
         return <DashboardOverview onNavigate={(tab) => handleSelectModule(tab)} />;
     }
@@ -418,7 +417,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ onGoToWebsite }) => {
           )}
 
           {/* Main Content Area */}
-          <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-20 bg-white">
+          <main className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 lg:p-8 pb-12 bg-white">
             <div className="max-w-[1600px] mx-auto">
               {/* If no subcategory is selected, show the module's square tiles */}
               {currentSubcategoryId === null && activeModule ? (
@@ -435,34 +434,40 @@ const MainLayout: React.FC<MainLayoutProps> = ({ onGoToWebsite }) => {
           </main>
         </div>
       )}
-
-      {/* Floating Ask Savouré AI Launcher (available across all screens) */}
-      {currentModuleId !== 'taskeen' && (
-        <button
-          onClick={() => setIsTaskeenModalOpen(true)}
-          className="fixed bottom-12 right-5 z-40 px-3.5 py-2 rounded-full bg-gradient-to-r from-[#CC8468] to-[#E0A282] text-[#1E0F07] font-bold text-xs shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2 border border-white/20 group cursor-pointer"
-          title="Ask Savouré - Executive Bakery & Business Advisor"
-        >
-          <div className="w-5 h-5 rounded-full bg-[#1E0F07] flex items-center justify-center text-[#E0A282] shrink-0">
-            <Sparkles className="w-3 h-3 animate-pulse" />
-          </div>
-          <span className="font-serif tracking-wide">Ask Savouré</span>
-          <span className="text-[9px] font-sans font-semibold uppercase px-1 py-0.2 rounded bg-black/20 text-[#1E0F07]">AI</span>
-        </button>
-      )}
-
-      {/* Floating Savouré AI Modal Drawer */}
-      {isTaskeenModalOpen && (
-        <TaskeenAIAdvisor isModal={true} onClose={() => setIsTaskeenModalOpen(false)} />
-      )}
-
-      {/* Running News24 Live Headlines Ticker at the bottom */}
-      <News24Ticker />
     </div>
   );
 };
 
 const AppContent: React.FC = () => {
+  // Enable mouse-wheel horizontal scrolling on horizontal strips/wide tables without stealing vertical page scroll at bounds
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.shiftKey || Math.abs(e.deltaY) <= Math.abs(e.deltaX) || e.deltaY === 0) return;
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      const container = target.closest('.savoure-scroll-x, .overflow-x-auto') as HTMLElement | null;
+      if (!container) return;
+
+      const hasHorizontalOverflow = container.scrollWidth > container.clientWidth + 2;
+      if (!hasHorizontalOverflow) return;
+
+      // Do not hijack containers that also have their own vertical scrollbar
+      const hasVerticalOverflow = container.scrollHeight > container.clientHeight + 2;
+      const computedOverflowY = window.getComputedStyle(container).overflowY;
+      if (hasVerticalOverflow && (computedOverflowY === 'auto' || computedOverflowY === 'scroll')) return;
+
+      const atLeft = container.scrollLeft <= 1;
+      const atRight = container.scrollLeft + container.clientWidth >= container.scrollWidth - 1;
+      if ((e.deltaY < 0 && atLeft) || (e.deltaY > 0 && atRight)) return;
+
+      container.scrollLeft += e.deltaY;
+      e.preventDefault();
+    };
+
+    window.addEventListener('wheel', handleWheel, { passive: false });
+    return () => window.removeEventListener('wheel', handleWheel);
+  }, []);
+
   const [viewMode, setViewMode] = useState<'website' | 'admin'>(() => {
     try {
       const saved = localStorage.getItem('savoure_view_mode');

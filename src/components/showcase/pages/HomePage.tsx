@@ -140,6 +140,20 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenEnquiryMod
         </div>
       </section>
 
+      {/* DARK BROWN ARCHITECTURAL BREAK */}
+      <div
+        aria-hidden="true"
+        className="bg-[#3d2117] border-y border-[#2b150a] py-2.5 px-6 shadow-xs"
+      >
+        <div className="max-w-7xl mx-auto flex items-center justify-center gap-4">
+          <span className="h-px flex-1 max-w-28 bg-gradient-to-r from-transparent to-[#b86643]/60" />
+          <span className="text-[#d89368] text-[10px] leading-none select-none">✦</span>
+          <span className="w-1.5 h-1.5 rounded-full bg-[#b86643]" />
+          <span className="text-[#d89368] text-[10px] leading-none select-none">✦</span>
+          <span className="h-px flex-1 max-w-28 bg-gradient-to-l from-transparent to-[#b86643]/60" />
+        </div>
+      </div>
+
       {/* 2. VALUES STRIP */}
       <div className="bg-[#f5eee5] border-b border-[#bd896e]/20 py-8 px-6">
         <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 text-center">

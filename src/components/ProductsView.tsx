@@ -80,6 +80,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     costPrice: '',
     vatApplicable: true,
     stockOnHand: '',
+    moq: '',
     showcase: true,
     description: '',
     badge: '',
@@ -101,6 +102,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       costPrice: '',
       vatApplicable: true,
       stockOnHand: '',
+      moq: '',
       showcase: true,
       description: '',
       badge: '',
@@ -123,6 +125,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       costPrice: p.costPrice ? String(p.costPrice) : '',
       vatApplicable: p.vatApplicable,
       stockOnHand: p.stockOnHand ? String(p.stockOnHand) : '',
+      moq: p.moq ? String(p.moq) : '',
       showcase: p.showcase !== false,
       description: p.description || '',
       badge: p.badge || '',
@@ -180,6 +183,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       finalCat = 'General';
     }
 
+    const parsedMoq = form.moq ? Math.max(0, Number(form.moq) || 0) : 0;
+
     if (editingProduct) {
       await updateProduct(editingProduct.id, {
         sku: form.sku,
@@ -192,6 +197,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         costPrice: Number(form.costPrice),
         vatApplicable: form.vatApplicable,
         stockOnHand: Number(form.stockOnHand),
+        moq: parsedMoq,
         showcase: form.showcase,
         description: form.description.trim(),
         badge: form.badge.trim(),
@@ -209,6 +215,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         costPrice: Number(form.costPrice),
         vatApplicable: form.vatApplicable,
         stockOnHand: Number(form.stockOnHand),
+        moq: parsedMoq,
         showcase: form.showcase,
         description: form.description.trim(),
         badge: form.badge.trim(),
@@ -761,6 +768,11 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                           <td className="py-3 px-4">
                             <div className="text-white">{p.packSize || 'Single'}</div>
                             <div className="text-[11px] text-[#8A776B]">{p.physicalSize || 'Standard'}</div>
+                            {Number(p.moq) > 0 && (
+                              <span className="inline-block mt-1 text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-[#C98A5B]/15 text-[#DE9E74] border border-[#C98A5B]/30">
+                                MOQ: {p.moq} packs
+                              </span>
+                            )}
                           </td>
 
                           <td className="py-3 px-4 text-right font-mono font-bold text-white tabular-nums">
@@ -998,7 +1010,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-[#EDE6DE] mb-1">
                     Selling Price ({company.currency}) <span className="text-[#DE9E74]">*</span>
@@ -1035,6 +1047,20 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                     placeholder="e.g. 50"
                     value={form.stockOnHand}
                     onChange={(e) => setForm({ ...form, stockOnHand: e.target.value })}
+                    className="w-full px-3 py-2 text-xs bg-[#120F0D] border border-[#2C211B] rounded-lg text-white font-mono placeholder-[#6E5B4F] focus:outline-hidden focus:border-[#C98A5B]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-[#EDE6DE] mb-1" title="Minimum Order Quantity for Wholesale Merchant Orders">
+                    Min Order Qty (MOQ)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="0 = Global default"
+                    value={form.moq}
+                    onChange={(e) => setForm({ ...form, moq: e.target.value })}
                     className="w-full px-3 py-2 text-xs bg-[#120F0D] border border-[#2C211B] rounded-lg text-white font-mono placeholder-[#6E5B4F] focus:outline-hidden focus:border-[#C98A5B]"
                   />
                 </div>

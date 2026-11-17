@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft,
   Lock,
@@ -11,10 +11,13 @@ import {
   Truck,
   Phone,
   MessageCircle,
-  CheckCircle2
+  CheckCircle2,
+  Clock,
+  Scale
 } from 'lucide-react';
 import { useERP } from '../../context/ERPContext';
 import { SHOWCASE_CONTACT } from './showcaseData';
+import { checkMerchantPortalAccess, normalizeMerchantSettings } from '../../utils/merchantRules';
 
 interface ShowcaseMerchantLoginPageProps {
   onNavigate: (tab: string) => void;
@@ -25,13 +28,22 @@ export const ShowcaseMerchantLoginPage: React.FC<ShowcaseMerchantLoginPageProps>
   onNavigate,
   onLoginSuccess,
 }) => {
-  const { login } = useERP();
+  const { login, merchantSettings } = useERP();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [nowTick, setNowTick] = useState<Date>(() => new Date());
+
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(new Date()), 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  const normalizedSettings = normalizeMerchantSettings(merchantSettings);
+  const portalAccess = checkMerchantPortalAccess(normalizedSettings, null, nowTick);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -165,6 +177,55 @@ export const ShowcaseMerchantLoginPage: React.FC<ShowcaseMerchantLoginPageProps>
               <p className="text-xs text-[#66483B] mt-1">
                 Enter your approved merchant credentials to place bakery orders and view account statements.
               </p>
+            </div>
+
+            {/* Live Portal Operating Window & MOQ Notice */}
+            <div
+              className={`p-3.5 rounded-2xl border text-xs flex flex-col gap-1.5 ${
+                !portalAccess.allowed
+                  ? 'bg-amber-50 border-amber-200 text-amber-950'
+                  : 'bg-[#FBF7F1] border-[#E8D9CD] text-[#4C2A1A]'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2 font-bold">
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      portalAccess.allowed ? 'bg-emerald-500' : 'bg-amber-500'
+                    }`}
+                  />
+                  <Clock className="w-3.5 h-3.5 text-[#8D5037]" />
+                  <span>
+                    {portalAccess.reasonCode === 'MANUAL_LOCKDOWN'
+                      ? 'Portal Temporarily Paused'
+                      : portalAccess.allowed
+                      ? 'Merchant Desk Open'
+                      : 'Outside Ordering Hours'}
+                  </span>
+                </div>
+                <span className="font-mono text-[11px] font-semibold text-[#75412E]">
+                  {portalAccess.currentDayLabel} · {portalAccess.todayWindowText} ({portalAccess.currentTimeHHMM})
+                </span>
+              </div>
+              {!portalAccess.allowed && (
+                <p className="text-[11px] text-amber-900 leading-relaxed">
+                  {portalAccess.message} (VIP override accounts &amp; staff may still sign in.)
+                </p>
+              )}
+              {normalizedSettings.enforceMoq && (
+                <div className="flex items-center gap-1.5 text-[11px] text-[#75412E] pt-1 border-t border-[#E8D9CD]/70">
+                  <Scale className="w-3.5 h-3.5 text-[#CC8468] shrink-0" />
+                  <span>
+                    Wholesale MOQ Policy Active
+                    {normalizedSettings.globalMinOrderQty > 0
+                      ? ` · Min ${normalizedSettings.globalMinOrderQty} packs`
+                      : ''}
+                    {normalizedSettings.globalMinOrderValue > 0
+                      ? ` · Min R ${normalizedSettings.globalMinOrderValue.toFixed(0)}`
+                      : ''}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Error Banner */}

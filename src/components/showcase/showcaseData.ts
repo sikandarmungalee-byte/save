@@ -11,7 +11,7 @@ export const SHOWCASE_CONTACT = {
   emailHref: 'mailto:info@savoure.co.za',
   alternateEmail: 'orders@savoure.co.za',
   address: 'South Africa · Nationwide Cold-Chain Delivery',
-  operatingHours: 'Mon - Fri: 06:00 - 17:00 | Sat: 06:00 - 13:00',
+  operatingHours: 'Mon - Fri: 08:00 - 17:00 | Sat: 08:00 - 13:00',
 };
 
 export type CraftSpecialty = ShowcaseProductItem;

@@ -18,6 +18,8 @@ import {
   Mail,
   MapPin,
   Lock,
+  Clock,
+  Scale,
 } from 'lucide-react';
 
 interface MerchantsManagementViewProps {
@@ -49,6 +51,11 @@ export const MerchantsManagementView: React.FC<MerchantsManagementViewProps> = (
   const [merchantStoreName, setMerchantStoreName] = useState('');
   const [merchantPhone, setMerchantPhone] = useState('');
   const [status, setStatus] = useState<'active' | 'inactive'>('active');
+  const [bypassLoginHours, setBypassLoginHours] = useState(false);
+  const [allowedLoginStart, setAllowedLoginStart] = useState('');
+  const [allowedLoginEnd, setAllowedLoginEnd] = useState('');
+  const [customMoqUnits, setCustomMoqUnits] = useState('');
+  const [customMinOrderValue, setCustomMinOrderValue] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [formLoading, setFormLoading] = useState(false);
 
@@ -147,6 +154,11 @@ export const MerchantsManagementView: React.FC<MerchantsManagementViewProps> = (
     setMerchantStoreName('');
     setMerchantPhone('');
     setStatus('active');
+    setBypassLoginHours(false);
+    setAllowedLoginStart('');
+    setAllowedLoginEnd('');
+    setCustomMoqUnits('');
+    setCustomMinOrderValue('');
     setFormError(null);
     setIsModalOpen(true);
   };
@@ -169,6 +181,11 @@ export const MerchantsManagementView: React.FC<MerchantsManagementViewProps> = (
     setMerchantStoreName(m.merchantStoreName || '');
     setMerchantPhone(m.merchantPhone || '');
     setStatus(m.status || 'active');
+    setBypassLoginHours(Boolean(m.bypassLoginHours));
+    setAllowedLoginStart(m.allowedLoginStart || '');
+    setAllowedLoginEnd(m.allowedLoginEnd || '');
+    setCustomMoqUnits(m.customMoqUnits ? String(m.customMoqUnits) : '');
+    setCustomMinOrderValue(m.customMinOrderValue ? String(m.customMinOrderValue) : '');
     setFormError(null);
     setIsModalOpen(true);
   };
@@ -191,6 +208,9 @@ export const MerchantsManagementView: React.FC<MerchantsManagementViewProps> = (
     setFormLoading(true);
     setFormError(null);
 
+    const parsedMoqUnits = customMoqUnits ? Math.max(0, Number(customMoqUnits) || 0) : 0;
+    const parsedMinOrderValue = customMinOrderValue ? Math.max(0, Number(customMinOrderValue) || 0) : 0;
+
     try {
       if (editingMerchant) {
         await updateUser(editingMerchant.id, {
@@ -203,6 +223,11 @@ export const MerchantsManagementView: React.FC<MerchantsManagementViewProps> = (
           merchantStoreName: merchantStoreName.trim() || linkedCust?.tradingName || undefined,
           merchantPhone: merchantPhone.trim() || undefined,
           status,
+          bypassLoginHours,
+          allowedLoginStart: allowedLoginStart.trim() || '',
+          allowedLoginEnd: allowedLoginEnd.trim() || '',
+          customMoqUnits: parsedMoqUnits,
+          customMinOrderValue: parsedMinOrderValue,
           ...(password.trim() ? { password: password.trim() } : {}),
         });
       } else {
@@ -218,6 +243,11 @@ export const MerchantsManagementView: React.FC<MerchantsManagementViewProps> = (
           merchantStoreName: merchantStoreName.trim() || linkedCust?.tradingName || `${assignedBranch} Wholesale Depot`,
           merchantPhone: merchantPhone.trim() || undefined,
           status,
+          bypassLoginHours,
+          allowedLoginStart: allowedLoginStart.trim() || '',
+          allowedLoginEnd: allowedLoginEnd.trim() || '',
+          customMoqUnits: parsedMoqUnits,
+          customMinOrderValue: parsedMinOrderValue,
           permissions: {
             manageUsers: false,
             invoices: true,
@@ -453,15 +483,34 @@ export const MerchantsManagementView: React.FC<MerchantsManagementViewProps> = (
                     </td>
 
                     <td className="py-3.5 px-4 text-center">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          m.status === 'active'
-                            ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
-                            : 'bg-red-950 text-red-400 border border-red-800'
-                        }`}
-                      >
-                        {m.status === 'active' ? 'Active' : 'Disabled'}
-                      </span>
+                      <div className="flex flex-col items-center gap-1">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            m.status === 'active'
+                              ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                              : 'bg-red-950 text-red-400 border border-red-800'
+                          }`}
+                        >
+                          {m.status === 'active' ? 'Active' : 'Disabled'}
+                        </span>
+                        <div className="flex flex-wrap items-center justify-center gap-1">
+                          {m.bypassLoginHours && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 font-semibold">
+                              24/7 VIP
+                            </span>
+                          )}
+                          {!m.bypassLoginHours && m.allowedLoginStart && m.allowedLoginEnd && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30 font-mono">
+                              {m.allowedLoginStart}–{m.allowedLoginEnd}
+                            </span>
+                          )}
+                          {Number(m.customMoqUnits) > 0 && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#C98A5B]/20 text-[#DE9E74] border border-[#C98A5B]/30 font-mono">
+                              MOQ {m.customMoqUnits}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </td>
 
                     <td className="py-3.5 px-4 text-right">
@@ -677,6 +726,81 @@ export const MerchantsManagementView: React.FC<MerchantsManagementViewProps> = (
                     className="w-full px-3 py-2 bg-[#120F0D] border border-[#2C211B] rounded-lg text-xs text-white outline-none focus:border-[#C98A5B]"
                     placeholder="e.g. 011 234 5678"
                   />
+                </div>
+              </div>
+
+              {/* Login Hours & MOQ Overrides */}
+              <div className="p-4 rounded-xl bg-[#221B17] border border-[#3A2D25] space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-serif font-bold uppercase tracking-wider text-[#DE9E74] flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-[#C98A5B]" />
+                    <span>Login Hours &amp; MOQ Overrides</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-amber-300 font-semibold cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={bypassLoginHours}
+                      onChange={(e) => setBypassLoginHours(e.target.checked)}
+                      className="accent-[#C98A5B] w-4 h-4"
+                    />
+                    <span>24/7 VIP Access</span>
+                  </label>
+                </div>
+                <p className="text-[11px] text-[#A69385]">
+                  Leave blank to follow the global Merchant Hours &amp; MOQ policy configured in Admin ERP.
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-[#A69385] mb-1">
+                      Custom Open
+                    </label>
+                    <input
+                      type="time"
+                      value={allowedLoginStart}
+                      disabled={bypassLoginHours}
+                      onChange={(e) => setAllowedLoginStart(e.target.value)}
+                      className="w-full px-2.5 py-1.5 bg-[#120F0D] border border-[#2C211B] rounded-lg text-xs text-white font-mono outline-none focus:border-[#C98A5B] disabled:opacity-40"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-[#A69385] mb-1">
+                      Custom Close
+                    </label>
+                    <input
+                      type="time"
+                      value={allowedLoginEnd}
+                      disabled={bypassLoginHours}
+                      onChange={(e) => setAllowedLoginEnd(e.target.value)}
+                      className="w-full px-2.5 py-1.5 bg-[#120F0D] border border-[#2C211B] rounded-lg text-xs text-white font-mono outline-none focus:border-[#C98A5B] disabled:opacity-40"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-[#A69385] mb-1 flex items-center gap-1">
+                      <Scale className="w-3 h-3 text-[#C98A5B]" /> Custom MOQ (Packs)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="Global"
+                      value={customMoqUnits}
+                      onChange={(e) => setCustomMoqUnits(e.target.value)}
+                      className="w-full px-2.5 py-1.5 bg-[#120F0D] border border-[#2C211B] rounded-lg text-xs text-white font-mono outline-none focus:border-[#C98A5B]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-[#A69385] mb-1">
+                      Min Order Spend (R)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="10"
+                      placeholder="Global"
+                      value={customMinOrderValue}
+                      onChange={(e) => setCustomMinOrderValue(e.target.value)}
+                      className="w-full px-2.5 py-1.5 bg-[#120F0D] border border-[#2C211B] rounded-lg text-xs text-white font-mono outline-none focus:border-[#C98A5B]"
+                    />
+                  </div>
                 </div>
               </div>
 

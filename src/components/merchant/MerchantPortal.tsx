@@ -50,6 +50,11 @@ import {
 import { InvoicePrintModal } from '../InvoicePrintModal';
 import { SHOWCASE_CONTACT } from '../showcase/showcaseData';
 import { MerchantReportsTab } from './MerchantReportsTab';
+import {
+  checkMerchantPortalAccess,
+  evaluateMerchantOrderMOQ,
+  normalizeMerchantSettings,
+} from '../../utils/merchantRules';
 
 // Helper to map bakery product to showcase photography
 export function getProductImage(prod: Product): string {
@@ -114,7 +119,8 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
     deleteMerchantReport,
     syncStatus,
     lastSynced,
-    refreshData
+    refreshData,
+    merchantSettings,
   } = useERP();
 
   // Navigation tab: 'place-order' | 'my-orders' | 'reports' | 'invoices' | 'delivery-notes'
@@ -165,6 +171,22 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
   const [confirmedOrder, setConfirmedOrder] = useState<MerchantOrder | null>(null);
   const [coldChainRequired, setColdChainRequired] = useState<boolean>(true);
   const [deliveryPreset, setDeliveryPreset] = useState<'tomorrow' | 'twoDays' | 'threeDays' | 'custom'>('twoDays');
+  const [nowTick, setNowTick] = useState<Date>(() => new Date());
+
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(new Date()), 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  const normalizedSettings = useMemo(
+    () => normalizeMerchantSettings(merchantSettings),
+    [merchantSettings]
+  );
+
+  const portalAccess = useMemo(
+    () => checkMerchantPortalAccess(normalizedSettings, currentUser, nowTick),
+    [normalizedSettings, currentUser, nowTick]
+  );
 
   // Find linked customer record from ERP database if available
   const linkedCustomer = useMemo(() => {
@@ -331,7 +353,7 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
   // Filter products by category & search query
   const filteredCatalogProducts = useMemo(() => {
     return orderableProducts.filter((p) => {
-      const matchCat = catalogCategory === 'ALL' || p.category === catalogCategory;
+      const matchCat = catalogCategory === 'ALL' || (p.category || '').trim() === catalogCategory;
       const q = catalogSearch.toLowerCase().trim();
       const sizes = getProductSizes(p);
       const matchSearch =
@@ -374,6 +396,18 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
   const orderSubtotal = selectedOrderItems.reduce((acc, it) => acc + it.lineTotal, 0);
   const orderTotal = orderSubtotal; // Zero-rated / staple food exemption default
   const totalPackCount = selectedOrderItems.reduce((acc, it) => acc + it.quantity, 0);
+
+  const moqCheck = useMemo(
+    () =>
+      evaluateMerchantOrderMOQ({
+        items: selectedOrderItems,
+        products,
+        user: currentUser,
+        settings: normalizedSettings,
+        currency: currencySymbol,
+      }),
+    [selectedOrderItems, products, currentUser, normalizedSettings, currencySymbol]
+  );
 
   const handleQtyChange = (prodId: string, sizeId: string, delta: number) => {
     const itemKey = `${prodId}___${sizeId}`;
@@ -461,9 +495,19 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
 
   const handlePlaceOrderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!portalAccess.allowed) {
+      setOrderNotice(portalAccess.message);
+      setTimeout(() => setOrderNotice(null), 6000);
+      return;
+    }
     if (selectedOrderItems.length === 0) {
       setOrderNotice('Please select at least one bakery product and choose a size to place an order.');
       setTimeout(() => setOrderNotice(null), 5000);
+      return;
+    }
+    if (moqCheck.enforced && !moqCheck.valid) {
+      setOrderNotice(`Minimum Order Requirement: ${moqCheck.violations.join(' · ')}`);
+      setTimeout(() => setOrderNotice(null), 7000);
       return;
     }
 
@@ -693,6 +737,26 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
 
       {/* Main Container */}
       <main className="flex-1 max-w-7xl mx-auto w-full p-4 sm:p-8 space-y-6">
+        {/* Portal Ordering Window Alert Banner (when locked/closed while already logged in) */}
+        {!portalAccess.allowed && (
+          <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 text-xs sm:text-sm font-medium flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+            <div className="flex items-start gap-3">
+              <Clock className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+              <div>
+                <div className="font-bold">
+                  {portalAccess.reasonCode === 'MANUAL_LOCKDOWN'
+                    ? 'Ordering Temporarily Paused by Savouré Dispatch'
+                    : 'Wholesale Ordering Window Currently Closed'}
+                </div>
+                <p className="text-xs text-amber-900 mt-0.5">{portalAccess.message}</p>
+              </div>
+            </div>
+            <span className="text-[11px] font-mono font-bold px-3 py-1 rounded-full bg-amber-100 border border-amber-300 text-amber-900 shrink-0">
+              {portalAccess.currentDayLabel}: {portalAccess.todayWindowText}
+            </span>
+          </div>
+        )}
+
         {/* Success Banner */}
         {orderSuccessBanner && (
           <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs sm:text-sm font-medium flex items-center justify-between gap-3 shadow-sm animate-fade-in">
@@ -869,21 +933,34 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                     )}
                   </div>
 
-                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-                    {availableCategories.map((cat) => (
-                      <button
-                        key={cat}
-                        type="button"
-                        onClick={() => setCatalogCategory(cat)}
-                        className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                          catalogCategory === cat
-                            ? 'bg-[#CC8468] text-[#1E0F07] shadow-xs'
-                            : 'bg-[#FBF7F1] text-[#66483B] hover:text-[#1E0F07]'
-                        }`}
-                      >
-                        {cat === 'ALL' ? `All Products (${orderableProducts.length})` : cat}
-                      </button>
-                    ))}
+                  <div
+                    className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0"
+                    onWheel={(e) => {
+                      if (e.currentTarget.scrollWidth > e.currentTarget.clientWidth && Math.abs(e.deltaY) > 0) {
+                        e.currentTarget.scrollLeft += e.deltaY;
+                      }
+                    }}
+                  >
+                    {availableCategories.map((cat) => {
+                      const catCount =
+                        cat === 'ALL'
+                          ? orderableProducts.length
+                          : orderableProducts.filter((p) => (p.category || '').trim() === cat).length;
+                      return (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => setCatalogCategory(cat)}
+                          className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                            catalogCategory === cat
+                              ? 'bg-[#CC8468] text-[#1E0F07] shadow-xs'
+                              : 'bg-[#FBF7F1] text-[#66483B] hover:text-[#1E0F07]'
+                          }`}
+                        >
+                          {cat === 'ALL' ? `All Products (${catCount})` : `${cat} (${catCount})`}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -948,11 +1025,21 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                           (acc, s) => acc + (orderQuantities[`${prod.id}___${s.id}`] || 0),
                           0
                         );
+                        const requiredLineMoq = normalizedSettings.enforceMoq
+                          ? prod.moq && prod.moq > 0
+                            ? Number(prod.moq)
+                            : normalizedSettings.globalMinLineQty
+                          : 0;
+                        const isBelowLineMoq = requiredLineMoq > 0 && totalProdQty > 0 && totalProdQty < requiredLineMoq;
 
                         return (
                           <div
                             key={prod.id}
-                            className="p-4 sm:p-5 rounded-3xl bg-[#FBF7F1]/50 border border-[#E8D9CD] hover:border-[#CC8468]/50 transition-all space-y-4"
+                            className={`p-4 sm:p-5 rounded-3xl bg-[#FBF7F1]/50 border transition-all space-y-4 ${
+                              isBelowLineMoq
+                                ? 'border-amber-400 hover:border-amber-500'
+                                : 'border-[#E8D9CD] hover:border-[#CC8468]/50'
+                            }`}
                           >
                             {/* Product Header */}
                             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
@@ -987,6 +1074,11 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                                         SKU: {prod.sku}
                                       </span>
                                     )}
+                                    {requiredLineMoq > 0 && (
+                                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 font-mono font-bold">
+                                        Min Order: {requiredLineMoq} packs
+                                      </span>
+                                    )}
                                   </div>
                                   {prod.description && (
                                     <p className="text-xs text-[#66483B] line-clamp-2 max-w-xl">
@@ -1004,18 +1096,47 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                                       </>
                                     )}
                                   </div>
+                                  {isBelowLineMoq && (
+                                    <div className="text-[11px] text-amber-800 font-semibold flex items-center gap-2 pt-1">
+                                      <span>
+                                        Add {requiredLineMoq - totalProdQty} more pack(s) to meet product MOQ ({requiredLineMoq}).
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSetExactQty(prod.id, activeSize.id, String(requiredLineMoq))}
+                                        className="px-2 py-0.5 rounded-full bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold cursor-pointer"
+                                      >
+                                        Set Min ({requiredLineMoq})
+                                      </button>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
 
                               {/* Cart status badge */}
-                              {totalProdQty > 0 && (
-                                <div className="self-start sm:self-center shrink-0">
-                                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold font-mono shadow-2xs">
+                              <div className="self-start sm:self-center shrink-0 flex items-center gap-2">
+                                {requiredLineMoq > 0 && totalProdQty === 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSetExactQty(prod.id, activeSize.id, String(requiredLineMoq))}
+                                    className="px-2.5 py-1 rounded-full bg-[#EAD8C6] hover:bg-[#CC8468] text-[#2B150A] hover:text-white text-[11px] font-bold transition-colors cursor-pointer"
+                                  >
+                                    + Set Min {requiredLineMoq}
+                                  </button>
+                                )}
+                                {totalProdQty > 0 && (
+                                  <span
+                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold font-mono shadow-2xs ${
+                                      isBelowLineMoq
+                                        ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                        : 'bg-emerald-100 text-emerald-800'
+                                    }`}
+                                  >
                                     <Check className="w-3.5 h-3.5" />
                                     <span>{totalProdQty} in order</span>
                                   </span>
-                                </div>
-                              )}
+                                )}
+                              </div>
                             </div>
 
                             {/* Size Selection Chips (when multiple configured in ERP) */}
@@ -1168,6 +1289,11 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                         {filteredCatalogProducts.flatMap((prod) => {
                           const sizes = getProductSizes(prod);
                           const prodImg = getProductImage(prod);
+                          const requiredLineMoq = normalizedSettings.enforceMoq
+                            ? prod.moq && prod.moq > 0
+                              ? Number(prod.moq)
+                              : normalizedSettings.globalMinLineQty
+                            : 0;
 
                           return sizes.map((size, idx) => {
                             const itemKey = `${prod.id}___${size.id}`;
@@ -1196,8 +1322,13 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                                         {prod.name}
                                       </div>
                                       {idx === 0 && (
-                                        <div className="text-[10px] text-[#7A6458]">
-                                          {prod.category}
+                                        <div className="text-[10px] text-[#7A6458] flex items-center gap-1.5 flex-wrap">
+                                          <span>{prod.category}</span>
+                                          {requiredLineMoq > 0 && (
+                                            <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300 font-mono font-bold">
+                                              MOQ: {requiredLineMoq}
+                                            </span>
+                                          )}
                                         </div>
                                       )}
                                     </div>
@@ -1478,6 +1609,98 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                   />
                 </div>
 
+                {/* MOQ Compliance Checklist (when MOQ rules are active) */}
+                {moqCheck.enforced && (
+                  <div
+                    className={`p-3.5 rounded-2xl border space-y-2.5 text-xs ${
+                      selectedOrderItems.length === 0
+                        ? 'bg-[#FBF7F1] border-[#E8D9CD] text-[#4C2A1A]'
+                        : moqCheck.valid
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                        : 'bg-amber-50 border-amber-300 text-amber-950'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold flex items-center gap-1.5">
+                        <Scale className="w-3.5 h-3.5 text-[#8D5037]" />
+                        <span>Minimum Order Requirements</span>
+                      </span>
+                      <span
+                        className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                          selectedOrderItems.length === 0
+                            ? 'bg-[#EAD8C6] text-[#75412E]'
+                            : moqCheck.valid
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-amber-600 text-white'
+                        }`}
+                      >
+                        {selectedOrderItems.length === 0
+                          ? 'Active'
+                          : moqCheck.valid
+                          ? 'Met'
+                          : 'Below MOQ'}
+                      </span>
+                    </div>
+
+                    {moqCheck.effectiveMinOrderQty > 0 && (
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-[11px]">
+                          <span>Total Packs Minimum</span>
+                          <span className="font-mono font-bold">
+                            {moqCheck.totalPacks} / {moqCheck.effectiveMinOrderQty} packs
+                          </span>
+                        </div>
+                        <div className="w-full h-1.5 rounded-full bg-black/10 overflow-hidden">
+                          <div
+                            className={`h-full transition-all ${
+                              moqCheck.packsRemaining === 0 ? 'bg-emerald-600' : 'bg-[#CC8468]'
+                            }`}
+                            style={{
+                              width: `${Math.min(
+                                100,
+                                (moqCheck.totalPacks / Math.max(1, moqCheck.effectiveMinOrderQty)) * 100
+                              )}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {moqCheck.effectiveMinOrderValue > 0 && (
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-[11px]">
+                          <span>Minimum Order Spend</span>
+                          <span className="font-mono font-bold">
+                            {currencySymbol} {moqCheck.totalValue.toFixed(0)} / {currencySymbol}{' '}
+                            {moqCheck.effectiveMinOrderValue.toFixed(0)}
+                          </span>
+                        </div>
+                        <div className="w-full h-1.5 rounded-full bg-black/10 overflow-hidden">
+                          <div
+                            className={`h-full transition-all ${
+                              moqCheck.valueRemaining === 0 ? 'bg-emerald-600' : 'bg-[#CC8468]'
+                            }`}
+                            style={{
+                              width: `${Math.min(
+                                100,
+                                (moqCheck.totalValue / Math.max(1, moqCheck.effectiveMinOrderValue)) * 100
+                              )}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedOrderItems.length > 0 && moqCheck.violations.length > 0 && (
+                      <ul className="space-y-1 pt-1 border-t border-amber-200 text-[11px] text-amber-900 list-disc pl-4">
+                        {moqCheck.violations.map((v, idx) => (
+                          <li key={idx}>{v}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+
                 {/* Transparent Ledger Breakdown & Zero-Rated VAT */}
                 <div className="pt-3 border-t border-[#E8D9CD] space-y-1.5 text-xs">
                   <div className="flex justify-between text-[#66483B]">
@@ -1504,13 +1727,22 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
 
                 <button
                   type="submit"
-                  disabled={isSubmittingOrder || selectedOrderItems.length === 0}
+                  disabled={
+                    isSubmittingOrder ||
+                    selectedOrderItems.length === 0 ||
+                    !portalAccess.allowed ||
+                    (moqCheck.enforced && !moqCheck.valid)
+                  }
                   className="w-full py-3.5 rounded-full bg-[#CC8468] hover:bg-[#B86643] disabled:opacity-50 text-white font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm hover:-translate-y-0.5"
                 >
                   <Send className="w-4 h-4" />
                   <span>
-                    {isSubmittingOrder
+                    {!portalAccess.allowed
+                      ? 'Portal Ordering Currently Closed'
+                      : isSubmittingOrder
                       ? 'Submitting to Live Oven Queue...'
+                      : moqCheck.enforced && selectedOrderItems.length > 0 && !moqCheck.valid
+                      ? 'Meet Minimum Order Qty to Submit'
                       : `Submit Order (R ${orderTotal.toFixed(2)})`}
                   </span>
                 </button>

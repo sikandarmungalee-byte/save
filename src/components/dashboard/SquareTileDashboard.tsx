@@ -160,8 +160,6 @@ export const SquareTileDashboard: React.FC<SquareTileDashboardProps> = ({
         return Boolean(perms.payroll);
       case 'accounting':
         return Boolean(perms.accounting);
-      case 'taskeen':
-        return Boolean(perms.taskeenAI ?? true);
       case 'reports':
         return Boolean(perms.reports);
       case 'crm':
@@ -170,6 +168,8 @@ export const SquareTileDashboard: React.FC<SquareTileDashboardProps> = ({
         return Boolean(perms.manageUsers);
       case 'merchants':
         return Boolean(perms.merchants ?? perms.manageUsers);
+      case 'merchant-controls':
+        return Boolean(perms.merchantControls ?? perms.merchants ?? perms.manageUsers);
       case 'pos':
         return Boolean(perms.pos ?? true);
       case 'production-line':
@@ -273,7 +273,7 @@ export const SquareTileDashboard: React.FC<SquareTileDashboardProps> = ({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search all 18 modules and subcategories (e.g. Invoices, Tortillas, Payroll)..."
+                placeholder="Search all modules and subcategories (e.g. Invoices, Tortillas, Payroll)..."
                 className="w-full bg-stone-50 border border-stone-200 focus:border-[#CC8468] focus:bg-white focus:ring-1 focus:ring-[#CC8468] rounded-xl pl-10 pr-9 py-2 text-xs sm:text-sm text-[#2B150A] placeholder-stone-400 outline-none transition-all shadow-xs"
               />
               {searchQuery && (
@@ -361,7 +361,7 @@ export const SquareTileDashboard: React.FC<SquareTileDashboardProps> = ({
                     </span>
                   </div>
 
-                  <div className="max-h-80 overflow-y-auto space-y-2 pr-1">
+                  <div className="max-h-80 overflow-y-auto overscroll-contain space-y-2 pr-1">
                     {notificationsList.length === 0 ? (
                       <div className="p-6 text-center text-xs text-stone-500">
                         <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-[#CC8468]" />

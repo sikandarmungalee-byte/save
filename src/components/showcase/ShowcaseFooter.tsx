@@ -138,16 +138,25 @@ export const ShowcaseFooter: React.FC<ShowcaseFooterProps> = ({
                 <span className="text-stone-400 block text-[10px]">Dispatch Hours:</span>
                 <span>{SHOWCASE_CONTACT.operatingHours}</span>
               </div>
+              <div>
+                <span className="text-stone-400 block text-[10px]">Certification:</span>
+                <span className="text-white font-semibold inline-flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#d89368]" />
+                  <span>SANHA Halal Certified</span>
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Bottom Bar with Admin ERP button prominently in the footer */}
         <div className="pt-8 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-stone-400">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <span>© 2026 Savouré. All rights reserved.</span>
             <span>·</span>
             <span className="italic font-serif text-[#d89368]">A taste of tradition.</span>
+            <span>·</span>
+            <span className="text-[#dfc4ae] font-medium">SANHA Halal Certified</span>
           </div>
 
           {/* Dedicated Administration Button in Footer */}

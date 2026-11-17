@@ -27,7 +27,7 @@ interface ReportsViewProps {
 }
 
 export const ReportsView: React.FC<ReportsViewProps> = ({ initialPeriod = 'weekly' }) => {
-  const { invoices, payments, customers, products, company, merchantOrders } = useERP();
+  const { invoices, payments, customers, products, company, merchantOrders, stockPurchases, payrollPayouts } = useERP();
 
   const [period, setPeriod] = useState<'weekly' | 'monthly' | 'quarterly' | 'annual'>(initialPeriod);
   const [reportSection, setReportSection] = useState<'summary' | 'pnl' | 'customers' | 'products' | 'aging'>('summary');
@@ -39,16 +39,17 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ initialPeriod = 'weekl
     return Math.max(1, Math.min(52, Math.ceil((days + startOfYear.getDay() + 1) / 7)));
   });
 
-  // Key Financial Metrics
+  // Key Financial Metrics (100% derived from live ERP records)
   const grossInvoiced = invoices.reduce((acc, i) => acc + (Number(i.grandTotal) || 0), 0);
   const netPaid = invoices.reduce((acc, i) => acc + (Number(i.amountPaid) || 0), 0);
   const balanceDue = invoices.reduce((acc, i) => acc + (Number(i.balanceDue) || 0), 0);
-  const collectionRate = grossInvoiced > 0 ? ((netPaid / grossInvoiced) * 100).toFixed(1) : '0';
+  const collectionRate = grossInvoiced > 0 ? ((netPaid / grossInvoiced) * 100).toFixed(1) : '0.0';
 
-  // Estimated Cost of Sales (approx 42% standard bakery ingredient & packaging cost)
-  const estimatedCostOfSales = grossInvoiced * 0.42;
-  const grossProfit = grossInvoiced - estimatedCostOfSales;
-  const grossMarginPercent = grossInvoiced > 0 ? ((grossProfit / grossInvoiced) * 100).toFixed(1) : '58.0';
+  const actualCostOfSales =
+    (stockPurchases || []).reduce((acc, p) => acc + (Number(p.totalAmount) || 0), 0) +
+    (payrollPayouts || []).reduce((acc, p) => acc + (Number(p.netPayout) || 0), 0);
+  const grossProfit = grossInvoiced - actualCostOfSales;
+  const grossMarginPercent = grossInvoiced > 0 ? ((grossProfit / grossInvoiced) * 100).toFixed(1) : '0.0';
 
   // Customer & Merchant Revenue Breakdown
   const customerBreakdown = useMemo(() => {
@@ -188,7 +189,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ initialPeriod = 'weekl
       {/* 2. SUB-NAVIGATION TABS & PERIOD FILTER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 no-print">
         {/* Report Section Tabs */}
-        <div className="flex items-center gap-1.5 p-1 bg-white border border-[#E8D9CD] rounded-2xl overflow-x-auto shadow-2xs">
+        <div className="flex items-center gap-1.5 p-1 bg-white border border-[#E8D9CD] rounded-2xl savoure-scroll-x shadow-2xs">
           {[
             { id: 'summary', label: 'Executive Summary', icon: BarChart3 },
             { id: 'pnl', label: 'P&L Margin Statement', icon: Scale },
@@ -285,12 +286,12 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ initialPeriod = 'weekl
 
         <div className="p-5 rounded-3xl bg-white border border-[#E8D9CD] shadow-sm">
           <span className="text-[10px] uppercase font-bold tracking-wider text-blue-700 block">
-            Est. Gross Margin
+            Actual Gross Margin
           </span>
           <div className="text-2xl font-serif font-bold text-blue-800 mt-2">
             {grossMarginPercent}%
           </div>
-          <span className="text-[11px] text-[#7A6458]">R {grossProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          <span className="text-[11px] text-[#7A6458]">{company.currency || 'R'} {grossProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </div>
       </div>
 
@@ -390,10 +391,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ initialPeriod = 'weekl
 
             <div className="p-4 rounded-2xl bg-white border border-[#E8D9CD] space-y-2">
               <div className="flex justify-between text-sm font-serif font-bold text-rose-900">
-                <span>2. Cost of Sales (Raw Flour, Fats, Packaging & Energy)</span>
-                <span className="font-mono">- R {estimatedCostOfSales.toFixed(2)}</span>
+                <span>2. Recorded Cost of Sales (Stock Slips & Direct Payroll)</span>
+                <span className="font-mono">- {company.currency || 'R'} {actualCostOfSales.toFixed(2)}</span>
               </div>
-              <div className="text-[11px] text-[#7A6458]">Estimated standard pastry production factor (~42%).</div>
+              <div className="text-[11px] text-[#7A6458]">Calculated strictly from captured supplier stock purchases and staff payroll records.</div>
             </div>
 
             <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-300 space-y-2">

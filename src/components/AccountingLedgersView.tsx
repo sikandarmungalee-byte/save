@@ -78,7 +78,6 @@ export const AccountingLedgersView: React.FC = () => {
   // ----------------------------------------------------
   // FINANCIAL CALCULATIONS & ENGINE
   // ----------------------------------------------------
-  // Gross Revenue from Tax Invoices (excluding Draft)
   const validInvoices = invoices.filter((i) => i.status !== 'Draft');
   const grossRevenue = validInvoices.reduce((acc, i) => acc + (Number(i.grandTotal) || 0), 0);
   const revenueExVat = validInvoices.reduce((acc, i) => acc + (Number(i.subtotal) || 0), 0);
@@ -86,31 +85,50 @@ export const AccountingLedgersView: React.FC = () => {
 
   // Cost of Goods Sold from Stock Purchases
   const totalStockPurchases = stockPurchases.reduce((acc, p) => acc + (Number(p.totalAmount) || 0), 0);
-  // Estimated 15% input VAT on purchases
-  const inputVatOnStock = totalStockPurchases * (15 / 115);
-  const costOfGoodsSoldExVat = totalStockPurchases - inputVatOnStock;
+  const inputVatOnStock = stockPurchases.reduce((acc, p) => acc + (Number((p as any).vatAmount) || 0), 0);
+  const costOfGoodsSoldExVat = Math.max(0, totalStockPurchases - inputVatOnStock);
 
   // Operating Expenses (Staff Payroll)
   const totalPayrollPaid = payrollPayouts
     .filter((p) => p.status === 'Paid')
     .reduce((acc, p) => acc + (Number(p.netPayout) || 0), 0);
+  const pendingPayroll = payrollPayouts
+    .filter((p) => p.status === 'Pending')
+    .reduce((acc, p) => acc + (Number(p.netPayout) || 0), 0);
 
-  // Manual Journal adjustments
-  const manualDebits = journalEntries.reduce((acc, je) => acc + je.totalDebit, 0);
-  const manualCredits = journalEntries.reduce((acc, je) => acc + je.totalCredit, 0);
+  // Journal deltas per account code
+  const journalNetsByCode = new Map<string, number>();
+  (journalEntries || []).forEach((je) => {
+    (je.lines || []).forEach((line) => {
+      const cur = journalNetsByCode.get(line.accountCode) || 0;
+      journalNetsByCode.set(line.accountCode, cur + (Number(line.debit) || 0) - (Number(line.credit) || 0));
+    });
+  });
+  const jDelta = (code: string, normal: 'Debit' | 'Credit') => {
+    const netDr = journalNetsByCode.get(code) || 0;
+    return normal === 'Debit' ? netDr : -netDr;
+  };
+
+  const opexUtilities = jDelta('6100', 'Debit');
+  const opexFuel = jDelta('6200', 'Debit');
+  const opexPackaging = jDelta('6300', 'Debit');
+
+  const totalRevenueAll = revenueExVat + jDelta('4000', 'Credit');
+  const totalCogsAll = costOfGoodsSoldExVat + jDelta('5000', 'Debit');
+  const totalPayrollAll = totalPayrollPaid + jDelta('6000', 'Debit');
 
   // Gross Profit & Net Profit
-  const grossProfit = revenueExVat - costOfGoodsSoldExVat;
-  const grossMarginPercent = revenueExVat > 0 ? (grossProfit / revenueExVat) * 100 : 0;
-  const netOperatingProfit = grossProfit - totalPayrollPaid;
-  const netMarginPercent = revenueExVat > 0 ? (netOperatingProfit / revenueExVat) * 100 : 0;
+  const grossProfit = totalRevenueAll - totalCogsAll;
+  const grossMarginPercent = totalRevenueAll > 0 ? (grossProfit / totalRevenueAll) * 100 : 0;
+  const netOperatingProfit = grossProfit - (totalPayrollAll + opexUtilities + opexFuel + opexPackaging);
+  const netMarginPercent = totalRevenueAll > 0 ? (netOperatingProfit / totalRevenueAll) * 100 : 0;
 
   // Accounts Receivable (Unpaid Invoices)
   const totalAccountsReceivable = validInvoices.reduce((acc, i) => acc + (Number(i.balanceDue) || 0), 0);
 
-  // Cash / Bank Position: payments received minus payroll paid minus cash/EFT stock purchases
+  // Cash / Bank Position: payments received minus payroll paid minus cash/EFT stock purchases + journals
   const totalCollections = payments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
-  const estimatedBankBalance = totalCollections - totalPayrollPaid - totalStockPurchases;
+  const estimatedBankBalance = totalCollections - totalPayrollPaid - totalStockPurchases + jDelta('1000', 'Debit');
 
   // SARS Net VAT Calculation
   const netVatPayable = outputVatTotal - inputVatOnStock;
@@ -119,23 +137,34 @@ export const AccountingLedgersView: React.FC = () => {
   // CHART OF ACCOUNTS DEFINITIONS
   // ----------------------------------------------------
   const chartOfAccounts = [
-    { code: '1000', name: 'FNB Business Operating Account', type: 'Asset', normalBalance: 'Debit', balance: estimatedBankBalance },
-    { code: '1100', name: 'Accounts Receivable (Trade Debtors)', type: 'Asset', normalBalance: 'Debit', balance: totalAccountsReceivable },
-    { code: '1200', name: 'Raw Material Inventory & Stock on Hand', type: 'Asset', normalBalance: 'Debit', balance: totalStockPurchases },
-    { code: '1500', name: 'Bakery Production Equipment & Ovens', type: 'Non-Current Asset', normalBalance: 'Debit', balance: 350000 },
-    { code: '1600', name: 'Commercial Dispatch Vehicles', type: 'Non-Current Asset', normalBalance: 'Debit', balance: 280000 },
-    { code: '2000', name: 'Accounts Payable (Trade Creditors)', type: 'Liability', normalBalance: 'Credit', balance: totalStockPurchases * 0.2 },
-    { code: '2100', name: 'SARS VAT 201 Output Liability', type: 'Liability', normalBalance: 'Credit', balance: Math.max(0, netVatPayable) },
-    { code: '2200', name: 'Accrued Payroll & PAYE Clearing', type: 'Liability', normalBalance: 'Credit', balance: totalPayrollPaid * 0.1 },
-    { code: '3000', name: "Shareholder Capital & Owner's Equity", type: 'Equity', normalBalance: 'Credit', balance: 500000 },
-    { code: '3100', name: 'Retained Earnings / Operating Surplus', type: 'Equity', normalBalance: 'Credit', balance: netOperatingProfit },
-    { code: '4000', name: 'Wholesale Bakery Sales Revenue', type: 'Revenue', normalBalance: 'Credit', balance: revenueExVat },
-    { code: '5000', name: 'Cost of Goods Sold (Flour, Butter, Ingredients)', type: 'Expense', normalBalance: 'Debit', balance: costOfGoodsSoldExVat },
-    { code: '6000', name: 'Staff Salaries, Wages & Overtime', type: 'Expense', normalBalance: 'Debit', balance: totalPayrollPaid },
-    { code: '6100', name: 'Bakery Energy, Water & Municipal Utilities', type: 'Expense', normalBalance: 'Debit', balance: 24500 },
-    { code: '6200', name: 'Fleet Delivery Fuel & Vehicle Maintenance', type: 'Expense', normalBalance: 'Debit', balance: 18200 },
-    { code: '6300', name: 'Packaging, Cartons & Label Supplies', type: 'Expense', normalBalance: 'Debit', balance: 12400 },
+    { code: '1000', name: `${company.bankName || 'Operating'} Bank Account`, type: 'Asset', normalBalance: 'Debit', balance: estimatedBankBalance },
+    { code: '1100', name: 'Accounts Receivable (Trade Debtors)', type: 'Asset', normalBalance: 'Debit', balance: totalAccountsReceivable + jDelta('1100', 'Debit') },
+    { code: '1200', name: 'Raw Material Inventory & Stock on Hand', type: 'Asset', normalBalance: 'Debit', balance: totalStockPurchases + jDelta('1200', 'Debit') },
+    { code: '1500', name: 'Bakery Production Equipment & Ovens', type: 'Non-Current Asset', normalBalance: 'Debit', balance: jDelta('1500', 'Debit') },
+    { code: '1600', name: 'Commercial Dispatch Vehicles', type: 'Non-Current Asset', normalBalance: 'Debit', balance: jDelta('1600', 'Debit') },
+    { code: '2000', name: 'Accounts Payable (Trade Creditors)', type: 'Liability', normalBalance: 'Credit', balance: Math.max(0, jDelta('2000', 'Credit')) },
+    { code: '2100', name: 'SARS VAT 201 Output Liability', type: 'Liability', normalBalance: 'Credit', balance: Math.max(0, netVatPayable + jDelta('2100', 'Credit')) },
+    { code: '2200', name: 'Accrued Payroll & PAYE Clearing', type: 'Liability', normalBalance: 'Credit', balance: Math.max(0, pendingPayroll + jDelta('2200', 'Credit')) },
+    { code: '3000', name: "Shareholder Capital & Owner's Equity", type: 'Equity', normalBalance: 'Credit', balance: jDelta('3000', 'Credit') },
+    { code: '3100', name: 'Retained Earnings / Operating Surplus', type: 'Equity', normalBalance: 'Credit', balance: netOperatingProfit + jDelta('3100', 'Credit') },
+    { code: '4000', name: 'Wholesale Bakery Sales Revenue', type: 'Revenue', normalBalance: 'Credit', balance: totalRevenueAll },
+    { code: '5000', name: 'Cost of Goods Sold (Flour, Butter, Ingredients)', type: 'Expense', normalBalance: 'Debit', balance: totalCogsAll },
+    { code: '6000', name: 'Staff Salaries, Wages & Overtime', type: 'Expense', normalBalance: 'Debit', balance: totalPayrollAll },
+    { code: '6100', name: 'Bakery Energy, Water & Municipal Utilities', type: 'Expense', normalBalance: 'Debit', balance: opexUtilities },
+    { code: '6200', name: 'Fleet Delivery Fuel & Vehicle Maintenance', type: 'Expense', normalBalance: 'Debit', balance: opexFuel },
+    { code: '6300', name: 'Packaging, Cartons & Label Supplies', type: 'Expense', normalBalance: 'Debit', balance: opexPackaging },
   ];
+
+  const getBal = (code: string) => chartOfAccounts.find((a) => a.code === code)?.balance || 0;
+  const totalBsAssets =
+    Math.max(0, getBal('1000')) +
+    getBal('1100') +
+    getBal('1200') +
+    getBal('1500') +
+    getBal('1600');
+  const totalBsLiabilities = getBal('2000') + getBal('2100') + getBal('2200');
+  const totalBsEquity = getBal('3000') + getBal('3100');
+  const isBsBalanced = Math.abs(totalBsAssets - (totalBsLiabilities + totalBsEquity)) < 0.01;
 
   // Journal Line Handlers
   const addJournalLine = () => {
@@ -316,7 +345,7 @@ export const AccountingLedgersView: React.FC = () => {
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-[#2C211B] pb-1 overflow-x-auto text-xs">
+      <div className="flex items-center gap-2 border-b border-[#2C211B] pb-1 savoure-scroll-x text-xs">
         <button
           onClick={() => setActiveTab('statements')}
           className={`px-4 py-2.5 rounded-t-xl font-medium transition-colors flex items-center gap-2 border-b-2 shrink-0 ${
@@ -406,12 +435,12 @@ export const AccountingLedgersView: React.FC = () => {
                   Operating Revenue (Turnover)
                 </div>
                 <div className="flex justify-between py-1 text-neutral-300 pl-3">
-                  <span>Wholesale Tax Invoices (Excl. VAT)</span>
-                  <span className="font-mono">{company.currency} {revenueExVat.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
+                  <span>Wholesale Tax Invoices & Revenue Journals (Excl. VAT)</span>
+                  <span className="font-mono">{company.currency} {totalRevenueAll.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div className="flex justify-between py-1 font-semibold text-white border-t border-[#2C211B]/60 pl-3">
                   <span>Total Net Revenue</span>
-                  <span className="font-mono">{company.currency} {revenueExVat.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
+                  <span className="font-mono">{company.currency} {totalRevenueAll.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
                 </div>
               </div>
 
@@ -422,11 +451,11 @@ export const AccountingLedgersView: React.FC = () => {
                 </div>
                 <div className="flex justify-between py-1 text-neutral-300 pl-3">
                   <span>Raw Materials & Ingredients Purchased</span>
-                  <span className="font-mono text-rose-300">({company.currency} {costOfGoodsSoldExVat.toLocaleString('en-ZA', { minimumFractionDigits: 2 })})</span>
+                  <span className="font-mono text-rose-300">({company.currency} {totalCogsAll.toLocaleString('en-ZA', { minimumFractionDigits: 2 })})</span>
                 </div>
                 <div className="flex justify-between py-1 font-semibold text-white border-t border-[#2C211B]/60 pl-3">
                   <span>Total Cost of Sales</span>
-                  <span className="font-mono text-rose-300">({company.currency} {costOfGoodsSoldExVat.toLocaleString('en-ZA', { minimumFractionDigits: 2 })})</span>
+                  <span className="font-mono text-rose-300">({company.currency} {totalCogsAll.toLocaleString('en-ZA', { minimumFractionDigits: 2 })})</span>
                 </div>
               </div>
 
@@ -446,15 +475,15 @@ export const AccountingLedgersView: React.FC = () => {
                 </div>
                 <div className="flex justify-between py-1 text-neutral-300 pl-3">
                   <span>Staff Salaries, Wages & Overtime</span>
-                  <span className="font-mono text-rose-300">({company.currency} {totalPayrollPaid.toLocaleString('en-ZA', { minimumFractionDigits: 2 })})</span>
+                  <span className="font-mono text-rose-300">({company.currency} {totalPayrollAll.toLocaleString('en-ZA', { minimumFractionDigits: 2 })})</span>
                 </div>
                 <div className="flex justify-between py-1 text-neutral-300 pl-3">
                   <span>Bakery Utilities, Gas & Energy</span>
-                  <span className="font-mono text-rose-300">({company.currency} 24,500.00)</span>
+                  <span className="font-mono text-rose-300">({company.currency} {opexUtilities.toLocaleString('en-ZA', { minimumFractionDigits: 2 })})</span>
                 </div>
                 <div className="flex justify-between py-1 text-neutral-300 pl-3">
-                  <span>Delivery Logistics & Fleet Fuel</span>
-                  <span className="font-mono text-rose-300">({company.currency} 18,200.00)</span>
+                  <span>Delivery Logistics, Fleet Fuel & Packaging</span>
+                  <span className="font-mono text-rose-300">({company.currency} {(opexFuel + opexPackaging).toLocaleString('en-ZA', { minimumFractionDigits: 2 })})</span>
                 </div>
               </div>
 
@@ -464,7 +493,7 @@ export const AccountingLedgersView: React.FC = () => {
                   <div className="text-white font-serif">Net Operating Income (EBITDA)</div>
                   <div className="text-xs text-[#DE9E74] font-normal font-sans">Net Margin: {netMarginPercent.toFixed(1)}%</div>
                 </div>
-                <span className="font-mono text-emerald-400">
+                <span className={`font-mono ${netOperatingProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                   {company.currency} {netOperatingProfit.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                 </span>
               </div>
@@ -482,8 +511,12 @@ export const AccountingLedgersView: React.FC = () => {
                   Assets, liabilities, and owner's equity accounting equation
                 </p>
               </div>
-              <span className="text-xs font-mono px-2 py-0.5 rounded bg-emerald-950/40 text-emerald-400 border border-emerald-800/40">
-                Balanced
+              <span className={`text-xs font-mono px-2 py-0.5 rounded border ${
+                isBsBalanced
+                  ? 'bg-emerald-950/40 text-emerald-400 border-emerald-800/40'
+                  : 'bg-amber-950/40 text-amber-400 border-amber-800/40'
+              }`}>
+                {isBsBalanced ? 'Balanced' : 'Pending Journals'}
               </span>
             </div>
 
@@ -495,24 +528,24 @@ export const AccountingLedgersView: React.FC = () => {
                 </div>
                 <div className="flex justify-between py-1 text-neutral-300 pl-3">
                   <span>Operating Bank Account (Cash)</span>
-                  <span className="font-mono">{company.currency} {Math.max(0, estimatedBankBalance).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
+                  <span className="font-mono">{company.currency} {Math.max(0, getBal('1000')).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div className="flex justify-between py-1 text-neutral-300 pl-3">
                   <span>Accounts Receivable (Customer Balances)</span>
-                  <span className="font-mono">{company.currency} {totalAccountsReceivable.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
+                  <span className="font-mono">{company.currency} {getBal('1100').toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div className="flex justify-between py-1 text-neutral-300 pl-3">
                   <span>Inventory & Stock on Hand</span>
-                  <span className="font-mono">{company.currency} {totalStockPurchases.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
+                  <span className="font-mono">{company.currency} {getBal('1200').toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div className="flex justify-between py-1 text-neutral-300 pl-3">
-                  <span>Bakery Production Plant & Equipment</span>
-                  <span className="font-mono">{company.currency} 350,000.00</span>
+                  <span>Bakery Production Plant, Equipment & Fleet</span>
+                  <span className="font-mono">{company.currency} {(getBal('1500') + getBal('1600')).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div className="flex justify-between py-1 font-semibold text-white border-t border-[#2C211B]/60 pl-3">
                   <span>Total Enterprise Assets</span>
                   <span className="font-mono text-[#DE9E74]">
-                    {company.currency} {(Math.max(0, estimatedBankBalance) + totalAccountsReceivable + totalStockPurchases + 350000).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+                    {company.currency} {totalBsAssets.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
               </div>
@@ -524,16 +557,20 @@ export const AccountingLedgersView: React.FC = () => {
                 </div>
                 <div className="flex justify-between py-1 text-neutral-300 pl-3">
                   <span>SARS VAT 201 Output Liability</span>
-                  <span className="font-mono">{company.currency} {Math.max(0, netVatPayable).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
+                  <span className="font-mono">{company.currency} {getBal('2100').toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div className="flex justify-between py-1 text-neutral-300 pl-3">
                   <span>Trade Creditors (Accounts Payable)</span>
-                  <span className="font-mono">{company.currency} {(totalStockPurchases * 0.2).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
+                  <span className="font-mono">{company.currency} {getBal('2000').toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex justify-between py-1 text-neutral-300 pl-3">
+                  <span>Accrued Payroll & PAYE Clearing</span>
+                  <span className="font-mono">{company.currency} {getBal('2200').toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div className="flex justify-between py-1 font-semibold text-white border-t border-[#2C211B]/60 pl-3">
                   <span>Total Liabilities</span>
                   <span className="font-mono text-rose-300">
-                    {company.currency} {(Math.max(0, netVatPayable) + totalStockPurchases * 0.2).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+                    {company.currency} {totalBsLiabilities.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
               </div>
@@ -545,19 +582,25 @@ export const AccountingLedgersView: React.FC = () => {
                 </div>
                 <div className="flex justify-between py-1 text-neutral-300 pl-3">
                   <span>Contributed Capital</span>
-                  <span className="font-mono">{company.currency} 500,000.00</span>
+                  <span className="font-mono">{company.currency} {getBal('3000').toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div className="flex justify-between py-1 text-neutral-300 pl-3">
                   <span>Retained Operating Surplus</span>
-                  <span className="font-mono">{company.currency} {netOperatingProfit.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
+                  <span className="font-mono">{company.currency} {getBal('3100').toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
                 </div>
               </div>
 
               {/* Total Liabilities & Equity Check */}
-              <div className="p-3 rounded-xl bg-[#120F0D] border border-emerald-800/40 flex justify-between items-center font-bold text-xs">
-                <span className="text-emerald-400 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Accounting Equation Balanced (Assets = Liabilities + Equity)</span>
+              <div className={`p-3 rounded-xl bg-[#120F0D] border flex justify-between items-center font-bold text-xs ${
+                isBsBalanced ? 'border-emerald-800/40' : 'border-amber-800/40'
+              }`}>
+                <span className={`${isBsBalanced ? 'text-emerald-400' : 'text-amber-400'} flex items-center gap-1.5`}>
+                  {isBsBalanced ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                  <span>
+                    {isBsBalanced
+                      ? 'Accounting Equation Balanced (Assets = Liabilities + Equity)'
+                      : `Live Variance: ${company.currency} ${Math.abs(totalBsAssets - (totalBsLiabilities + totalBsEquity)).toFixed(2)}`}
+                  </span>
                 </span>
               </div>
             </div>
@@ -588,7 +631,7 @@ export const AccountingLedgersView: React.FC = () => {
               />
             </div>
 
-            <div className="space-y-1 max-h-[550px] overflow-y-auto pr-1">
+            <div className="space-y-1 max-h-[550px] overflow-y-auto overscroll-contain pr-1">
               {chartOfAccounts
                 .filter(
                   (a) =>
@@ -986,8 +1029,8 @@ export const AccountingLedgersView: React.FC = () => {
       {/* MODAL: CREATE JOURNAL ENTRY                          */}
       {/* ---------------------------------------------------- */}
       {isJournalModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="w-full max-w-3xl bg-[#171311] border border-[#2C211B] rounded-2xl p-6 shadow-2xl my-auto space-y-4">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto overscroll-contain">
+          <div className="w-full max-w-3xl max-h-[92vh] overflow-y-auto overscroll-contain bg-[#171311] border border-[#2C211B] rounded-2xl p-6 shadow-2xl my-auto space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-[#2C211B]">
               <div>
                 <h3 className="text-lg font-serif font-bold text-white tracking-tight flex items-center gap-2">

@@ -831,8 +831,8 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ initialOpenCreate 
 
       {/* Add Branch Modal */}
       {isBranchModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-xl p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto overscroll-contain">
+          <div className="w-full max-w-md max-h-[92vh] overflow-y-auto overscroll-contain bg-neutral-900 border border-neutral-800 rounded-xl p-6 shadow-2xl my-auto">
             <div className="flex items-center justify-between pb-3 border-b border-neutral-800 mb-4">
               <h3 className="text-base font-bold text-white tracking-tight">Add Delivery Branch Outlet</h3>
               <button
@@ -984,8 +984,8 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ initialOpenCreate 
 
       {/* Upload Doc Modal */}
       {isDocModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-xl p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto overscroll-contain">
+          <div className="w-full max-w-md max-h-[92vh] overflow-y-auto overscroll-contain bg-neutral-900 border border-neutral-800 rounded-xl p-6 shadow-2xl my-auto">
             <div className="flex items-center justify-between pb-3 border-b border-neutral-800 mb-4">
               <h3 className="text-base font-bold text-white tracking-tight">Upload Compliance Document</h3>
               <button

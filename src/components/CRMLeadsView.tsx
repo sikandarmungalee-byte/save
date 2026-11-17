@@ -339,8 +339,8 @@ export const CRMLeadsView: React.FC<CRMLeadsViewProps> = ({
 
       {/* New Lead Modal */}
       {isLeadModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-xl p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto overscroll-contain">
+          <div className="w-full max-w-md max-h-[92vh] overflow-y-auto overscroll-contain bg-neutral-900 border border-neutral-800 rounded-xl p-6 shadow-2xl my-auto">
             <div className="flex items-center justify-between pb-3 border-b border-neutral-800 mb-4">
               <h3 className="text-base font-bold text-white tracking-tight">Create Sales Lead Deal</h3>
               <button
@@ -461,8 +461,8 @@ export const CRMLeadsView: React.FC<CRMLeadsViewProps> = ({
 
       {/* New Comm Modal */}
       {isCommModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-xl p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto overscroll-contain">
+          <div className="w-full max-w-md max-h-[92vh] overflow-y-auto overscroll-contain bg-neutral-900 border border-neutral-800 rounded-xl p-6 shadow-2xl my-auto">
             <div className="flex items-center justify-between pb-3 border-b border-neutral-800 mb-4">
               <h3 className="text-base font-bold text-white tracking-tight">Log Client Correspondence</h3>
               <button

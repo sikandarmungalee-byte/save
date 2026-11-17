@@ -76,13 +76,14 @@ export const QuotationsView: React.FC<QuotationsViewProps> = ({
   const handleProductSelect = (index: number, productId: string) => {
     const prod = products.find((p) => p.id === productId);
     if (!prod) return;
+    const vatPct = company.vatRate ?? 0;
 
     setFormData((prev) => {
       const nextItems = [...prev.items];
       const cur = nextItems[index];
       const qty = cur.quantity || 10;
       const sub = qty * prod.unitPrice * (1 - cur.discountPercent / 100);
-      const vat = sub * 0.15;
+      const vat = sub * (vatPct / 100);
 
       nextItems[index] = {
         ...cur,
@@ -91,7 +92,7 @@ export const QuotationsView: React.FC<QuotationsViewProps> = ({
         description: prod.name,
         packSize: prod.packSize,
         unitPrice: prod.unitPrice,
-        vatRate: 15,
+        vatRate: vatPct,
         subtotal: Math.round(sub * 100) / 100,
         vatAmount: Math.round(vat * 100) / 100,
         total: Math.round((sub + vat) * 100) / 100,
@@ -101,6 +102,7 @@ export const QuotationsView: React.FC<QuotationsViewProps> = ({
   };
 
   const handleItemFieldChange = (index: number, field: string, value: any) => {
+    const vatPct = company.vatRate ?? 0;
     setFormData((prev) => {
       const nextItems = [...prev.items];
       const cur = { ...nextItems[index], [field]: value };
@@ -110,8 +112,9 @@ export const QuotationsView: React.FC<QuotationsViewProps> = ({
 
       const raw = qty * price;
       const subtotal = raw * (1 - disc / 100);
-      const vat = subtotal * 0.15;
+      const vat = subtotal * (vatPct / 100);
 
+      cur.vatRate = vatPct;
       cur.subtotal = Math.round(subtotal * 100) / 100;
       cur.vatAmount = Math.round(vat * 100) / 100;
       cur.total = Math.round((subtotal + vat) * 100) / 100;

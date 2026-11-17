@@ -29,12 +29,19 @@ import {
   ProductionLine,
   ProductionBatch,
   ProductionIngredientUsage,
-  ProductionQualityCheck
+  ProductionQualityCheck,
+  MerchantPortalSettings
 } from '../types/erp';
 import { db, testFirebaseConnection, handleFirestoreError, OperationType } from '../lib/firebase';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { LEGACY_SHOWCASE_IDS, SHOWCASE_COLLECTION, ShowcaseProductItem } from '../components/showcase/showcaseData';
 import { dispatchOrderPushNotification } from '../lib/fcmNotifications';
+import {
+  DEFAULT_MERCHANT_PORTAL_SETTINGS,
+  normalizeMerchantSettings,
+  checkMerchantPortalAccess,
+  evaluateMerchantOrderMOQ,
+} from '../utils/merchantRules';
 
 // Safe API caller for local / server endpoints
 async function safeFetchJson<T = any>(
@@ -146,8 +153,14 @@ const LEGACY_DEMO_IDS = {
     'stk_finished_samoosa',
     'stk_finished_roti',
     'stk_finished_tortilla',
+    'stk_01',
+    'stk_02',
+    'stk_03',
+    'stk_04',
+    'stk_05',
+    'stk_06',
   ]),
-  stockMovements: new Set(['sm_001', 'sm_002', 'sm_003', 'sm_initial_01', 'sm_initial_02']),
+  stockMovements: new Set(['sm_001', 'sm_002', 'sm_003', 'sm_initial_01', 'sm_initial_02', 'sm_init_1', 'sm_init_2']),
   merchantOrders: new Set(['ord_1001', 'ord_1002', 'ord_1003', 'ord_1004', 'ord_1005', 'ord_1006', 'ord_1007', 'ord_1008']),
   merchantReports: new Set(['rpt_past_001', 'rpt_past_002', 'rpt_past_003', 'rpt_past_004', 'rpt_past_005']),
   posSessions: new Set(['pos_ses_001']),
@@ -155,6 +168,14 @@ const LEGACY_DEMO_IDS = {
   productionLines: new Set(['line_01', 'line_02', 'line_03', 'line_04']),
   productionBatches: new Set(['batch_101', 'batch_102']),
   showcaseProducts: LEGACY_SHOWCASE_IDS,
+  categories: new Set([
+    'Pastry Sheets',
+    'Artisanal Roti',
+    'Tortillas & Wraps',
+    'Flour & Grains',
+    'Oils & Fats',
+    'Ready Savouries',
+  ]),
 };
 
 function isLegacyDemoUser(u: User | null | undefined): boolean {
@@ -249,6 +270,24 @@ function stripLegacyDemoData(raw: Partial<ERPDatabase>): { cleaned: Partial<ERPD
     cleaned.showcaseProducts = filtered;
   }
 
+  if (Array.isArray(raw.categories)) {
+    const activeProductCats = new Set(
+      (cleaned.products || raw.products || [])
+        .map((p) => (p?.category || '').trim().toLowerCase())
+        .filter(Boolean)
+    );
+    const filtered = raw.categories.filter((c) => {
+      const trimmed = (c || '').trim();
+      if (!trimmed) return false;
+      if (LEGACY_DEMO_IDS.categories.has(trimmed) && !activeProductCats.has(trimmed.toLowerCase())) {
+        return false;
+      }
+      return true;
+    });
+    if (filtered.length !== raw.categories.length) stripped = true;
+    cleaned.categories = filtered;
+  }
+
   return { cleaned, stripped };
 }
 
@@ -259,6 +298,8 @@ interface ERPContextType {
   logout: () => void;
   users: User[];
   company: CompanySettings;
+  merchantSettings: MerchantPortalSettings;
+  updateMerchantSettings: (data: Partial<MerchantPortalSettings>) => Promise<MerchantPortalSettings>;
   businessSettings: BusinessSettings;
   updateBusinessSettings: (data: Partial<BusinessSettings>) => Promise<void>;
   getNextInvoiceNumber: () => string;
@@ -416,7 +457,7 @@ export const normalizeProduct = (p: any, idx = 0): Product => ({
   id: p?.id || `prod_${Date.now()}_${idx}`,
   sku: p?.sku || `SKU-${String(idx + 1).padStart(3, '0')}`,
   name: p?.name || 'Untitled Product',
-  category: p?.category || 'Artisanal Bread',
+  category: (p?.category || '').trim(),
   packSize: p?.packSize || 'Single / Each',
   physicalSize: p?.physicalSize || 'Standard',
   unitPrice: Number(p?.unitPrice) || 0,
@@ -428,6 +469,7 @@ export const normalizeProduct = (p: any, idx = 0): Product => ({
   description: p?.description || '',
   badge: p?.badge || '',
   packagingType: p?.packagingType || 'dozen',
+  moq: p?.moq !== undefined && p?.moq !== null ? Math.max(0, Number(p.moq) || 0) : undefined,
 });
 
 function healInvoicesList(rawInvoices: Invoice[], customerList: Customer[], userList: User[]): { invoices: Invoice[]; changed: boolean } {
@@ -512,9 +554,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [users, setUsers] = useState<User[]>([MASTER_ADMIN_USER]);
   const [company, setCompany] = useState<CompanySettings>(INITIAL_COMPANY);
+  const [merchantSettings, setMerchantSettings] = useState<MerchantPortalSettings>(DEFAULT_MERCHANT_PORTAL_SETTINGS);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<string[]>(['Pastry Sheets', 'Artisanal Roti', 'Tortillas & Wraps', 'Flour & Grains', 'Oils & Fats']);
+  const [categories, setCategories] = useState<string[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [deliveryNotes, setDeliveryNotes] = useState<DeliveryNote[]>([]);
   const [quotations, setQuotations] = useState<Quotation[]>([]);
@@ -560,6 +603,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const currentDb: ERPDatabase = {
         users,
         company,
+        merchantSettings,
         customers,
         products,
         categories,
@@ -590,7 +634,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.warn('Cache write warning:', e);
     }
-  }, [users, company, customers, products, categories, invoices, deliveryNotes, quotations, payments, merchantOrders, merchantReports, showcaseProducts, posTransactions, posSessions, productionLines, productionBatches, leads, communications, staff, payrollPayouts, stockPurchases, stockItemStatuses, stockMovements, journalEntries, loginLogs]);
+  }, [users, company, merchantSettings, customers, products, categories, invoices, deliveryNotes, quotations, payments, merchantOrders, merchantReports, showcaseProducts, posTransactions, posSessions, productionLines, productionBatches, leads, communications, staff, payrollPayouts, stockPurchases, stockItemStatuses, stockMovements, journalEntries, loginLogs]);
 
   // Helper to sanitize payload and remove all undefined values recursively for Firestore compatibility
   const sanitizeForCloud = (obj: any): any => {
@@ -655,6 +699,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const { cleaned, stripped } = stripLegacyDemoData(raw);
 
     if (cleaned.company) setCompany(cleaned.company);
+    if (cleaned.merchantSettings) {
+      setMerchantSettings(normalizeMerchantSettings(cleaned.merchantSettings));
+    }
     if (Array.isArray(cleaned.categories) && (respectEmptyArrays || cleaned.categories.length > 0)) {
       setCategories(cleaned.categories);
     }
@@ -871,6 +918,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             productionLines: cleaned.productionLines,
             productionBatches: cleaned.productionBatches,
             showcaseProducts: cleaned.showcaseProducts ?? [],
+            categories: cleaned.categories ?? [],
             lastUpdated: new Date().toISOString(),
           });
           setDoc(doc(db, 'erp', 'main'), scrubPayload, { merge: true }).catch(() => {});
@@ -888,9 +936,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const initialPayload = sanitizeForCloud({
           users: [MASTER_ADMIN_USER],
           company: INITIAL_COMPANY,
+          merchantSettings: DEFAULT_MERCHANT_PORTAL_SETTINGS,
           products: [],
           customers: [],
-          categories: ['Pastry Sheets', 'Artisanal Roti', 'Tortillas & Wraps', 'Flour & Grains', 'Oils & Fats'],
+          categories: [],
           invoices: [],
           deliveryNotes: [],
           quotations: [],
@@ -1015,6 +1064,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     // Check users in state / cloud by email, username, phone, or name
+    let effectiveMerchantSettings = merchantSettings;
     let matchedUser = users.find(
       (u) =>
         !isLegacyDemoUser(u) &&
@@ -1030,6 +1080,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const snap = await getDoc(doc(db, 'erp', 'main'));
         if (snap.exists()) {
           const cloud = snap.data() as Partial<ERPDatabase>;
+          if (cloud.merchantSettings) {
+            effectiveMerchantSettings = normalizeMerchantSettings(cloud.merchantSettings);
+          }
           if (Array.isArray(cloud.users)) {
             matchedUser = cloud.users.find(
               (u) =>
@@ -1056,8 +1109,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
         if (res.ok && res.data?.user && !isLegacyDemoUser(res.data.user)) {
           matchedUser = res.data.user;
+        } else if (res.status === 403 && res.error) {
+          throw new Error(res.error);
         }
-      } catch {}
+      } catch (err: any) {
+        if (err?.message && (err.message.includes('closed') || err.message.includes('paused') || err.message.includes('window') || err.message.includes('disabled'))) {
+          throw err;
+        }
+      }
     }
 
     if (matchedUser) {
@@ -1088,6 +1147,23 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
         throw new Error('This user account has been disabled by an administrator.');
       }
+
+      // Enforce Admin-configured Merchant Login Hours & Portal Pause
+      if (matchedUser.role === 'merchant') {
+        const accessCheck = checkMerchantPortalAccess(effectiveMerchantSettings, matchedUser);
+        if (!accessCheck.allowed) {
+          await recordLoginLog({
+            userId: matchedUser.id,
+            userName: matchedUser.name,
+            userEmail: matchedUser.email,
+            action: 'LOGIN',
+            status: 'FAILED',
+            details: `Merchant login blocked (${accessCheck.reasonCode}): ${accessCheck.message}`,
+          });
+          throw new Error(accessCheck.message);
+        }
+      }
+
       setCurrentUser(matchedUser);
       try {
         localStorage.setItem(USER_KEY, JSON.stringify(matchedUser));
@@ -1198,6 +1274,13 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       branch: data.branch || undefined,
       merchantStoreName: data.merchantStoreName || undefined,
       merchantPhone: data.merchantPhone || undefined,
+      customerId: data.customerId || undefined,
+      customerName: data.customerName || undefined,
+      bypassLoginHours: data.bypassLoginHours,
+      allowedLoginStart: data.allowedLoginStart || undefined,
+      allowedLoginEnd: data.allowedLoginEnd || undefined,
+      customMoqUnits: data.customMoqUnits !== undefined ? Number(data.customMoqUnits) : undefined,
+      customMinOrderValue: data.customMinOrderValue !== undefined ? Number(data.customMinOrderValue) : undefined,
       permissions: data.permissions || (data.role === 'merchant' ? {
         manageUsers: false,
         invoices: true,
@@ -1209,8 +1292,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         stock: false,
         payroll: false,
         accounting: false,
-        taskeenAI: false,
         merchants: false,
+        merchantControls: false,
         reports: false,
         crmLeads: false,
         databaseExplorer: false,
@@ -1226,8 +1309,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         stock: true,
         payroll: data.role === 'super_admin',
         accounting: data.role === 'super_admin' || data.role === 'accountant',
-        taskeenAI: true,
         merchants: data.role === 'super_admin',
+        merchantControls: data.role === 'super_admin',
         reports: data.role === 'super_admin' || data.role === 'accountant',
         crmLeads: true,
         databaseExplorer: data.role === 'super_admin',
@@ -1297,6 +1380,20 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCompany(updated);
     persistToLocal({ company: updated });
     await syncToCloud({ company: updated });
+  };
+
+  const updateMerchantSettings = async (
+    data: Partial<MerchantPortalSettings>
+  ): Promise<MerchantPortalSettings> => {
+    const updated: MerchantPortalSettings = {
+      ...normalizeMerchantSettings({ ...merchantSettings, ...data }),
+      updatedAt: new Date().toISOString(),
+      updatedBy: currentUser?.name || 'Administrator',
+    };
+    setMerchantSettings(updated);
+    persistToLocal({ merchantSettings: updated });
+    await syncToCloud({ merchantSettings: updated });
+    return updated;
   };
 
   const businessSettings: BusinessSettings = {
@@ -1422,11 +1519,12 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Products (Saves to Google Cloud Firestore immediately so it appears on phone & laptop)
   const createProduct = async (data: Partial<Product>): Promise<Product> => {
+    const cleanCategory = (data.category || '').trim();
     const newProd: Product = {
       id: 'prod_' + Date.now(),
       sku: data.sku || `SKU-${String(products.length + 1).padStart(3, '0')}`,
       name: data.name || '',
-      category: data.category || 'Artisanal Bread',
+      category: cleanCategory,
       packSize: data.packSize || 'Single / Each',
       physicalSize: data.physicalSize || 'Standard',
       unitPrice: Number(data.unitPrice) || 0,
@@ -1438,12 +1536,19 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       description: data.description || '',
       badge: data.badge || '',
       packagingType: data.packagingType || 'dozen',
+      moq: data.moq !== undefined ? Math.max(0, Number(data.moq) || 0) : undefined,
     };
 
     const nextProducts = [newProd, ...products];
+    let nextCats = categories;
+    if (cleanCategory && !categories.some((c) => c.toLowerCase() === cleanCategory.toLowerCase())) {
+      nextCats = [...categories, cleanCategory];
+      setCategories(nextCats);
+    }
+
     setProducts(nextProducts);
-    persistToLocal({ products: nextProducts });
-    await syncToCloud({ products: nextProducts });
+    persistToLocal({ products: nextProducts, categories: nextCats });
+    await syncToCloud({ products: nextProducts, categories: nextCats });
 
     return newProd;
   };
@@ -2858,6 +2963,25 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const now = new Date();
     const orderNumber = data.orderNumber || `ORD-${now.getFullYear()}-${String(merchantOrders.length + 1).padStart(4, '0')}`;
     const items = data.items || [];
+
+    if (currentUser?.role === 'merchant') {
+      const accessCheck = checkMerchantPortalAccess(merchantSettings, currentUser, now);
+      if (!accessCheck.allowed) {
+        throw new Error(accessCheck.message);
+      }
+    }
+
+    const moqCheck = evaluateMerchantOrderMOQ({
+      items,
+      products,
+      user: currentUser,
+      settings: merchantSettings,
+      currency: company?.currency || 'R',
+    });
+    if (moqCheck.enforced && !moqCheck.valid) {
+      throw new Error(moqCheck.violations[0] || 'Order does not meet Minimum Order Quantity (MOQ) rules.');
+    }
+
     const subtotal = items.reduce((acc, it) => acc + (it.lineTotal || (it.quantity * it.unitPrice)), 0);
     const vat = 0; // South African staple bakery zero-rated/exempt default
     const total = subtotal + vat;
@@ -3429,6 +3553,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         logout,
         users,
         company,
+        merchantSettings,
+        updateMerchantSettings,
         businessSettings,
         updateBusinessSettings,
         getNextInvoiceNumber,

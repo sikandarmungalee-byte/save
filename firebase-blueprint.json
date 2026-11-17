@@ -138,6 +138,7 @@
       "properties": {
         "users": { "type": "array" },
         "company": { "type": "object" },
+        "merchantSettings": { "type": "object" },
         "customers": { "type": "array" },
         "products": { "type": "array" },
         "categories": { "type": "array" },

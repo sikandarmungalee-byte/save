@@ -14,10 +14,10 @@ export interface UserPermissions {
   websiteShowcase?: boolean;
   payroll?: boolean;
   accounting?: boolean;
-  taskeenAI?: boolean;
   merchants?: boolean;
   pos?: boolean;
   productionLine?: boolean;
+  merchantControls?: boolean;
   reports: boolean;
   crmLeads: boolean;
   databaseExplorer: boolean;
@@ -54,6 +54,11 @@ export interface User {
   deliveryAddress?: string;
   customerId?: string; // Linked Customer ID from Customers directory
   customerName?: string; // Linked Customer Registered Name
+  bypassLoginHours?: boolean; // Exempt merchant from portal login window schedule
+  allowedLoginStart?: string; // Optional custom start time "HH:MM"
+  allowedLoginEnd?: string;   // Optional custom end time "HH:MM"
+  customMoqUnits?: number;    // Optional per-merchant total minimum order quantity (packs/units)
+  customMinOrderValue?: number; // Optional per-merchant minimum order amount (R)
   avatar?: string;
   createdAt: string;
   lastLogin?: string;
@@ -179,6 +184,7 @@ export interface Product {
   description?: string; // Showcase display description
   badge?: string; // Highlight badge (e.g. "Best Seller", "Signature")
   packagingType?: 'dozen' | 'pack' | 'carton';
+  moq?: number; // Minimum Order Quantity (units/packs per order for wholesale portal)
   sizes?: ProductSizeOption[];
 }
 
@@ -710,9 +716,41 @@ export interface ProductionBatch {
   createdAt: string;
 }
 
+export type DayOfWeekKey =
+  | 'monday'
+  | 'tuesday'
+  | 'wednesday'
+  | 'thursday'
+  | 'friday'
+  | 'saturday'
+  | 'sunday';
+
+export interface MerchantDaySchedule {
+  enabled: boolean;
+  openTime: string;  // 24h "HH:MM"
+  closeTime: string; // 24h "HH:MM"
+}
+
+export interface MerchantPortalSettings {
+  enforceLoginHours: boolean;
+  manualLockdown: boolean;
+  lockdownMessage: string;
+  closedHoursMessage: string;
+  timezone: string;
+  autoLogoutOutsideHours: boolean;
+  schedule: Record<DayOfWeekKey, MerchantDaySchedule>;
+  enforceMoq: boolean;
+  globalMinOrderQty: number;
+  globalMinLineQty: number;
+  globalMinOrderValue: number;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
 export interface ERPDatabase {
   users: User[];
   company: CompanySettings;
+  merchantSettings?: MerchantPortalSettings;
   customers: Customer[];
   products: Product[];
   categories?: string[];

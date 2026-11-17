@@ -186,14 +186,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       highlight: true,
     },
     {
-      id: 'taskeen',
-      label: 'Ask Savouré AI',
-      icon: Sparkles,
-      allowed: isSuperAdmin ? true : Boolean(perms?.taskeenAI ?? true),
-      highlight: true,
-      badge: 'Advisor',
-    },
-    {
       id: 'reports',
       label: '52-Week Reports',
       icon: BarChart3,

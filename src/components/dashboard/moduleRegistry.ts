@@ -56,7 +56,8 @@ import {
   Bell,
   Smartphone,
   Factory,
-  Cpu
+  Cpu,
+  SlidersHorizontal
 } from 'lucide-react';
 import {
   Invoice,
@@ -77,8 +78,10 @@ import {
   POSTransaction,
   POSSession,
   ProductionLine,
-  ProductionBatch
+  ProductionBatch,
+  MerchantPortalSettings
 } from '../../types/erp';
+import { checkMerchantPortalAccess } from '../../utils/merchantRules';
 
 export interface ERPContextState {
   invoices: Invoice[];
@@ -102,6 +105,7 @@ export interface ERPContextState {
   company: CompanySettings;
   merchantOrders?: MerchantOrder[];
   showcaseProducts?: any[];
+  merchantSettings?: MerchantPortalSettings;
 }
 
 export interface ModuleSubcategory {
@@ -990,72 +994,10 @@ export const ERP_MODULES: ERPModule[] = [
     ]
   },
 
-  // 12. Ask Savouré AI
-  {
-    id: 'taskeen',
-    number: 12,
-    title: 'Ask Savouré AI',
-    shortTitle: 'Ask Savouré',
-    subtitle: 'Executive Bakery & Business Advisor',
-    description: 'AI business executive powered by Gemini for financial diagnosis, stock projections, and bakery strategy.',
-    icon: Sparkles,
-    badge: () => 'Advisor',
-    subcategories: [
-      {
-        id: 'taskeen-chat',
-        title: 'Executive AI Consultation',
-        subtitle: 'Interactive live executive strategy conversation',
-        icon: Sparkles,
-        actionType: 'view',
-        targetConfig: { mode: 'chat' }
-      },
-      {
-        id: 'financial-audit-ai',
-        title: 'Financial Health & Profit Audit',
-        subtitle: 'Automated margin & cashflow diagnosis',
-        icon: TrendingUp,
-        actionType: 'view',
-        targetConfig: { initialPrompt: 'Perform a comprehensive financial audit of Savouré revenue, unpaid invoices, and operating cashflow.' }
-      },
-      {
-        id: 'stock-forecast-ai',
-        title: 'Bakery Stock & Batch Forecast',
-        subtitle: 'Predict ingredient requirements & finished pastry',
-        icon: Package,
-        actionType: 'view',
-        targetConfig: { initialPrompt: 'Analyze our current finished goods status and suggest the optimal baking batch quantities for the week.' }
-      },
-      {
-        id: 'pricing-strategy-ai',
-        title: 'Pricing & Margin Strategy',
-        subtitle: 'Review wholesale vs retail pricing tiers',
-        icon: DollarSign,
-        actionType: 'view',
-        targetConfig: { initialPrompt: 'Review our bakery product catalog pricing and advise on margins for wholesale commercial clients.' }
-      },
-      {
-        id: 'debtor-recovery-ai',
-        title: 'Debtor Recovery Strategy',
-        subtitle: 'Prioritized follow-up plan for overdue invoices',
-        icon: Clock,
-        actionType: 'view',
-        targetConfig: { initialPrompt: 'Identify our overdue customer invoices and generate a polite, firm debt collection follow-up schedule.' }
-      },
-      {
-        id: 'sars-compliance-ai',
-        title: 'SARS VAT & Tax Advisory',
-        subtitle: 'Guidelines on VAT 201 compliance and deductions',
-        icon: Landmark,
-        actionType: 'view',
-        targetConfig: { initialPrompt: 'Summarize our VAT 201 tax position and provide compliance tips for South African bakery operations.' }
-      }
-    ]
-  },
-
-  // 13. 52-Week Reports
+  // 12. 52-Week Reports
   {
     id: 'reports',
-    number: 13,
+    number: 12,
     title: '52-Week Reports',
     shortTitle: '52-Week Reports',
     subtitle: 'Annual Trajectory & Trend Analytics',
@@ -1113,10 +1055,10 @@ export const ERP_MODULES: ERPModule[] = [
     ]
   },
 
-  // 14. Sales Leads & CRM
+  // 13. Sales Leads & CRM
   {
     id: 'crm',
-    number: 14,
+    number: 13,
     title: 'Sales Leads & CRM',
     shortTitle: 'Sales CRM',
     subtitle: 'Pipeline, Leads & Communications',
@@ -1179,10 +1121,10 @@ export const ERP_MODULES: ERPModule[] = [
     ]
   },
 
-  // 15. User Management
+  // 14. User Management
   {
     id: 'users',
-    number: 15,
+    number: 14,
     title: 'User Management',
     shortTitle: 'User Accounts',
     subtitle: 'RBAC Roles, Logins & Security',
@@ -1242,10 +1184,10 @@ export const ERP_MODULES: ERPModule[] = [
     ]
   },
 
-  // 16. Merchants & Branches
+  // 15. Merchants & Branches
   {
     id: 'merchants',
-    number: 16,
+    number: 15,
     title: 'Merchants & Branches',
     shortTitle: 'Merchants',
     subtitle: 'Retail Hubs & Branch Logins',
@@ -1308,10 +1250,10 @@ export const ERP_MODULES: ERPModule[] = [
     ]
   },
 
-  // 17. Database Explorer
+  // 16. Database Explorer
   {
     id: 'database',
-    number: 17,
+    number: 16,
     title: 'Database Explorer',
     shortTitle: 'Database',
     subtitle: 'Collections, Backups & Portability',
@@ -1369,10 +1311,10 @@ export const ERP_MODULES: ERPModule[] = [
     ]
   },
 
-  // 18. Company & Banking
+  // 17. Company & Banking
   {
     id: 'settings',
-    number: 18,
+    number: 17,
     title: 'Company & Banking',
     shortTitle: 'Settings',
     subtitle: 'Branding, Bank Accounts & Profile',
@@ -1430,10 +1372,10 @@ export const ERP_MODULES: ERPModule[] = [
     ]
   },
 
-  // 19. Website Showcase Products Management
+  // 18. Website Showcase Products Management
   {
     id: 'website-showcase',
-    number: 19,
+    number: 18,
     title: 'Website Showcase Management',
     shortTitle: 'Website Showcase',
     subtitle: 'Add & Remove Products on Website',
@@ -1476,10 +1418,10 @@ export const ERP_MODULES: ERPModule[] = [
     ]
   },
 
-  // 20. Merchant B2B Orders & FCM Push Dispatch
+  // 19. Merchant B2B Orders & FCM Push Dispatch
   {
     id: 'merchant-orders',
-    number: 20,
+    number: 19,
     title: 'Merchant Orders & FCM Push',
     shortTitle: 'Merchant Orders',
     subtitle: 'B2B Orders, Notifications & Invoicing',
@@ -1537,10 +1479,10 @@ export const ERP_MODULES: ERPModule[] = [
     ]
   },
 
-  // 21. Barcode & Camera Scanner
+  // 20. Barcode & Camera Scanner
   {
     id: 'barcode-scanner',
-    number: 21,
+    number: 20,
     title: 'Barcode Scanner & Tracking',
     shortTitle: 'Barcode Scanner',
     subtitle: 'Camera, EAN-13 & Stock Slips',
@@ -1582,10 +1524,10 @@ export const ERP_MODULES: ERPModule[] = [
     ]
   },
 
-  // 22. Point of Sale (POS) & Counter Till
+  // 21. Point of Sale (POS) & Counter Till
   {
     id: 'pos',
-    number: 22,
+    number: 21,
     title: 'Point of Sale (POS) & Counter Till',
     shortTitle: 'POS & Counter Till',
     subtitle: 'Cash Register, Quick Scan & Thermal Slips',
@@ -1631,10 +1573,10 @@ export const ERP_MODULES: ERPModule[] = [
     ]
   },
 
-  // 23. Factory Production Line & Bakery Runs
+  // 22. Factory Production Line & Bakery Runs
   {
     id: 'production-line',
-    number: 23,
+    number: 22,
     title: 'Factory Production Lines',
     shortTitle: 'Production Lines',
     subtitle: 'Dough Sheeting, Samosa Folding & Griddles',
@@ -1676,6 +1618,65 @@ export const ERP_MODULES: ERPModule[] = [
         icon: CheckCircle2,
         actionType: 'view',
         targetConfig: { tab: 'completed' }
+      }
+    ]
+  },
+
+  // 23. Merchant Hours & MOQ Controls
+  {
+    id: 'merchant-controls',
+    number: 23,
+    title: 'Merchant Hours & MOQ',
+    shortTitle: 'Hours & MOQ',
+    subtitle: 'Login Windows & Minimum Orders',
+    description: 'Configure merchant portal operating schedules, manual lockdown, global/product MOQs, and per-merchant VIP overrides.',
+    icon: SlidersHorizontal,
+    badge: (ctx) => {
+      const settings = ctx.merchantSettings;
+      if (settings?.manualLockdown) return 'PAUSED';
+      const access = checkMerchantPortalAccess(settings);
+      if (settings?.enforceLoginHours) {
+        return access.allowed ? 'OPEN NOW' : 'CLOSED NOW';
+      }
+      if (settings?.enforceMoq) return 'MOQ ACTIVE';
+      return 'OPEN 24/7';
+    },
+    subcategories: [
+      {
+        id: 'merchant-hours-schedule',
+        title: 'Login Hours & Weekly Schedule',
+        subtitle: 'Set daily portal opening/closing windows & emergency pause',
+        icon: Clock,
+        actionType: 'tab',
+        badge: (ctx) => (ctx.merchantSettings?.enforceLoginHours ? 'ENFORCED' : '24/7'),
+        targetConfig: { initialTab: 'hours' }
+      },
+      {
+        id: 'merchant-global-moq',
+        title: 'Global MOQ Rules',
+        subtitle: 'Minimum total packs, per-line quantities & minimum spend',
+        icon: Scale,
+        actionType: 'tab',
+        badge: (ctx) => (ctx.merchantSettings?.enforceMoq ? 'ACTIVE' : 'OFF'),
+        targetConfig: { initialTab: 'moq' }
+      },
+      {
+        id: 'merchant-product-moq',
+        title: 'Product Catalog MOQs',
+        subtitle: 'Assign minimum pack quantities directly on live bakery SKUs',
+        icon: Package,
+        actionType: 'tab',
+        badge: (ctx) => `${(ctx.products || []).filter((p) => (p.moq || 0) > 0).length} SKUs`,
+        targetConfig: { initialTab: 'products' }
+      },
+      {
+        id: 'merchant-account-overrides',
+        title: 'Merchant VIP & Custom Overrides',
+        subtitle: '24/7 VIP bypass, custom login hours & account MOQs',
+        icon: Store,
+        actionType: 'tab',
+        badge: (ctx) => `${(ctx.users || []).filter((u) => u.role === 'merchant').length} hubs`,
+        targetConfig: { initialTab: 'merchants' }
       }
     ]
   }

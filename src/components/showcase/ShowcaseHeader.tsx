@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, Search, X, Menu, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Search, X, Menu } from 'lucide-react';
 
 interface ShowcaseHeaderProps {
   currentPage: string;
@@ -16,7 +16,6 @@ export const ShowcaseHeader: React.FC<ShowcaseHeaderProps> = ({
   onNavigate,
   onOpenMerchantLogin,
   onOpenEnquiryModal,
-  onOpenAdmin,
   isMerchantLoggedIn,
   onOpenMerchantPortal,
 }) => {
@@ -40,16 +39,7 @@ export const ShowcaseHeader: React.FC<ShowcaseHeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-50 bg-[#f5eee5]/95 backdrop-blur-md border-b border-[#bd896e]/20 transition-all">
-      {/* 1. ANNOUNCEMENT BAR */}
-      <div className="bg-[#3d2117] text-[#fff8f0] py-2 px-4 text-center text-[11px] font-sans tracking-wider border-b border-[#2b150a]">
-        <div className="max-w-7xl mx-auto flex items-center justify-center gap-2">
-          <span>Direct bakery orders & enquiries</span>
-          <span className="text-[#a95d3f]">·</span>
-          <span>Handcrafted daily with nationwide delivery across South Africa</span>
-        </div>
-      </div>
-
-      {/* 2. MAIN SITE HEADER */}
+      {/* MAIN SITE HEADER */}
       <div className="max-w-7xl mx-auto px-6 sm:px-12 flex h-20 items-center justify-between gap-6">
         {/* Brand Logo & Wordmark */}
         <button
@@ -100,27 +90,14 @@ export const ShowcaseHeader: React.FC<ShowcaseHeaderProps> = ({
             <Search className="w-4 h-4" />
           </button>
 
-          {/* Admin ERP Direct Switch */}
-          {onOpenAdmin && (
-            <button
-              type="button"
-              onClick={onOpenAdmin}
-              className="hidden sm:inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] bg-[#3d2117] hover:bg-[#2b150a] text-[#fff8f0] px-3.5 py-2 rounded-full transition-all cursor-pointer shadow-2xs hover:scale-105"
-              title="Access Savouré Enterprise ERP Dashboard"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-[#d89368]" />
-              <span>Admin ERP</span>
-            </button>
-          )}
-
           {/* Merchant Portal */}
           <button
             type="button"
             onClick={isMerchantLoggedIn && onOpenMerchantPortal ? onOpenMerchantPortal : onOpenMerchantLogin}
-            className={`hidden sm:inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.15em] px-3 py-2 rounded-full transition-colors cursor-pointer ${
+            className={`hidden sm:inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.15em] px-4 py-2.5 rounded-full border transition-all cursor-pointer shadow-2xs ${
               isMerchantLoggedIn
-                ? 'bg-[#bd7657]/15 text-[#8d5037] hover:bg-[#bd7657]/25 border border-[#bd7657]/30'
-                : 'text-[#75412e] hover:text-[#3d2117]'
+                ? 'bg-[#2b150a] hover:bg-[#1e0f07] text-[#fff8f0] border-[#2b150a]'
+                : 'bg-[#4a291d] hover:bg-[#3d2117] text-[#fff8f0] border-[#3d2117]'
             }`}
           >
             <span>{isMerchantLoggedIn ? 'My Merchant Desk' : 'Merchant Portal'}</span>
@@ -130,7 +107,7 @@ export const ShowcaseHeader: React.FC<ShowcaseHeaderProps> = ({
           <button
             type="button"
             onClick={onOpenEnquiryModal}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-[#be7655] hover:bg-[#b86643] hover:text-white text-[#8b4d34] text-[10px] font-bold uppercase tracking-[0.16em] transition-all hover:-translate-y-0.5 cursor-pointer shadow-2xs whitespace-nowrap"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-[#2b150a] bg-[#3d2117] hover:bg-[#2b150a] text-[#fff8f0] text-[10px] font-bold uppercase tracking-[0.16em] transition-all hover:-translate-y-0.5 cursor-pointer shadow-2xs whitespace-nowrap"
           >
             <span>Enquire now</span>
             <ArrowRight className="w-3 h-3" />
@@ -203,18 +180,6 @@ export const ShowcaseHeader: React.FC<ShowcaseHeaderProps> = ({
             >
               {isMerchantLoggedIn ? 'My Merchant Desk' : 'Merchant Portal'}
             </button>
-            {onOpenAdmin && (
-              <button
-                onClick={() => {
-                  onOpenAdmin();
-                  setIsMobileMenuOpen(false);
-                }}
-                className="text-left py-2 text-[#3d2117] font-extrabold flex items-center gap-2"
-              >
-                <ShieldCheck className="w-4 h-4 text-[#b86643]" />
-                <span>Admin ERP System</span>
-              </button>
-            )}
           </div>
         </div>
       )}

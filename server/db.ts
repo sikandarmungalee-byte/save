@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import type { ERPDatabase, User, CompanySettings, Customer } from '../src/types/erp.js';
+import { DEFAULT_MERCHANT_PORTAL_SETTINGS } from '../src/utils/merchantRules.js';
 
 const IS_VERCEL = Boolean(process.env.VERCEL);
 const BUNDLED_DB_FILE = path.resolve(process.cwd(), 'data', 'erp-database.json');
@@ -58,6 +59,7 @@ export function getCleanEmptyDatabase(): ERPDatabase {
   return {
     users: [MASTER_ADMIN_USER],
     company: CLEAN_COMPANY,
+    merchantSettings: { ...DEFAULT_MERCHANT_PORTAL_SETTINGS },
     customers: [],
     products: [],
     categories: [],
@@ -167,6 +169,7 @@ export function purgeAllFakeData(): ERPDatabase {
     ...getCleanEmptyDatabase(),
     users: current.users.filter((u) => u.role === 'super_admin' || u.email.toLowerCase() === 'admin@savoure.co.za'),
     company: current.company || CLEAN_COMPANY,
+    merchantSettings: current.merchantSettings || { ...DEFAULT_MERCHANT_PORTAL_SETTINGS },
     lastUpdated: new Date().toISOString(),
   };
   saveDatabase(purgedDb);

@@ -706,8 +706,8 @@ export const ProductionLineModuleView: React.FC<ProductionLineModuleViewProps> =
 
       {/* ---------------- SCHEDULE NEW PRODUCTION BATCH MODAL ---------------- */}
       {isNewBatchModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
-          <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden border border-stone-200 p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs overflow-y-auto overscroll-contain">
+          <div className="w-full max-w-lg max-h-[92vh] overflow-y-auto overscroll-contain bg-white rounded-2xl shadow-2xl border border-stone-200 p-6 space-y-4 my-auto">
             <div className="flex items-center justify-between pb-2 border-b border-stone-100">
               <div className="flex items-center gap-2">
                 <Factory className="w-5 h-5 text-[#CC8468]" />
@@ -850,8 +850,8 @@ export const ProductionLineModuleView: React.FC<ProductionLineModuleViewProps> =
 
       {/* ---------------- ADD PRODUCTION LINE MODAL ---------------- */}
       {isNewLineModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
-          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden border border-stone-200 p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs overflow-y-auto overscroll-contain">
+          <div className="w-full max-w-md max-h-[92vh] overflow-y-auto overscroll-contain bg-white rounded-2xl shadow-2xl border border-stone-200 p-6 space-y-4 my-auto">
             <div className="flex items-center justify-between pb-2 border-b border-stone-100">
               <div className="flex items-center gap-2">
                 <Cpu className="w-5 h-5 text-[#CC8468]" />
@@ -952,8 +952,8 @@ export const ProductionLineModuleView: React.FC<ProductionLineModuleViewProps> =
 
       {/* ---------------- QUALITY CONTROL (QC) & COMPLETION MODAL ---------------- */}
       {isQCModalOpen && selectedBatchForQC && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
-          <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden border border-stone-200 p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs overflow-y-auto overscroll-contain">
+          <div className="w-full max-w-lg max-h-[92vh] overflow-y-auto overscroll-contain bg-white rounded-2xl shadow-2xl border border-stone-200 p-6 space-y-4 my-auto">
             <div className="flex items-center justify-between pb-2 border-b border-stone-100">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-emerald-600" />
@@ -1104,8 +1104,8 @@ export const ProductionLineModuleView: React.FC<ProductionLineModuleViewProps> =
 
       {/* ---------------- BATCH PRODUCTION LABEL & BARCODE MODAL ---------------- */}
       {isBatchLabelModalOpen && selectedBatchForLabel && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
-          <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden border border-stone-200 p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs overflow-y-auto overscroll-contain">
+          <div className="w-full max-w-sm max-h-[92vh] overflow-y-auto overscroll-contain bg-white rounded-2xl shadow-2xl border border-stone-200 p-6 space-y-4 my-auto">
             <div className="flex items-center justify-between pb-2 border-b border-stone-100">
               <div className="flex items-center gap-1.5 text-xs font-bold text-stone-800">
                 <Barcode className="w-4 h-4 text-[#CC8468]" />

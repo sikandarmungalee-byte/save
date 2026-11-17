@@ -53,8 +53,6 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, onOpenLoginModal, on
       case 'accounting':
       case 'ledger':
       case 'ledgers': return 'General Ledger, Balance Sheet & SARS VAT 201';
-      case 'taskeen':
-      case 'ai': return 'Savouré Executive AI Business & Bakery Advisor';
       case 'reports': return 'Consolidated Reports & 52-Week Analytics';
       case 'crm': return 'Sales Pipeline & CRM Hub';
       case 'users': return 'User Management & Permissions (Super Admin)';

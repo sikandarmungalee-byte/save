@@ -13,10 +13,56 @@
     --brand-cream: #FAF7F2;
   }
 
+  html {
+    scroll-behavior: smooth;
+    scrollbar-gutter: stable;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
   body {
     font-family: 'DM Sans', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
     background-color: #f5eee5;
     color: #3d2117;
+    overflow-x: hidden;
+  }
+
+  /* Accessible custom scrollbars across desktop mouse wheels, trackpads, and touch */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(184, 102, 67, 0.45) rgba(234, 216, 198, 0.25);
+  }
+
+  *::-webkit-scrollbar {
+    width: 9px;
+    height: 9px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: rgba(234, 216, 198, 0.25);
+    border-radius: 9999px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: rgba(184, 102, 67, 0.45);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(184, 102, 67, 0.78);
+  }
+
+  .overflow-y-auto,
+  .overflow-x-auto,
+  .overflow-auto {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
   
   .font-serif, .brand-display {
@@ -28,6 +74,13 @@
     font-family: 'JetBrains Mono', ui-monospace, monospace;
     font-variant-numeric: tabular-nums;
   }
+}
+
+.savoure-scroll-x {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
 }
 
 /* Savouré Editorial & Bolt Host Inspired Design System */

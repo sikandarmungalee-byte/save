@@ -46,6 +46,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
   const {
     invoices,
     customers,
+    products,
     payments,
     stockPurchases,
     stockItemStatuses,
@@ -54,11 +55,9 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
     journalEntries,
     createJournalEntry,
     company,
-    currentUser,
   } = useERP();
 
   const [activeTab, setActiveTab] = useState<AccountingTab>(initialTab);
-  const [selectedPeriod, setSelectedPeriod] = useState<'this-month' | 'this-quarter' | 'ytd' | 'all'>('ytd');
   const [searchAccount, setSearchAccount] = useState('');
   const [selectedAccountCode, setSelectedAccountCode] = useState<string | null>(null);
 
@@ -76,12 +75,11 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
   });
 
   const currency = company.currency || 'R';
-  const vatRate = company.vatRate || 15;
+  const vatRate = company.vatRate ?? 0;
 
   // ----------------------------------------------------
   // Dynamic Financial Calculations from Live ERP Data
   // ----------------------------------------------------
-  // Invoices & Revenue
   const totalGrossInvoiced = useMemo(
     () => invoices.reduce((acc, i) => acc + (Number(i.grandTotal) || 0), 0),
     [invoices]
@@ -114,18 +112,31 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
   );
   const netCogs = Math.max(0, totalStockPurchased - totalInputVatOnStock);
 
-  // Stock Inventory Valuation
+  // Stock Inventory Valuation (linked strictly to real catalog prices; 0 when empty)
   const estimatedStockValuation = useMemo(() => {
     return stockItemStatuses.reduce((acc, s) => {
-      // Average standard cost estimation
-      const qty = Number(s.quantityOnHand) || 0;
-      return acc + qty * 45; // baseline R45/unit cost
+      const qty = Math.max(0, Number(s.quantityOnHand) || 0);
+      if (qty === 0) return acc;
+      const matchedProduct = products.find(
+        (p) =>
+          (s.sku && p.sku && p.sku.toLowerCase() === s.sku.toLowerCase()) ||
+          (p.name && s.name && p.name.toLowerCase() === s.name.toLowerCase())
+      );
+      const unitCost = Number(matchedProduct?.costPrice) || Number(matchedProduct?.unitPrice) || 0;
+      return acc + qty * unitCost;
     }, 0);
-  }, [stockItemStatuses]);
+  }, [stockItemStatuses, products]);
 
   // Payroll Expenses
   const totalStaffPayrollDisbursed = useMemo(
     () => payrollPayouts.reduce((acc, p) => acc + (Number(p.netPayout) || 0), 0),
+    [payrollPayouts]
+  );
+  const pendingPayrollAccrual = useMemo(
+    () =>
+      payrollPayouts
+        .filter((p) => p.status === 'Pending')
+        .reduce((acc, p) => acc + (Number(p.netPayout) || 0), 0),
     [payrollPayouts]
   );
   const totalOvertimePaid = useMemo(
@@ -137,16 +148,45 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
     [payrollPayouts]
   );
 
-  // Operating Overheads (Derived strictly from real captured expenses)
-  const estimatedUtilitiesAndFuel = 0;
+  // Posted General Journal adjustments per account code
+  const journalNetsByCode = useMemo(() => {
+    const map = new Map<string, number>();
+    (journalEntries || []).forEach((je) => {
+      (je.lines || []).forEach((line) => {
+        const current = map.get(line.accountCode) || 0;
+        map.set(line.accountCode, current + (Number(line.debit) || 0) - (Number(line.credit) || 0));
+      });
+    });
+    return map;
+  }, [journalEntries]);
+
+  const getJournalDelta = (code: string, normalBalance: 'Debit' | 'Credit') => {
+    const netDr = journalNetsByCode.get(code) || 0;
+    return normalBalance === 'Debit' ? netDr : -netDr;
+  };
+
+  const revenue4010 = totalNetSalesRevenue + getJournalDelta('4010', 'Credit');
+  const revenue4020 = getJournalDelta('4020', 'Credit');
+  const totalRevenueAll = revenue4010 + revenue4020;
+
+  const cogs5010 = netCogs + getJournalDelta('5010', 'Debit');
+  const cogs5020 = getJournalDelta('5020', 'Debit');
+  const cogs5030 = getJournalDelta('5030', 'Debit');
+  const totalCogsAll = cogs5010 + cogs5020 + cogs5030;
+
+  const opex6010 = totalBasicSalaries + getJournalDelta('6010', 'Debit');
+  const opex6020 = totalOvertimePaid + getJournalDelta('6020', 'Debit');
+  const opex6030 = getJournalDelta('6030', 'Debit');
+  const opex6040 = getJournalDelta('6040', 'Debit');
+  const estimatedUtilitiesAndFuel = opex6030 + opex6040;
 
   // Profit Metrics
-  const grossProfit = totalNetSalesRevenue - netCogs;
-  const grossMarginPct = totalNetSalesRevenue > 0 ? ((grossProfit / totalNetSalesRevenue) * 100).toFixed(1) : '0.0';
+  const grossProfit = totalRevenueAll - totalCogsAll;
+  const grossMarginPct = totalRevenueAll > 0 ? ((grossProfit / totalRevenueAll) * 100).toFixed(1) : '0.0';
 
-  const totalOperatingExpenses = totalStaffPayrollDisbursed + estimatedUtilitiesAndFuel;
+  const totalOperatingExpenses = opex6010 + opex6020 + opex6030 + opex6040;
   const netProfit = grossProfit - totalOperatingExpenses;
-  const netProfitMarginPct = totalNetSalesRevenue > 0 ? ((netProfit / totalNetSalesRevenue) * 100).toFixed(1) : '0.0';
+  const netProfitMarginPct = totalRevenueAll > 0 ? ((netProfit / totalRevenueAll) * 100).toFixed(1) : '0.0';
 
   // SARS VAT 201 Net Position
   const netVatPayableToSars = totalOutputVat - totalInputVatOnStock;
@@ -155,15 +195,28 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
   // Chart of Accounts Structure (Standard GAAP & SA IFRS)
   // ----------------------------------------------------
   const chartOfAccounts = useMemo(() => {
+    const bank1010 = Math.max(0, totalPaymentsReceived - totalStockPurchased - totalStaffPayrollDisbursed + getJournalDelta('1010', 'Debit'));
+    const pettyCash1020 = getJournalDelta('1020', 'Debit');
+    const ar1030 = totalAccountsReceivable + getJournalDelta('1030', 'Debit');
+    const finInv1040 = estimatedStockValuation + getJournalDelta('1040', 'Debit');
+    const rawMat1050 = getJournalDelta('1050', 'Debit');
+    const equip1510 = getJournalDelta('1510', 'Debit');
+    const fleet1520 = getJournalDelta('1520', 'Debit');
+    const ap2010 = Math.max(0, getJournalDelta('2010', 'Credit'));
+    const vat2020 = Math.max(0, netVatPayableToSars + getJournalDelta('2020', 'Credit'));
+    const payroll2030 = Math.max(0, pendingPayrollAccrual + getJournalDelta('2030', 'Credit'));
+    const capital3010 = getJournalDelta('3010', 'Credit');
+    const retained3020 = getJournalDelta('3020', 'Credit');
+
     return [
       // 1000 - ASSETS
       {
         code: '1010',
-        name: 'Bank Account - First National Bank (FNB)',
+        name: `Bank Account - ${company.bankName || 'Operating Bank'}`,
         type: 'Asset',
         category: 'Current Asset',
         normalBalance: 'Debit',
-        balance: Math.max(0, totalPaymentsReceived - totalStockPurchased - totalStaffPayrollDisbursed),
+        balance: bank1010,
         description: 'Primary corporate business checking account',
       },
       {
@@ -172,7 +225,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
         type: 'Asset',
         category: 'Current Asset',
         normalBalance: 'Debit',
-        balance: 0,
+        balance: pettyCash1020,
         description: 'Cash float for day-to-day disbursements',
       },
       {
@@ -181,7 +234,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
         type: 'Asset',
         category: 'Current Asset',
         normalBalance: 'Debit',
-        balance: totalAccountsReceivable,
+        balance: ar1030,
         description: 'Outstanding invoice balances owed by customers',
       },
       {
@@ -190,8 +243,8 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
         type: 'Asset',
         category: 'Current Asset',
         normalBalance: 'Debit',
-        balance: estimatedStockValuation * 0.4,
-        description: 'Completed goods ready for dispatch and delivery',
+        balance: finInv1040,
+        description: 'Completed goods valued from live stock on hand',
       },
       {
         code: '1050',
@@ -199,8 +252,8 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
         type: 'Asset',
         category: 'Current Asset',
         normalBalance: 'Debit',
-        balance: totalStockPurchased * 0.35,
-        description: 'Raw materials and packaging boxes on hand',
+        balance: rawMat1050,
+        description: 'Raw materials and packaging stock allocated via journal',
       },
       {
         code: '1510',
@@ -208,7 +261,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
         type: 'Asset',
         category: 'Non-Current Asset',
         normalBalance: 'Debit',
-        balance: 0,
+        balance: equip1510,
         description: 'Commercial bakery equipment and machinery',
       },
       {
@@ -217,7 +270,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
         type: 'Asset',
         category: 'Non-Current Asset',
         normalBalance: 'Debit',
-        balance: 0,
+        balance: fleet1520,
         description: 'Logistics delivery vehicles',
       },
 
@@ -228,7 +281,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
         type: 'Liability',
         category: 'Current Liability',
         normalBalance: 'Credit',
-        balance: Math.max(0, totalStockPurchased * 0.15),
+        balance: ap2010,
         description: 'Unpaid raw ingredient slips and packaging supplier balances',
       },
       {
@@ -237,7 +290,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
         type: 'Liability',
         category: 'Current Liability',
         normalBalance: 'Credit',
-        balance: Math.max(0, netVatPayableToSars),
+        balance: vat2020,
         description: 'Net South African VAT collected on invoices payable to SARS',
       },
       {
@@ -246,8 +299,8 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
         type: 'Liability',
         category: 'Current Liability',
         normalBalance: 'Credit',
-        balance: Math.max(0, totalStaffPayrollDisbursed * 0.08),
-        description: 'Statutory SARS payroll deductions and employee contributions',
+        balance: payroll2030,
+        description: 'Pending payroll payouts and statutory deductions',
       },
 
       // 3000 - EQUITY
@@ -257,7 +310,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
         type: 'Equity',
         category: 'Equity',
         normalBalance: 'Credit',
-        balance: 0,
+        balance: capital3010,
         description: 'Contributed foundational capital investment',
       },
       {
@@ -266,7 +319,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
         type: 'Equity',
         category: 'Equity',
         normalBalance: 'Credit',
-        balance: 0,
+        balance: retained3020,
         description: 'Accumulated historical net profits reinvested in company',
       },
 
@@ -277,7 +330,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
         type: 'Revenue',
         category: 'Operating Revenue',
         normalBalance: 'Credit',
-        balance: totalNetSalesRevenue * 0.85,
+        balance: revenue4010,
         description: 'Sales of flatbreads, rotis, tortilla wraps, and pastries',
       },
       {
@@ -286,7 +339,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
         type: 'Revenue',
         category: 'Operating Revenue',
         normalBalance: 'Credit',
-        balance: totalNetSalesRevenue * 0.15,
+        balance: revenue4020,
         description: 'Custom corporate wholesale orders and specialty lines',
       },
 
@@ -297,8 +350,8 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
         type: 'COGS',
         category: 'Direct Costs',
         normalBalance: 'Debit',
-        balance: netCogs * 0.65,
-        description: 'Flour, yeasts, seeds, and raw ingredients',
+        balance: cogs5010,
+        description: 'Flour, yeasts, seeds, and raw ingredients purchased',
       },
       {
         code: '5020',
@@ -306,7 +359,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
         type: 'COGS',
         category: 'Direct Costs',
         normalBalance: 'Debit',
-        balance: netCogs * 0.25,
+        balance: cogs5020,
         description: 'Butter, milk, oil, and egg supplies',
       },
       {
@@ -315,7 +368,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
         type: 'COGS',
         category: 'Direct Costs',
         normalBalance: 'Debit',
-        balance: netCogs * 0.10,
+        balance: cogs5030,
         description: 'Packaging bags, wraps, and boxes',
       },
 
@@ -326,7 +379,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
         type: 'Expense',
         category: 'Operating Expense',
         normalBalance: 'Debit',
-        balance: totalBasicSalaries,
+        balance: opex6010,
         description: 'Monthly compensation for staff',
       },
       {
@@ -335,7 +388,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
         type: 'Expense',
         category: 'Operating Expense',
         normalBalance: 'Debit',
-        balance: totalOvertimePaid,
+        balance: opex6020,
         description: 'Overtime pay calculated on hourly rates',
       },
       {
@@ -344,7 +397,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
         type: 'Expense',
         category: 'Operating Expense',
         normalBalance: 'Debit',
-        balance: 0,
+        balance: opex6030,
         description: 'Municipal utilities and gas captured',
       },
       {
@@ -353,22 +406,77 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
         type: 'Expense',
         category: 'Operating Expense',
         normalBalance: 'Debit',
-        balance: 0,
+        balance: opex6040,
         description: 'Vehicle fuel and maintenance captured',
       },
     ];
   }, [
+    company.bankName,
     totalPaymentsReceived,
     totalStockPurchased,
     totalStaffPayrollDisbursed,
     totalAccountsReceivable,
     estimatedStockValuation,
     netVatPayableToSars,
-    totalNetSalesRevenue,
-    netCogs,
-    totalBasicSalaries,
-    totalOvertimePaid,
+    pendingPayrollAccrual,
+    journalNetsByCode,
+    revenue4010,
+    revenue4020,
+    cogs5010,
+    cogs5020,
+    cogs5030,
+    opex6010,
+    opex6020,
+    opex6030,
+    opex6040,
   ]);
+
+  const balanceSummary = useMemo(() => {
+    const getBal = (code: string) => chartOfAccounts.find((a) => a.code === code)?.balance || 0;
+    const bank1010 = getBal('1010');
+    const pettyCash1020 = getBal('1020');
+    const cashAndBank = bank1010 + pettyCash1020;
+    const ar1030 = getBal('1030');
+    const inventoryTotal = getBal('1040') + getBal('1050');
+    const currentAssets = cashAndBank + ar1030 + inventoryTotal;
+    const equip1510 = getBal('1510');
+    const fleet1520 = getBal('1520');
+    const nonCurrentAssets = equip1510 + fleet1520;
+    const totalAssets = currentAssets + nonCurrentAssets;
+
+    const ap2010 = getBal('2010');
+    const vat2020 = getBal('2020');
+    const payroll2030 = getBal('2030');
+    const totalLiabilities = ap2010 + vat2020 + payroll2030;
+
+    const capital3010 = getBal('3010');
+    const retained3020 = getBal('3020');
+    const totalEquity = capital3010 + retained3020 + netProfit;
+    const totalLiabilitiesAndEquity = totalLiabilities + totalEquity;
+    const isEquationBalanced = Math.abs(totalAssets - totalLiabilitiesAndEquity) < 0.01;
+
+    return {
+      bank1010,
+      pettyCash1020,
+      cashAndBank,
+      ar1030,
+      inventoryTotal,
+      currentAssets,
+      equip1510,
+      fleet1520,
+      nonCurrentAssets,
+      totalAssets,
+      ap2010,
+      vat2020,
+      payroll2030,
+      totalLiabilities,
+      capital3010,
+      retained3020,
+      totalEquity,
+      totalLiabilitiesAndEquity,
+      isEquationBalanced,
+    };
+  }, [chartOfAccounts, netProfit]);
 
   // Trial Balance Totals
   const trialBalance = useMemo(() => {
@@ -557,14 +665,14 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
     } else if (activeTab === 'profit-and-loss') {
       headers = ['Financial Statement Line Item', 'Amount (ZAR)'];
       rows = [
-        ['Operating Revenue (Net of VAT)', totalNetSalesRevenue.toFixed(2)],
-        ['Cost of Goods Sold (COGS)', netCogs.toFixed(2)],
+        ['Operating Revenue (Net of VAT)', totalRevenueAll.toFixed(2)],
+        ['Cost of Goods Sold (COGS)', totalCogsAll.toFixed(2)],
         ['Gross Profit', grossProfit.toFixed(2)],
         ['Gross Margin %', `${grossMarginPct}%`],
-        ['Staff Salaries & Wages', totalBasicSalaries.toFixed(2)],
-        ['Staff Overtime Pay', totalOvertimePaid.toFixed(2)],
-        ['Bakery Gas, Electricity & Utilities', (7800).toFixed(2)],
-        ['Delivery Fleet Fuel & Servicing', (4700).toFixed(2)],
+        ['Staff Salaries & Wages', opex6010.toFixed(2)],
+        ['Staff Overtime Pay', opex6020.toFixed(2)],
+        ['Bakery Gas, Electricity & Utilities', opex6030.toFixed(2)],
+        ['Delivery Fleet Fuel & Servicing', opex6040.toFixed(2)],
         ['Total Operating Expenses', totalOperatingExpenses.toFixed(2)],
         ['Net Operating Profit (EBITDA)', netProfit.toFixed(2)],
         ['Net Profit Margin %', `${netProfitMarginPct}%`],
@@ -675,7 +783,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
           <div className="bg-[#120F0D] border border-[#2C211B] rounded-xl p-3.5">
             <div className="text-[10px] font-semibold text-[#8A776B] uppercase tracking-wider">Cost of Goods (COGS)</div>
             <div className="text-sm sm:text-base font-bold text-white mt-1 font-mono tabular-nums">
-              {currency} {netCogs.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {currency} {totalCogsAll.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
             <div className="text-[10px] text-[#DE9E74] flex items-center gap-1 mt-1">
               <Layers className="w-3 h-3" />
@@ -714,7 +822,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
           </div>
 
           <div className="bg-[#120F0D] border border-[#2C211B] rounded-xl p-3.5">
-            <div className="text-[10px] font-semibold text-[#8A776B] uppercase tracking-wider">Net SARS VAT (15%)</div>
+            <div className="text-[10px] font-semibold text-[#8A776B] uppercase tracking-wider">Net SARS VAT ({vatRate}%)</div>
             <div className="text-sm sm:text-base font-bold text-[#DE9E74] mt-1 font-mono tabular-nums">
               {currency} {netVatPayableToSars.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
@@ -726,7 +834,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
       </div>
 
       {/* Navigation Sub-Tabs */}
-      <div className="flex items-center gap-1.5 p-1.5 bg-[#171311] border border-[#2C211B] rounded-xl overflow-x-auto scrollbar-none">
+      <div className="flex items-center gap-1.5 p-1.5 bg-[#171311] border border-[#2C211B] rounded-xl savoure-scroll-x">
         {[
           { id: 'overview', label: 'Financial Overview', icon: Landmark },
           { id: 'profit-and-loss', label: 'Profit & Loss (Income Statement)', icon: TrendingUp },
@@ -782,13 +890,13 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
                 <div className="flex justify-between items-center py-2 border-b border-[#221B17]">
                   <span className="text-xs text-[#EDE6DE]">Operating Revenue (Net of VAT)</span>
                   <span className="text-xs font-mono font-bold text-white">
-                    {currency} {totalNetSalesRevenue.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+                    {currency} {totalRevenueAll.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b border-[#221B17] text-rose-300">
                   <span className="text-xs">Less: Cost of Goods Sold (COGS)</span>
                   <span className="text-xs font-mono font-bold">
-                    - {currency} {netCogs.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+                    - {currency} {totalCogsAll.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
                 <div className="flex justify-between items-center py-2.5 bg-[#221B17] px-3 rounded-lg border border-[#2C211B]">
@@ -803,7 +911,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
                 <div className="flex justify-between items-center py-2 border-b border-[#221B17] text-rose-300">
                   <span className="text-xs">Less: Total Staff Payroll & Overtime</span>
                   <span className="text-xs font-mono font-bold">
-                    - {currency} {totalStaffPayrollDisbursed.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+                    - {currency} {(opex6010 + opex6020).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b border-[#221B17] text-rose-300">
@@ -848,25 +956,25 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
                   <div className="text-[11px] font-bold text-[#DE9E74] uppercase tracking-wider mb-2 flex items-center justify-between">
                     <span>Total Enterprise Assets</span>
                     <span className="font-mono text-white">
-                      {currency} {(150000 + 5000 + totalAccountsReceivable + estimatedStockValuation + 385000 + 240000).toLocaleString('en-ZA', { maximumFractionDigits: 0 })}
+                      {currency} {balanceSummary.totalAssets.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
                   <div className="space-y-1.5 text-xs text-[#A69385]">
                     <div className="flex justify-between">
-                      <span>• Cash & Bank Reserves (FNB)</span>
-                      <span className="text-white font-mono">{currency} 155,000.00</span>
+                      <span>• Cash & Bank Reserves</span>
+                      <span className="text-white font-mono">{currency} {balanceSummary.cashAndBank.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>• Trade Debtors (Accounts Receivable)</span>
-                      <span className="text-white font-mono">{currency} {totalAccountsReceivable.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
+                      <span className="text-white font-mono">{currency} {balanceSummary.ar1030.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>• Bakery Raw Materials & Stock</span>
-                      <span className="text-white font-mono">{currency} {estimatedStockValuation.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
+                      <span className="text-white font-mono">{currency} {balanceSummary.inventoryTotal.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>• Commercial Deck Ovens & Fleet Machinery</span>
-                      <span className="text-white font-mono">{currency} 625,000.00</span>
+                      <span className="text-white font-mono">{currency} {balanceSummary.nonCurrentAssets.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
                     </div>
                   </div>
                 </div>
@@ -876,17 +984,17 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
                   <div className="text-[11px] font-bold text-rose-400 uppercase tracking-wider mb-2 flex items-center justify-between">
                     <span>Total Liabilities</span>
                     <span className="font-mono text-white">
-                      {currency} {(totalStockPurchased * 0.15 + Math.max(0, netVatPayableToSars) + totalStaffPayrollDisbursed * 0.08).toLocaleString('en-ZA', { maximumFractionDigits: 0 })}
+                      {currency} {balanceSummary.totalLiabilities.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
                   <div className="space-y-1.5 text-xs text-[#A69385]">
                     <div className="flex justify-between">
                       <span>• Accounts Payable (Suppliers)</span>
-                      <span className="text-white font-mono">{currency} {(totalStockPurchased * 0.15).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
+                      <span className="text-white font-mono">{currency} {balanceSummary.ap2010.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>• SARS VAT 201 Output Payable</span>
-                      <span className="text-white font-mono">{currency} {Math.max(0, netVatPayableToSars).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
+                      <span className="text-white font-mono">{currency} {balanceSummary.vat2020.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
                     </div>
                   </div>
                 </div>
@@ -895,16 +1003,16 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
                 <div className="pt-3 border-t border-[#2C211B]">
                   <div className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider mb-2 flex items-center justify-between">
                     <span>Total Owner's Equity</span>
-                    <span className="font-mono text-white">{currency} 720,000.00</span>
+                    <span className="font-mono text-white">{currency} {balanceSummary.totalEquity.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
                   </div>
                   <div className="space-y-1.5 text-xs text-[#A69385]">
                     <div className="flex justify-between">
                       <span>• Contributed Capital</span>
-                      <span className="text-white font-mono">{currency} 500,000.00</span>
+                      <span className="text-white font-mono">{currency} {balanceSummary.capital3010.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>• Retained Earnings & Reserves</span>
-                      <span className="text-white font-mono">{currency} 220,000.00</span>
+                      <span>• Retained Earnings & Period Net Profit</span>
+                      <span className="text-white font-mono">{currency} {(balanceSummary.retained3020 + netProfit).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
                     </div>
                   </div>
                 </div>
@@ -920,8 +1028,12 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
             >
               <div className="flex items-center justify-between">
                 <Calculator className="w-5 h-5 text-[#DE9E74]" />
-                <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800/60 font-medium">
-                  In Balance
+                <span className={`text-[10px] px-2 py-0.5 rounded border font-medium ${
+                  trialBalance.isBalanced
+                    ? 'bg-emerald-950/60 text-emerald-400 border-emerald-800/60'
+                    : 'bg-amber-950/60 text-amber-400 border-amber-800/60'
+                }`}>
+                  {trialBalance.isBalanced ? 'In Balance' : 'Pending Entries'}
                 </span>
               </div>
               <h4 className="text-sm font-bold text-white mt-3 group-hover:text-[#DE9E74] transition-colors">
@@ -939,7 +1051,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
               <div className="flex items-center justify-between">
                 <FileSpreadsheet className="w-5 h-5 text-[#DE9E74]" />
                 <span className="text-[10px] px-2 py-0.5 rounded bg-[#C98A5B]/20 text-[#DE9E74] border border-[#C98A5B]/30 font-medium">
-                  SARS 15%
+                  SARS {vatRate}%
                 </span>
               </div>
               <h4 className="text-sm font-bold text-white mt-3 group-hover:text-[#DE9E74] transition-colors">
@@ -1026,19 +1138,19 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
                   <tr>
                     <td className="py-2.5 px-3 text-[#EDE6DE]">Artisanal Bread, Pastry & Rotis Sales (B2B Tax Invoices)</td>
                     <td className="py-2.5 px-3 text-right font-mono text-white tabular-nums">
-                      {currency} {(totalNetSalesRevenue * 0.85).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+                      {currency} {revenue4010.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                     </td>
                   </tr>
                   <tr>
                     <td className="py-2.5 px-3 text-[#EDE6DE]">Corporate Catering & Luxury Confectionery Service</td>
                     <td className="py-2.5 px-3 text-right font-mono text-white tabular-nums">
-                      {currency} {(totalNetSalesRevenue * 0.15).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+                      {currency} {revenue4020.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                     </td>
                   </tr>
                   <tr className="bg-[#221B17]/60 font-bold border-t-2 border-[#2C211B]">
                     <td className="py-3 px-3 text-white">Total Gross Operating Revenue (Excl. VAT)</td>
                     <td className="py-3 px-3 text-right font-mono text-emerald-400 tabular-nums">
-                      {currency} {totalNetSalesRevenue.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+                      {currency} {totalRevenueAll.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                     </td>
                   </tr>
                 </tbody>
@@ -1053,27 +1165,27 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
               <table className="w-full text-left">
                 <tbody className="divide-y divide-[#221B17]">
                   <tr>
-                    <td className="py-2.5 px-3 text-[#EDE6DE]">Bakery Ingredients (Stoneground Flour, Yeasts, Seeds, Grains)</td>
+                    <td className="py-2.5 px-3 text-[#EDE6DE]">Bakery Ingredients (Flour, Yeasts, Seeds, Grains & Stock Slips)</td>
                     <td className="py-2.5 px-3 text-right font-mono text-rose-300 tabular-nums">
-                      - {currency} {(netCogs * 0.65).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+                      - {currency} {cogs5010.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                     </td>
                   </tr>
                   <tr>
                     <td className="py-2.5 px-3 text-[#EDE6DE]">Dairy, Fresh Butter, Creams & Free-Range Farm Eggs</td>
                     <td className="py-2.5 px-3 text-right font-mono text-rose-300 tabular-nums">
-                      - {currency} {(netCogs * 0.25).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+                      - {currency} {cogs5020.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                     </td>
                   </tr>
                   <tr>
                     <td className="py-2.5 px-3 text-[#EDE6DE]">Custom Packaging, Embossed Boxes & Food Wraps</td>
                     <td className="py-2.5 px-3 text-right font-mono text-rose-300 tabular-nums">
-                      - {currency} {(netCogs * 0.10).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+                      - {currency} {cogs5030.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                     </td>
                   </tr>
                   <tr className="bg-[#221B17]/60 font-bold border-t-2 border-[#2C211B]">
                     <td className="py-3 px-3 text-white">Total Cost of Goods Sold (COGS)</td>
                     <td className="py-3 px-3 text-right font-mono text-rose-400 tabular-nums">
-                      - {currency} {netCogs.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+                      - {currency} {totalCogsAll.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                     </td>
                   </tr>
                 </tbody>
@@ -1108,25 +1220,25 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
                   <tr>
                     <td className="py-2.5 px-3 text-[#EDE6DE]">Staff Monthly Basic Salaries & Wages</td>
                     <td className="py-2.5 px-3 text-right font-mono text-rose-300 tabular-nums">
-                      - {currency} {totalBasicSalaries.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+                      - {currency} {opex6010.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                     </td>
                   </tr>
                   <tr>
                     <td className="py-2.5 px-3 text-[#EDE6DE]">Staff Overtime & Night Production Baking Shifts</td>
                     <td className="py-2.5 px-3 text-right font-mono text-rose-300 tabular-nums">
-                      - {currency} {totalOvertimePaid.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+                      - {currency} {opex6020.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                     </td>
                   </tr>
                   <tr>
                     <td className="py-2.5 px-3 text-[#EDE6DE]">Commercial Deck Oven Gas & 3-Phase Electricity</td>
                     <td className="py-2.5 px-3 text-right font-mono text-rose-300 tabular-nums">
-                      - {currency} {(7800).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+                      - {currency} {opex6030.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                     </td>
                   </tr>
                   <tr>
                     <td className="py-2.5 px-3 text-[#EDE6DE]">Refrigerated Delivery Van Fleet Fuel & Servicing</td>
                     <td className="py-2.5 px-3 text-right font-mono text-rose-300 tabular-nums">
-                      - {currency} {(4700).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+                      - {currency} {opex6040.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                     </td>
                   </tr>
                   <tr className="bg-[#221B17]/60 font-bold border-t-2 border-[#2C211B]">
@@ -1181,10 +1293,17 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="px-3 py-1 rounded-md bg-emerald-950/60 text-emerald-400 border border-emerald-800/60 text-xs font-mono font-bold flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Balanced: Assets = Liabilities + Equity</span>
-              </span>
+              {balanceSummary.isEquationBalanced ? (
+                <span className="px-3 py-1 rounded-md bg-emerald-950/60 text-emerald-400 border border-emerald-800/60 text-xs font-mono font-bold flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Balanced: Assets = Liabilities + Equity</span>
+                </span>
+              ) : (
+                <span className="px-3 py-1 rounded-md bg-amber-950/60 text-amber-400 border border-amber-800/60 text-xs font-mono font-bold flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  <span>Live Ledger Variance: {currency} {Math.abs(balanceSummary.totalAssets - balanceSummary.totalLiabilitiesAndEquity).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
+                </span>
+              )}
             </div>
           </div>
 
@@ -1195,7 +1314,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
                 <h3 className="text-sm font-serif font-bold text-white flex items-center justify-between">
                   <span>ENTERPRISE ASSETS</span>
                   <span className="font-mono text-[#DE9E74]">
-                    {currency} {(150000 + 5000 + totalAccountsReceivable + estimatedStockValuation + 625000).toLocaleString('en-ZA', { maximumFractionDigits: 0 })}
+                    {currency} {balanceSummary.totalAssets.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                   </span>
                 </h3>
               </div>
@@ -1207,12 +1326,12 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
                 </h4>
                 <div className="space-y-2 divide-y divide-[#221B17]">
                   <div className="flex justify-between items-center pt-2">
-                    <span className="text-[#EDE6DE]">Bank Account (First National Bank - 62983104821)</span>
-                    <span className="font-mono text-white">{currency} 150,000.00</span>
+                    <span className="text-[#EDE6DE]">Bank Account ({company.bankName || 'Operating Bank'})</span>
+                    <span className="font-mono text-white">{currency} {balanceSummary.bank1010.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
                   </div>
                   <div className="flex justify-between items-center pt-2">
                     <span className="text-[#EDE6DE]">Petty Cash (Bakery Counter Float)</span>
-                    <span className="font-mono text-white">{currency} 5,000.00</span>
+                    <span className="font-mono text-white">{currency} {balanceSummary.pettyCash1020.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
                   </div>
                   <div className="flex justify-between items-center pt-2">
                     <div>
@@ -1220,22 +1339,22 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
                       <div className="text-[10px] text-[#8A776B]">From live issued customer tax invoices</div>
                     </div>
                     <span className="font-mono text-white">
-                      {currency} {totalAccountsReceivable.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+                      {currency} {balanceSummary.ar1030.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
                   <div className="flex justify-between items-center pt-2">
                     <div>
                       <span className="text-[#EDE6DE]">Inventories on Hand</span>
-                      <div className="text-[10px] text-[#8A776B]">Flour, butter, sugar & packaging valuation</div>
+                      <div className="text-[10px] text-[#8A776B]">Derived from live catalog & stock ledger</div>
                     </div>
                     <span className="font-mono text-white">
-                      {currency} {estimatedStockValuation.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+                      {currency} {balanceSummary.inventoryTotal.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
                   <div className="flex justify-between items-center pt-2 font-bold text-white">
                     <span>Total Current Assets</span>
                     <span className="font-mono text-emerald-400">
-                      {currency} {(155000 + totalAccountsReceivable + estimatedStockValuation).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+                      {currency} {balanceSummary.currentAssets.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
                 </div>
@@ -1249,15 +1368,15 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
                 <div className="space-y-2 divide-y divide-[#221B17]">
                   <div className="flex justify-between items-center pt-2">
                     <span className="text-[#EDE6DE]">Commercial Deck Ovens & Dough Mixers</span>
-                    <span className="font-mono text-white">{currency} 385,000.00</span>
+                    <span className="font-mono text-white">{currency} {balanceSummary.equip1510.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
                   </div>
                   <div className="flex justify-between items-center pt-2">
                     <span className="text-[#EDE6DE]">Refrigerated Logistics Delivery Vans</span>
-                    <span className="font-mono text-white">{currency} 240,000.00</span>
+                    <span className="font-mono text-white">{currency} {balanceSummary.fleet1520.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
                   </div>
                   <div className="flex justify-between items-center pt-2 font-bold text-white">
                     <span>Total Non-Current Assets</span>
-                    <span className="font-mono text-emerald-400">{currency} 625,000.00</span>
+                    <span className="font-mono text-emerald-400">{currency} {balanceSummary.nonCurrentAssets.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
                   </div>
                 </div>
               </div>
@@ -1269,7 +1388,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
                 <h3 className="text-sm font-serif font-bold text-white flex items-center justify-between">
                   <span>LIABILITIES & EQUITY</span>
                   <span className="font-mono text-[#DE9E74]">
-                    {currency} {(150000 + 5000 + totalAccountsReceivable + estimatedStockValuation + 625000).toLocaleString('en-ZA', { maximumFractionDigits: 0 })}
+                    {currency} {balanceSummary.totalLiabilitiesAndEquity.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                   </span>
                 </h3>
               </div>
@@ -1283,7 +1402,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
                   <div className="flex justify-between items-center pt-2">
                     <span className="text-[#EDE6DE]">Accounts Payable (Trade Creditors)</span>
                     <span className="font-mono text-white">
-                      {currency} {(totalStockPurchased * 0.15).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+                      {currency} {balanceSummary.ap2010.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
                   <div className="flex justify-between items-center pt-2">
@@ -1292,19 +1411,19 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
                       <div className="text-[10px] text-[#8A776B]">Output tax collected less input tax claimed</div>
                     </div>
                     <span className="font-mono text-white">
-                      {currency} {Math.max(0, netVatPayableToSars).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+                      {currency} {balanceSummary.vat2020.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
                   <div className="flex justify-between items-center pt-2">
-                    <span className="text-[#EDE6DE]">Payroll Clearing (PAYE / UIF / SDL Accrual)</span>
+                    <span className="text-[#EDE6DE]">Payroll Clearing (Pending Payouts / Accrual)</span>
                     <span className="font-mono text-white">
-                      {currency} {(totalStaffPayrollDisbursed * 0.08).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+                      {currency} {balanceSummary.payroll2030.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
                   <div className="flex justify-between items-center pt-2 font-bold text-white">
                     <span>Total Current Liabilities</span>
                     <span className="font-mono text-rose-400">
-                      {currency} {(totalStockPurchased * 0.15 + Math.max(0, netVatPayableToSars) + totalStaffPayrollDisbursed * 0.08).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+                      {currency} {balanceSummary.totalLiabilities.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
                 </div>
@@ -1318,11 +1437,11 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
                 <div className="space-y-2 divide-y divide-[#221B17]">
                   <div className="flex justify-between items-center pt-2">
                     <span className="text-[#EDE6DE]">Owner's Contributed Capital</span>
-                    <span className="font-mono text-white">{currency} 500,000.00</span>
+                    <span className="font-mono text-white">{currency} {balanceSummary.capital3010.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
                   </div>
                   <div className="flex justify-between items-center pt-2">
                     <span className="text-[#EDE6DE]">Retained Earnings (Historical Accumulation)</span>
-                    <span className="font-mono text-white">{currency} 220,000.00</span>
+                    <span className="font-mono text-white">{currency} {balanceSummary.retained3020.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
                   </div>
                   <div className="flex justify-between items-center pt-2">
                     <span className="text-[#EDE6DE]">Current Period Retained Net Profit</span>
@@ -1333,7 +1452,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
                   <div className="flex justify-between items-center pt-2 font-bold text-white">
                     <span>Total Shareholders' Equity</span>
                     <span className="font-mono text-emerald-400">
-                      {currency} {(720000 + netProfit).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+                      {currency} {balanceSummary.totalEquity.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
                 </div>
@@ -1582,13 +1701,13 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
                   SARS eFiling Tax Ledger
                 </span>
                 <span className="text-[#3A2D25]">·</span>
-                <span className="text-xs text-[#A69385]">VAT Registration: {company.vatNumber || '4120938471'}</span>
+                <span className="text-xs text-[#A69385]">VAT Registration: {company.vatNumber || 'Not Registered'}</span>
               </div>
               <h2 className="text-xl font-serif font-bold text-white">
                 South African Revenue Service (SARS) VAT 201 Return
               </h2>
               <p className="text-xs text-[#A69385]">
-                Standard 15% statutory Value-Added Tax computation for bi-monthly / monthly filing periods.
+                Configured {vatRate}% Value-Added Tax computation for bi-monthly / monthly filing periods.
               </p>
             </div>
 
@@ -1629,7 +1748,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
                 <tr className="bg-[#120F0D] font-bold">
                   <td className="py-3 px-4 text-white">
                     <span className="font-mono text-[#DE9E74] font-bold mr-2">Box 4:</span>
-                    TOTAL OUTPUT TAX (15% on Standard Rated Supplies)
+                    TOTAL OUTPUT TAX ({vatRate}% on Standard Rated Supplies)
                   </td>
                   <td className="py-3 px-4 text-right font-mono text-white text-sm">
                     {currency} {totalOutputVat.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
@@ -1655,7 +1774,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
                 <tr className="bg-[#120F0D] font-bold">
                   <td className="py-3 px-4 text-white">
                     <span className="font-mono text-[#DE9E74] font-bold mr-2">Box 15:</span>
-                    TOTAL INPUT TAX DEDUCTION CLAIMABLE (15% on Stock Slips)
+                    TOTAL INPUT TAX DEDUCTION CLAIMABLE ({vatRate}% on Stock Slips)
                   </td>
                   <td className="py-3 px-4 text-right font-mono text-rose-300 text-sm">
                     - {currency} {totalInputVatOnStock.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
@@ -1759,8 +1878,8 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ initialTab = 'ov
       {/* POST NEW JOURNAL ENTRY MODAL                         */}
       {/* ---------------------------------------------------- */}
       {isJournalModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-lg bg-[#171311] border border-[#2C211B] rounded-2xl p-6 sm:p-7 shadow-2xl relative">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto overscroll-contain">
+          <div className="w-full max-w-lg max-h-[92vh] overflow-y-auto overscroll-contain bg-[#171311] border border-[#2C211B] rounded-2xl p-6 sm:p-7 shadow-2xl relative my-auto">
             <button
               onClick={() => setIsJournalModalOpen(false)}
               className="absolute top-4 right-4 p-1.5 rounded-lg text-[#8A776B] hover:text-white hover:bg-[#221B17]"

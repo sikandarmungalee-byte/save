@@ -1,5 +1,4 @@
 import express, { type Request, type Response } from 'express';
-import { GoogleGenAI } from '@google/genai';
 import { getDatabase, saveDatabase } from './db.js';
 import type {
   User,
@@ -14,6 +13,7 @@ import type {
   CommunicationLog,
   ERPDatabase
 } from '../src/types/erp.js';
+import { checkMerchantPortalAccess, normalizeMerchantSettings } from '../src/utils/merchantRules.js';
 
 const app = express();
 
@@ -118,7 +118,6 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
         stock: true,
         payroll: true,
         accounting: true,
-        taskeenAI: true,
         reports: true,
         crmLeads: true,
         databaseExplorer: true,
@@ -187,6 +186,26 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
     return res.status(401).json({ error: 'Incorrect password. Please verify your password and try again.' });
   }
 
+  // Enforce Merchant Login Window / Portal Schedule when active
+  if (user.role === 'merchant') {
+    const accessCheck = checkMerchantPortalAccess(db.merchantSettings, user);
+    if (!accessCheck.allowed) {
+      db.loginLogs.unshift({
+        id: 'log_' + Date.now(),
+        userId: user.id,
+        userName: user.name,
+        userEmail: user.email,
+        action: 'LOGIN',
+        status: 'FAILED',
+        timestamp: new Date().toISOString(),
+        device: req.headers['user-agent'] || 'Web Browser',
+        details: `Login blocked (${accessCheck.reasonCode}): ${accessCheck.message}`,
+      });
+      saveDatabase(db);
+      return res.status(403).json({ error: accessCheck.message });
+    }
+  }
+
   // Update last login
   user.lastLogin = new Date().toISOString();
   db.loginLogs.unshift({
@@ -213,7 +232,23 @@ app.get('/api/users', (_req: Request, res: Response) => {
 });
 
 app.post('/api/users', (req: Request, res: Response) => {
-  const { name, email, username, password, role, permissions, status, branch, merchantStoreName, merchantPhone } = req.body;
+  const {
+    name,
+    email,
+    username,
+    password,
+    role,
+    permissions,
+    status,
+    branch,
+    merchantStoreName,
+    merchantPhone,
+    bypassLoginHours,
+    allowedLoginStart,
+    allowedLoginEnd,
+    customMoqUnits,
+    customMinOrderValue,
+  } = req.body;
   if (!name || !email) {
     return res.status(400).json({ error: 'Name and email are required.' });
   }
@@ -235,8 +270,8 @@ app.post('/api/users', (req: Request, res: Response) => {
     stock: true,
     payroll: true,
     accounting: true,
-    taskeenAI: true,
     merchants: true,
+    merchantControls: true,
     reports: true,
     crmLeads: true,
     databaseExplorer: true,
@@ -252,8 +287,8 @@ app.post('/api/users', (req: Request, res: Response) => {
     stock: false,
     payroll: false,
     accounting: false,
-    taskeenAI: false,
     merchants: false,
+    merchantControls: false,
     reports: false,
     crmLeads: false,
     databaseExplorer: false,
@@ -284,6 +319,11 @@ app.post('/api/users', (req: Request, res: Response) => {
     branch: branch || undefined,
     merchantStoreName: merchantStoreName || undefined,
     merchantPhone: merchantPhone || undefined,
+    bypassLoginHours: bypassLoginHours !== undefined ? Boolean(bypassLoginHours) : undefined,
+    allowedLoginStart: allowedLoginStart || undefined,
+    allowedLoginEnd: allowedLoginEnd || undefined,
+    customMoqUnits: customMoqUnits !== undefined ? Number(customMoqUnits) : undefined,
+    customMinOrderValue: customMinOrderValue !== undefined ? Number(customMinOrderValue) : undefined,
     createdAt: new Date().toISOString(),
   };
 
@@ -304,7 +344,23 @@ app.put('/api/users/:id', (req: Request, res: Response) => {
   }
 
   const current = db.users[index];
-  const { name, email, username, password, role, permissions, status, branch, merchantStoreName, merchantPhone } = req.body;
+  const {
+    name,
+    email,
+    username,
+    password,
+    role,
+    permissions,
+    status,
+    branch,
+    merchantStoreName,
+    merchantPhone,
+    bypassLoginHours,
+    allowedLoginStart,
+    allowedLoginEnd,
+    customMoqUnits,
+    customMinOrderValue,
+  } = req.body;
 
   db.users[index] = {
     ...current,
@@ -318,6 +374,11 @@ app.put('/api/users/:id', (req: Request, res: Response) => {
     branch: branch !== undefined ? branch : current.branch,
     merchantStoreName: merchantStoreName !== undefined ? merchantStoreName : current.merchantStoreName,
     merchantPhone: merchantPhone !== undefined ? merchantPhone : current.merchantPhone,
+    bypassLoginHours: bypassLoginHours !== undefined ? Boolean(bypassLoginHours) : current.bypassLoginHours,
+    allowedLoginStart: allowedLoginStart !== undefined ? allowedLoginStart : current.allowedLoginStart,
+    allowedLoginEnd: allowedLoginEnd !== undefined ? allowedLoginEnd : current.allowedLoginEnd,
+    customMoqUnits: customMoqUnits !== undefined ? Number(customMoqUnits) : current.customMoqUnits,
+    customMinOrderValue: customMinOrderValue !== undefined ? Number(customMinOrderValue) : current.customMinOrderValue,
   };
 
   saveDatabase(db);
@@ -364,6 +425,25 @@ app.post('/api/company/verify-pin', (req: Request, res: Response) => {
     return res.json({ verified: true });
   }
   return res.status(401).json({ verified: false, error: 'Incorrect security PIN.' });
+});
+
+// ----------------------------------------------------
+// Merchant Access Window & MOQ Rules
+// ----------------------------------------------------
+app.get('/api/merchant-settings', (_req: Request, res: Response) => {
+  const db = getDatabase();
+  res.json(normalizeMerchantSettings(db.merchantSettings));
+});
+
+app.put('/api/merchant-settings', (req: Request, res: Response) => {
+  const db = getDatabase();
+  db.merchantSettings = {
+    ...normalizeMerchantSettings(db.merchantSettings),
+    ...normalizeMerchantSettings({ ...db.merchantSettings, ...req.body }),
+    updatedAt: new Date().toISOString(),
+  };
+  saveDatabase(db);
+  res.json(db.merchantSettings);
 });
 
 // ----------------------------------------------------
@@ -477,6 +557,7 @@ app.post('/api/products', (req: Request, res: Response) => {
     costPrice: Number(req.body.costPrice) || 0,
     vatApplicable: req.body.vatApplicable !== undefined ? req.body.vatApplicable : true,
     stockOnHand: Number(req.body.stockOnHand) || 0,
+    moq: req.body.moq !== undefined ? Math.max(0, Number(req.body.moq) || 0) : undefined,
   };
 
   db.products.unshift(newProduct);
@@ -1252,140 +1333,6 @@ app.post('/api/sync', (req: Request, res: Response) => {
     res.status(500).json({ error: err?.message || 'Sync write failed' });
   }
 });
-
-// ----------------------------------------------------
-// Savouré AI Executive Business Advisor Endpoint
-// ----------------------------------------------------
-const handleAskSavoure = async (req: Request, res: Response) => {
-  try {
-    const { prompt, erpContext } = req.body;
-    if (!prompt || typeof prompt !== 'string') {
-      return res.status(400).json({ error: 'Prompt is required.' });
-    }
-
-    const db = getDatabase();
-    const company = db.company;
-    const invCount = db.invoices?.length || 0;
-    const totalRev = (db.invoices || []).reduce((acc, i) => acc + (Number(i.grandTotal) || 0), 0);
-    const unpaidBal = (db.invoices || []).reduce((acc, i) => acc + (Number(i.balanceDue) || 0), 0);
-    const prodCount = db.products?.length || 0;
-    const staffCount = db.staff?.length || 0;
-    const finishedStock = (db.stockItemStatuses || []).filter((s) => s.isFinished || s.quantityOnHand <= 0);
-
-    const businessSnapshot = `
-Company: ${company?.companyName || 'Savouré (Pty) Ltd'} (${company?.tradingName || 'Savouré - A Taste of Tradition'})
-Currency: ${company?.currency || 'R'}
-Total Tax Invoices: ${invCount} (Total Issued: ${company?.currency || 'R'} ${totalRev.toLocaleString()})
-Unsettled Accounts Receivable (Owed by Customers): ${company?.currency || 'R'} ${unpaidBal.toLocaleString()}
-Products in Catalog: ${prodCount}
-Registered Staff Members: ${staffCount}
-Stock Items Currently Marked FINISHED/DEPLETED: ${finishedStock.length > 0 ? finishedStock.map((s) => `${s.name} at ${s.branchName}`).join(', ') : 'None, all items in stock'}
-${erpContext ? `Live Client Session Context: ${JSON.stringify(erpContext)}` : ''}
-`;
-
-    const systemInstruction = `You are Savouré AI, an intelligent, helpful executive AI assistant and business advisor powered by Google Gemini.
-You function as a normal, full-capability AI: you can converse naturally, answer general knowledge questions, solve problems, write text, explain any concept, brainstorm, code, and assist with any topic just like a normal standard AI.
-Additionally, you have real-time visibility into the user's business administration and enterprise data for Savouré Artisanal Pastry:
-${businessSnapshot}
-Guidelines:
-1. If the user asks general, conversational, creative, or non-business questions, answer directly, intelligently, and helpfully like a normal AI without forcing unnecessary business figures into the response.
-2. If the user asks about their business, invoices, customers, stock, accounting, payroll, or operational strategy, ground your answers in their enterprise snapshot and provide crisp, practical insights.`;
-
-    // Call Gemini using modern @google/genai SDK
-    try {
-      const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
-      const ai = new GoogleGenAI({
-        apiKey,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          },
-        },
-      });
-
-      let reply = '';
-      let usedModel = 'Gemini 3.8 Flash';
-
-      // Fast, reliable priority cascade: primary gemini-3.8-flash, fallback gemini-3.1-flash-lite
-      const candidates = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
-      let lastError: any = null;
-
-      for (const model of candidates) {
-        try {
-          const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error(`Timeout calling ${model}`)), 8000)
-          );
-
-          const genPromise = ai.models.generateContent({
-            model,
-            contents: prompt,
-            config: {
-              systemInstruction,
-            },
-          });
-
-          const response: any = await Promise.race([genPromise, timeoutPromise]);
-          if (response && response.text) {
-            reply = response.text.trim();
-            usedModel = model === 'gemini-3.8-flash' ? 'Gemini 3.8 Flash' : 'Gemini 3.1 Flash Lite';
-            break;
-          }
-        } catch (err: any) {
-          lastError = err;
-          console.warn(`Model ${model} warning:`, err?.message || err);
-        }
-      }
-
-      if (!reply && lastError) {
-        throw lastError;
-      }
-
-      reply = reply || 'I am Savouré AI, your executive advisor powered by Google Gemini. How may I assist you today?';
-      return res.json({ reply, model: usedModel });
-    } catch (aiErr: any) {
-      console.warn('Gemini API notice:', aiErr?.message);
-      // Helpful fallback response
-      let fallbackReply = '';
-      const lower = prompt.toLowerCase();
-
-      if (lower.includes('stock') || lower.includes('finish') || lower.includes('depleted') || lower.includes('inventory')) {
-        if (finishedStock.length > 0) {
-          fallbackReply = `**Out-of-Stock Alert:** There are currently **${finishedStock.length} items** marked as depleted across branches:\n` +
-            finishedStock.map((s) => `• **${s.name}** at *${s.branchName}*`).join('\n');
-        } else {
-          fallbackReply = `All tracked stock items are currently in stock with zero depleted items flagged.`;
-        }
-      } else if (lower.includes('sales') || lower.includes('revenue') || lower.includes('invoice')) {
-        fallbackReply = `**Financial Summary:**\n• **Total Invoices:** ${invCount}\n• **Total Revenue Issued:** ${company?.currency || 'R'} ${totalRev.toLocaleString()}\n• **Accounts Receivable:** ${company?.currency || 'R'} ${unpaidBal.toLocaleString()}`;
-      } else {
-        fallbackReply = `I am Savouré AI, your executive business advisor powered by Google Gemini. I am here to assist you with operations, invoices, pricing, stock forecasting, and strategic planning. How can I help you right now?`;
-      }
-
-      return res.json({ reply: fallbackReply, model: 'Savouré AI Engine' });
-    }
-  } catch (err: any) {
-    res.json({ reply: 'I am Savouré AI, your executive advisor. How may I assist you with your bakery operations today?', model: 'Savouré AI Assistant' });
-  }
-};
-
-app.post('/api/ai/ask-savoure', handleAskSavoure);
-app.post('/api/ai/ask-taskeen', handleAskSavoure);
-
-// Gemini Connection Status Endpoint
-app.get('/api/ai/status', async (_req: Request, res: Response) => {
-  try {
-    const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
-    return res.json({
-      connected: true,
-      hasKey: !!apiKey,
-      model: 'Gemini 3.8 Flash',
-      message: apiKey ? 'Connected to Google Gemini' : 'Savouré Intelligence Engine Ready',
-    });
-  } catch (err: any) {
-    res.json({ connected: true, model: 'Gemini 3.8 Flash', message: 'Savouré Intelligence Engine Ready' });
-  }
-});
-
 
 // In-memory store for registered FCM device tokens & push notification logs
 const registeredDeviceTokens = new Map<string, { token: string; userId?: string; isMobile?: boolean; timestamp: string }>();

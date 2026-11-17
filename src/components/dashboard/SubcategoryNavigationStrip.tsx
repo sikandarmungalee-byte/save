@@ -19,7 +19,21 @@ export const SubcategoryNavigationStrip: React.FC<SubcategoryNavigationStripProp
   const erp = useERP();
 
   return (
-    <div className="bg-stone-50/70 border-b border-stone-200 px-3 sm:px-6 py-2 overflow-x-auto no-scrollbar">
+    <div
+      className="bg-stone-50/70 border-b border-stone-200 px-3 sm:px-6 py-2 savoure-scroll-x"
+      onWheel={(e) => {
+        if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+          const el = e.currentTarget;
+          if (el.scrollWidth > el.clientWidth) {
+            const atLeft = el.scrollLeft <= 0 && e.deltaY < 0;
+            const atRight = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1 && e.deltaY > 0;
+            if (!atLeft && !atRight) {
+              el.scrollLeft += e.deltaY;
+            }
+          }
+        }
+      }}
+    >
       <div className="max-w-[1600px] mx-auto flex items-center gap-1.5 sm:gap-2">
         {/* Back to Module Subcategory Tiles Button */}
         <button
