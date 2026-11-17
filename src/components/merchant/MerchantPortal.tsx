@@ -106,6 +106,7 @@ interface MerchantPortalProps {
 export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite }) => {
   const {
     currentUser,
+    users,
     invoices,
     deliveryNotes,
     products,
@@ -180,25 +181,30 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
     return () => clearInterval(id);
   }, []);
 
+  const liveCurrentUser = useMemo(
+    () => (currentUser && (users || []).find((u) => u.id === currentUser.id)) || currentUser,
+    [users, currentUser]
+  );
+
   const normalizedSettings = useMemo(
     () => normalizeMerchantSettings(merchantSettings),
     [merchantSettings]
   );
 
   const portalAccess = useMemo(
-    () => checkMerchantPortalAccess(normalizedSettings, currentUser, nowTick, 'order'),
-    [normalizedSettings, currentUser, nowTick]
+    () => checkMerchantPortalAccess(normalizedSettings, liveCurrentUser, nowTick, 'order'),
+    [normalizedSettings, liveCurrentUser, nowTick]
   );
 
   const deliveryConstraint = useMemo(
     () =>
       evaluateDeliveryScheduleConstraint({
         settings: normalizedSettings,
-        user: currentUser,
+        user: liveCurrentUser,
         requestedDeliveryDate,
         now: nowTick,
       }),
-    [normalizedSettings, currentUser, requestedDeliveryDate, nowTick]
+    [normalizedSettings, liveCurrentUser, requestedDeliveryDate, nowTick]
   );
 
   useEffect(() => {
@@ -432,11 +438,11 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
       evaluateMerchantOrderMOQ({
         items: selectedOrderItems,
         products,
-        user: currentUser,
+        user: liveCurrentUser,
         settings: normalizedSettings,
         currency: currencySymbol,
       }),
-    [selectedOrderItems, products, currentUser, normalizedSettings, currencySymbol]
+    [selectedOrderItems, products, liveCurrentUser, normalizedSettings, currencySymbol]
   );
 
   const handleQtyChange = (prodId: string, sizeId: string, delta: number) => {
@@ -651,7 +657,8 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
       });
       setPodNote(null);
       clearCanvas();
-      alert('Proof of Delivery (POD) signed and submitted successfully.');
+      setOrderSuccessBanner('Proof of Delivery (POD) signed and submitted successfully.');
+      setTimeout(() => setOrderSuccessBanner(null), 6000);
     } catch (e: any) {
       setPodError(e.message || 'Failed to submit POD signature');
     }
@@ -913,6 +920,33 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                     <p className="text-xs text-[#66483B] mt-0.5">
                       Direct bakery dispatch with temp-controlled cold chain logistics across South Africa.
                     </p>
+                    {(moqCheck.enforced || normalizedSettings.enforceLoginHours || normalizedSettings.enforceNextDayCutoff) && (
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#FBF7F1] border border-[#E8D9CD] text-[#75412E] font-medium">
+                          <Clock className="w-3 h-3 text-[#CC8468]" />
+                          <span>Ordering: {portalAccess.todayWindowText}</span>
+                        </span>
+                        {normalizedSettings.enforceNextDayCutoff && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#FBF7F1] border border-[#E8D9CD] text-[#75412E] font-medium">
+                            <Truck className="w-3 h-3 text-[#CC8468]" />
+                            <span>
+                              Next-Day Cutoff: {normalizedSettings.nextDayCutoffTime}
+                            </span>
+                          </span>
+                        )}
+                        {moqCheck.enforced && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-300 text-amber-900 font-semibold">
+                            <Scale className="w-3 h-3 text-amber-700" />
+                            <span>
+                              MOQ Active
+                              {moqCheck.effectiveMinOrderQty > 0 ? ` · Min ${moqCheck.effectiveMinOrderQty} total packs` : ''}
+                              {moqCheck.effectiveGlobalLineQty > 0 ? ` · Min ${moqCheck.effectiveGlobalLineQty}/SKU` : ''}
+                              {moqCheck.effectiveMinOrderValue > 0 ? ` · Min ${currencySymbol} ${moqCheck.effectiveMinOrderValue.toFixed(0)}` : ''}
+                            </span>
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* View Mode Switcher: Cards vs Matrix */}
@@ -1751,6 +1785,23 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                         </div>
                       </div>
                     )}
+
+                    {moqCheck.effectiveGlobalLineQty > 0 && (
+                      <div className="flex justify-between text-[11px] text-[#66483B]">
+                        <span>Default Min Qty per Product</span>
+                        <span className="font-mono font-bold text-[#2B150A]">
+                          {moqCheck.effectiveGlobalLineQty} packs / SKU
+                        </span>
+                      </div>
+                    )}
+
+                    {moqCheck.effectiveMinOrderQty === 0 &&
+                      moqCheck.effectiveMinOrderValue === 0 &&
+                      moqCheck.effectiveGlobalLineQty === 0 && (
+                        <div className="text-[11px] text-[#66483B]">
+                          Product-specific minimum pack rules apply to marked SKUs in the catalog.
+                        </div>
+                      )}
 
                     {selectedOrderItems.length > 0 && moqCheck.violations.length > 0 && (
                       <ul className="space-y-1 pt-1 border-t border-amber-200 text-[11px] text-amber-900 list-disc pl-4">

@@ -48,6 +48,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     updateProduct,
     deleteProduct,
     toggleProductShowcase,
+    merchantSettings,
+    updateMerchantSettings,
     refreshData
   } = useERP();
 
@@ -221,6 +223,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         badge: form.badge.trim(),
         packagingType: form.packagingType,
       });
+    }
+    if (parsedMoq > 0 && !merchantSettings?.enforceMoq) {
+      await updateMerchantSettings({ enforceMoq: true });
     }
     setIsModalOpen(false);
   };

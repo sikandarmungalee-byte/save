@@ -112,10 +112,11 @@
     "enforceMoq": false,
     "globalMinOrderQty": 0,
     "globalMinLineQty": 0,
-    "globalMinOrderValue": 0
+    "globalMinOrderValue": 0,
+    "updatedAt": "2026-11-17T15:35:39.598Z"
   },
   "loginLogs": [],
-  "lastUpdated": "2026-11-17T10:48:58.695Z",
+  "lastUpdated": "2026-11-17T15:35:39.598Z",
   "stockMovements": [],
   "merchantOrders": [],
   "merchantReports": [],

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useERP } from '../context/ERPContext';
 import {
   DayOfWeekKey,
@@ -63,6 +63,7 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
   );
   const [saving, setSaving] = useState(false);
   const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [nowTick, setNowTick] = useState<Date>(() => new Date());
 
   // Product MOQ inline editing state
@@ -70,6 +71,7 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
   const [productCatFilter, setProductCatFilter] = useState('ALL');
   const [productMoqEdits, setProductMoqEdits] = useState<Record<string, string>>({});
   const [savingProdId, setSavingProdId] = useState<string | null>(null);
+  const [savingAllProds, setSavingAllProds] = useState(false);
 
   // Merchant Overrides inline editing state
   const [merchantSearch, setMerchantSearch] = useState('');
@@ -87,10 +89,23 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
   >({});
   const [savingMerchantId, setSavingMerchantId] = useState<string | null>(null);
 
-  // Keep draft synced when external cloud snapshot updates
+  const normalizedLiveJson = useMemo(
+    () => JSON.stringify(normalizeMerchantSettings(merchantSettings)),
+    [merchantSettings]
+  );
+  const lastSyncedSettingsJsonRef = useRef<string>(normalizedLiveJson);
+
+  // Only sync draft from cloud snapshot when admin does NOT have unsaved local edits
   useEffect(() => {
-    setDraft(normalizeMerchantSettings(merchantSettings));
-  }, [merchantSettings]);
+    setDraft((prevDraft) => {
+      const prevDirty = JSON.stringify(normalizeMerchantSettings(prevDraft)) !== lastSyncedSettingsJsonRef.current;
+      lastSyncedSettingsJsonRef.current = normalizedLiveJson;
+      if (prevDirty) {
+        return prevDraft;
+      }
+      return normalizeMerchantSettings(merchantSettings);
+    });
+  }, [normalizedLiveJson, merchantSettings]);
 
   // Live 1-second clock tick for South Africa / configured timezone
   useEffect(() => {
@@ -103,51 +118,79 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
     [users]
   );
 
-  // Sync per-merchant edit rows cleanly
+  // Sync per-merchant edit rows without clobbering rows currently being edited
   useEffect(() => {
-    const map: typeof merchantEdits = {};
-    merchantUsers.forEach((m) => {
-      map[m.id] = {
-        bypassLoginHours: Boolean(m.bypassLoginHours),
-        allowedLoginStart: m.allowedLoginStart || '',
-        allowedLoginEnd: m.allowedLoginEnd || '',
-        customMoqUnits: m.customMoqUnits ? String(m.customMoqUnits) : '',
-        customMinOrderValue: m.customMinOrderValue ? String(m.customMinOrderValue) : '',
-      };
+    setMerchantEdits((prev) => {
+      const next: typeof prev = {};
+      merchantUsers.forEach((m) => {
+        const stored = {
+          bypassLoginHours: Boolean(m.bypassLoginHours),
+          allowedLoginStart: m.allowedLoginStart || '',
+          allowedLoginEnd: m.allowedLoginEnd || '',
+          customMoqUnits: m.customMoqUnits ? String(m.customMoqUnits) : '',
+          customMinOrderValue: m.customMinOrderValue ? String(m.customMinOrderValue) : '',
+        };
+        const existing = prev[m.id];
+        if (existing) {
+          const wasDirty =
+            existing.bypassLoginHours !== stored.bypassLoginHours ||
+            existing.allowedLoginStart !== stored.allowedLoginStart ||
+            existing.allowedLoginEnd !== stored.allowedLoginEnd ||
+            existing.customMoqUnits !== stored.customMoqUnits ||
+            existing.customMinOrderValue !== stored.customMinOrderValue;
+          next[m.id] = wasDirty && m.id in prev ? existing : stored;
+        } else {
+          next[m.id] = stored;
+        }
+      });
+      return next;
     });
-    setMerchantEdits(map);
   }, [merchantUsers]);
 
-  // Sync per-product MOQ inputs
+  // Sync per-product MOQ inputs without clobbering dirty rows
   useEffect(() => {
-    const map: Record<string, string> = {};
-    (products || []).forEach((p) => {
-      map[p.id] = p.moq && p.moq > 0 ? String(p.moq) : '';
+    setProductMoqEdits((prev) => {
+      const next: Record<string, string> = {};
+      (products || []).forEach((p) => {
+        const storedVal = p.moq && p.moq > 0 ? String(p.moq) : '';
+        if (p.id in prev && savingProdId !== p.id) {
+          next[p.id] = prev[p.id];
+        } else {
+          next[p.id] = storedVal;
+        }
+      });
+      return next;
     });
-    setProductMoqEdits(map);
-  }, [products]);
+  }, [products, savingProdId]);
 
   const currency = company?.currency || 'R';
   const liveClock = getTimeInTimezone(draft.timezone, nowTick);
   const livePortalAccess = checkMerchantPortalAccess(draft, null, nowTick, 'order');
   const liveDeliveryCutoff = evaluateDeliveryScheduleConstraint({ settings: draft, now: nowTick });
-  const hasUnsavedChanges =
-    JSON.stringify(normalizeMerchantSettings(merchantSettings)) !==
-    JSON.stringify(normalizeMerchantSettings(draft));
+  const hasUnsavedChanges = normalizedLiveJson !== JSON.stringify(normalizeMerchantSettings(draft));
 
   const showNotice = (msg: string) => {
+    setSaveError(null);
     setSaveFeedback(msg);
-    setTimeout(() => setSaveFeedback(null), 4000);
+    setTimeout(() => setSaveFeedback(null), 5000);
   };
 
-  const handleSaveSettings = async (overrideDraft?: MerchantPortalSettings) => {
-    const target = overrideDraft || draft;
+  const showErr = (msg: string) => {
+    setSaveError(msg);
+    setTimeout(() => setSaveError(null), 6000);
+  };
+
+  const handleSaveSettings = async (overrideDraft?: MerchantPortalSettings, customMsg?: string) => {
+    const target = normalizeMerchantSettings(overrideDraft || draft);
     setSaving(true);
+    setSaveError(null);
     try {
-      await updateMerchantSettings(target);
-      showNotice('Merchant access schedule & MOQ rules saved and synced to Cloud Firestore.');
+      const saved = await updateMerchantSettings(target);
+      lastSyncedSettingsJsonRef.current = JSON.stringify(normalizeMerchantSettings(saved));
+      setDraft(normalizeMerchantSettings(saved));
+      showNotice(customMsg || 'Rules published live to Cloud Firestore & Merchant Portal.');
     } catch (err: any) {
-      alert(err?.message || 'Failed to save merchant controls.');
+      showErr(err?.message || 'Failed to save merchant controls.');
     } finally {
       setSaving(false);
     }
@@ -158,108 +201,157 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
     field: 'enabled' | 'openTime' | 'closeTime',
     value: boolean | string
   ) => {
-    setDraft((prev) => ({
-      ...prev,
+    const next: MerchantPortalSettings = {
+      ...draft,
       schedule: {
-        ...prev.schedule,
+        ...draft.schedule,
         [day]: {
-          ...prev.schedule[day],
+          ...draft.schedule[day],
           [field]: value,
         },
       },
-    }));
+    };
+    setDraft(next);
+    if (field === 'enabled') {
+      handleSaveSettings(next, `${day.charAt(0).toUpperCase() + day.slice(1)} schedule updated & pushed live.`);
+    }
   };
 
   const applySchedulePreset = (preset: 'website' | 'weekdays' | 'early-bakery' | 'copy-mon') => {
+    let nextSchedule = draft.schedule;
     if (preset === 'website') {
-      setDraft((prev) => ({
-        ...prev,
-        schedule: {
-          monday: { enabled: true, openTime: '08:00', closeTime: '17:00' },
-          tuesday: { enabled: true, openTime: '08:00', closeTime: '17:00' },
-          wednesday: { enabled: true, openTime: '08:00', closeTime: '17:00' },
-          thursday: { enabled: true, openTime: '08:00', closeTime: '17:00' },
-          friday: { enabled: true, openTime: '08:00', closeTime: '17:00' },
-          saturday: { enabled: true, openTime: '08:00', closeTime: '13:00' },
-          sunday: { enabled: false, openTime: '08:00', closeTime: '13:00' },
-        },
-      }));
+      nextSchedule = {
+        monday: { enabled: true, openTime: '08:00', closeTime: '17:00' },
+        tuesday: { enabled: true, openTime: '08:00', closeTime: '17:00' },
+        wednesday: { enabled: true, openTime: '08:00', closeTime: '17:00' },
+        thursday: { enabled: true, openTime: '08:00', closeTime: '17:00' },
+        friday: { enabled: true, openTime: '08:00', closeTime: '17:00' },
+        saturday: { enabled: true, openTime: '08:00', closeTime: '13:00' },
+        sunday: { enabled: false, openTime: '08:00', closeTime: '13:00' },
+      };
     } else if (preset === 'weekdays') {
-      setDraft((prev) => ({
-        ...prev,
-        schedule: {
-          monday: { enabled: true, openTime: '08:00', closeTime: '17:00' },
-          tuesday: { enabled: true, openTime: '08:00', closeTime: '17:00' },
-          wednesday: { enabled: true, openTime: '08:00', closeTime: '17:00' },
-          thursday: { enabled: true, openTime: '08:00', closeTime: '17:00' },
-          friday: { enabled: true, openTime: '08:00', closeTime: '17:00' },
-          saturday: { enabled: false, openTime: '08:00', closeTime: '13:00' },
-          sunday: { enabled: false, openTime: '08:00', closeTime: '13:00' },
-        },
-      }));
+      nextSchedule = {
+        monday: { enabled: true, openTime: '08:00', closeTime: '17:00' },
+        tuesday: { enabled: true, openTime: '08:00', closeTime: '17:00' },
+        wednesday: { enabled: true, openTime: '08:00', closeTime: '17:00' },
+        thursday: { enabled: true, openTime: '08:00', closeTime: '17:00' },
+        friday: { enabled: true, openTime: '08:00', closeTime: '17:00' },
+        saturday: { enabled: false, openTime: '08:00', closeTime: '13:00' },
+        sunday: { enabled: false, openTime: '08:00', closeTime: '13:00' },
+      };
     } else if (preset === 'early-bakery') {
-      setDraft((prev) => ({
-        ...prev,
-        schedule: {
-          monday: { enabled: true, openTime: '04:00', closeTime: '14:00' },
-          tuesday: { enabled: true, openTime: '04:00', closeTime: '14:00' },
-          wednesday: { enabled: true, openTime: '04:00', closeTime: '14:00' },
-          thursday: { enabled: true, openTime: '04:00', closeTime: '14:00' },
-          friday: { enabled: true, openTime: '04:00', closeTime: '14:00' },
-          saturday: { enabled: true, openTime: '04:00', closeTime: '12:00' },
-          sunday: { enabled: false, openTime: '04:00', closeTime: '12:00' },
-        },
-      }));
+      nextSchedule = {
+        monday: { enabled: true, openTime: '04:00', closeTime: '14:00' },
+        tuesday: { enabled: true, openTime: '04:00', closeTime: '14:00' },
+        wednesday: { enabled: true, openTime: '04:00', closeTime: '14:00' },
+        thursday: { enabled: true, openTime: '04:00', closeTime: '14:00' },
+        friday: { enabled: true, openTime: '04:00', closeTime: '14:00' },
+        saturday: { enabled: true, openTime: '04:00', closeTime: '12:00' },
+        sunday: { enabled: false, openTime: '04:00', closeTime: '12:00' },
+      };
     } else if (preset === 'copy-mon') {
-      setDraft((prev) => {
-        const mon = prev.schedule.monday;
-        return {
-          ...prev,
-          schedule: {
-            ...prev.schedule,
-            tuesday: { ...mon },
-            wednesday: { ...mon },
-            thursday: { ...mon },
-            friday: { ...mon },
-          },
-        };
-      });
+      const mon = draft.schedule.monday;
+      nextSchedule = {
+        ...draft.schedule,
+        tuesday: { ...mon },
+        wednesday: { ...mon },
+        thursday: { ...mon },
+        friday: { ...mon },
+      };
     }
+    const next = { ...draft, schedule: nextSchedule };
+    setDraft(next);
+    handleSaveSettings(next, 'Preset ordering hours applied & published live.');
   };
 
   const handleSaveProductMoq = async (prod: Product, customVal?: string) => {
     const raw = customVal !== undefined ? customVal : (productMoqEdits[prod.id] || '');
     const parsed = Math.max(0, parseInt(raw, 10) || 0);
     setSavingProdId(prod.id);
+    setSaveError(null);
     try {
       await updateProduct(prod.id, { moq: parsed > 0 ? parsed : 0 });
-      showNotice(
-        parsed > 0
-          ? `Set MOQ of ${parsed} packs for "${prod.name}".`
-          : `Cleared custom MOQ for "${prod.name}" (uses global line MOQ).`
-      );
+      setProductMoqEdits((prev) => ({
+        ...prev,
+        [prod.id]: parsed > 0 ? String(parsed) : '',
+      }));
+      if (parsed > 0 && !draft.enforceMoq) {
+        const nextDraft = { ...draft, enforceMoq: true };
+        setDraft(nextDraft);
+        const saved = await updateMerchantSettings(nextDraft);
+        lastSyncedSettingsJsonRef.current = JSON.stringify(normalizeMerchantSettings(saved));
+        showNotice(`Set MOQ of ${parsed} packs for "${prod.name}" and enabled MOQ Enforcement live.`);
+      } else {
+        showNotice(
+          parsed > 0
+            ? `Pushed MOQ of ${parsed} packs for "${prod.name}" to Merchant Portal.`
+            : `Cleared custom MOQ for "${prod.name}" (uses global line MOQ).`
+        );
+      }
     } catch (err: any) {
-      alert(err?.message || 'Failed to update product MOQ.');
+      showErr(err?.message || 'Failed to update product MOQ.');
     } finally {
       setSavingProdId(null);
+    }
+  };
+
+  const modifiedProducts = useMemo(() => {
+    return (products || []).filter((p) => {
+      const editVal = productMoqEdits[p.id] ?? '';
+      return (parseInt(editVal, 10) || 0) !== (p.moq || 0);
+    });
+  }, [products, productMoqEdits]);
+
+  const handleSaveAllModifiedProductMoqs = async () => {
+    if (modifiedProducts.length === 0) return;
+    setSavingAllProds(true);
+    setSaveError(null);
+    try {
+      let anyPositive = false;
+      for (const p of modifiedProducts) {
+        const raw = productMoqEdits[p.id] ?? '';
+        const parsed = Math.max(0, parseInt(raw, 10) || 0);
+        if (parsed > 0) anyPositive = true;
+        await updateProduct(p.id, { moq: parsed > 0 ? parsed : 0 });
+      }
+      if (anyPositive && !draft.enforceMoq) {
+        const nextDraft = { ...draft, enforceMoq: true };
+        setDraft(nextDraft);
+        const saved = await updateMerchantSettings(nextDraft);
+        lastSyncedSettingsJsonRef.current = JSON.stringify(normalizeMerchantSettings(saved));
+      }
+      showNotice(`Saved & pushed MOQ updates for ${modifiedProducts.length} product(s) live.`);
+    } catch (err: any) {
+      showErr(err?.message || 'Failed to batch save product MOQs.');
+    } finally {
+      setSavingAllProds(false);
     }
   };
 
   const handleSaveMerchantOverride = async (merchant: User) => {
     const edit = merchantEdits[merchant.id];
     if (!edit) return;
+    const customMoq = Math.max(0, parseInt(edit.customMoqUnits, 10) || 0);
+    const customVal = Math.max(0, parseFloat(edit.customMinOrderValue) || 0);
     setSavingMerchantId(merchant.id);
+    setSaveError(null);
     try {
       await updateUser(merchant.id, {
         bypassLoginHours: edit.bypassLoginHours,
         allowedLoginStart: edit.allowedLoginStart.trim() || undefined,
         allowedLoginEnd: edit.allowedLoginEnd.trim() || undefined,
-        customMoqUnits: Math.max(0, parseInt(edit.customMoqUnits, 10) || 0),
-        customMinOrderValue: Math.max(0, parseFloat(edit.customMinOrderValue) || 0),
+        customMoqUnits: customMoq,
+        customMinOrderValue: customVal,
       });
-      showNotice(`Saved login & MOQ overrides for ${merchant.merchantStoreName || merchant.name}.`);
+      if ((customMoq > 0 || customVal > 0) && !draft.enforceMoq) {
+        const nextDraft = { ...draft, enforceMoq: true };
+        setDraft(nextDraft);
+        const saved = await updateMerchantSettings(nextDraft);
+        lastSyncedSettingsJsonRef.current = JSON.stringify(normalizeMerchantSettings(saved));
+      }
+      showNotice(`Saved & pushed ordering/MOQ overrides for ${merchant.merchantStoreName || merchant.name}.`);
     } catch (err: any) {
-      alert(err?.message || 'Failed to save merchant override.');
+      showErr(err?.message || 'Failed to save merchant override.');
     } finally {
       setSavingMerchantId(null);
     }
@@ -429,11 +521,17 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
           </div>
         </div>
 
-        {/* Save Feedback Banner */}
+        {/* Save Feedback / Error Banner */}
         {saveFeedback && (
           <div className="p-3 rounded-xl bg-emerald-950/70 border border-emerald-700/60 text-emerald-200 text-xs flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
             <span>{saveFeedback}</span>
+          </div>
+        )}
+        {saveError && (
+          <div className="p-3 rounded-xl bg-rose-950/70 border border-rose-700/60 text-rose-200 text-xs flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span>{saveError}</span>
           </div>
         )}
 
@@ -510,6 +608,12 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
                   onClick={() => {
                     const next = { ...draft, enforceLoginHours: !draft.enforceLoginHours };
                     setDraft(next);
+                    handleSaveSettings(
+                      next,
+                      next.enforceLoginHours
+                        ? 'Daily Ordering Window activated & pushed live.'
+                        : 'Daily Ordering Window turned OFF (24/7 ordering) & pushed live.'
+                    );
                   }}
                   className={`px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer shrink-0 ${
                     draft.enforceLoginHours
@@ -570,12 +674,16 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
 
                 <button
                   type="button"
-                  onClick={() =>
-                    setDraft((prev) => ({
-                      ...prev,
-                      enforceNextDayCutoff: !prev.enforceNextDayCutoff,
-                    }))
-                  }
+                  onClick={() => {
+                    const next = { ...draft, enforceNextDayCutoff: !draft.enforceNextDayCutoff };
+                    setDraft(next);
+                    handleSaveSettings(
+                      next,
+                      next.enforceNextDayCutoff
+                        ? `Next-Day Delivery Cutoff (${next.nextDayCutoffTime}) enforced & pushed live.`
+                        : 'Next-Day Delivery Cutoff disabled & pushed live.'
+                    );
+                  }}
                   className={`px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer shrink-0 ${
                     draft.enforceNextDayCutoff
                       ? 'bg-emerald-500/20 border-emerald-500/60 text-emerald-300'
@@ -610,9 +718,11 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
                     <input
                       type="checkbox"
                       checked={draft.allowSameDayDelivery}
-                      onChange={(e) =>
-                        setDraft((prev) => ({ ...prev, allowSameDayDelivery: e.target.checked }))
-                      }
+                      onChange={(e) => {
+                        const next = { ...draft, allowSameDayDelivery: e.target.checked };
+                        setDraft(next);
+                        handleSaveSettings(next, 'Same-day delivery setting updated & pushed live.');
+                      }}
                       className="w-4 h-4 accent-[#C98A5B] cursor-pointer"
                     />
                   </label>
@@ -680,6 +790,12 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
                   onClick={() => {
                     const next = { ...draft, manualLockdown: !draft.manualLockdown };
                     setDraft(next);
+                    handleSaveSettings(
+                      next,
+                      next.manualLockdown
+                        ? 'New order submissions paused & pushed live (Portal remains open 24/7).'
+                        : 'New order submissions resumed & pushed live.'
+                    );
                   }}
                   className={`px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer shrink-0 ${
                     draft.manualLockdown
@@ -828,6 +944,23 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
                 );
               })}
             </div>
+
+            <div className="pt-4 border-t border-[#2C211B] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <span className="text-[11px] text-[#A69385]">
+                {hasUnsavedChanges
+                  ? 'You have edited time fields or messages. Push changes live to update the Merchant Portal.'
+                  : 'All ordering window & cutoff rules are synced live with Cloud Firestore.'}
+              </span>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => handleSaveSettings(draft, 'Ordering Window & Next-Day Cutoff rules saved and pushed live.')}
+                className="px-5 py-2.5 rounded-xl bg-[#C98A5B] hover:bg-[#DE9E74] text-[#120F0D] font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all shadow-sm disabled:opacity-60"
+              >
+                <Save className="w-4 h-4" />
+                <span>{saving ? 'Pushing Live...' : 'Save & Push Schedule Live'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -851,7 +984,16 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
 
               <button
                 type="button"
-                onClick={() => setDraft((prev) => ({ ...prev, enforceMoq: !prev.enforceMoq }))}
+                onClick={() => {
+                  const next = { ...draft, enforceMoq: !draft.enforceMoq };
+                  setDraft(next);
+                  handleSaveSettings(
+                    next,
+                    next.enforceMoq
+                      ? 'Wholesale MOQ Enforcement turned ON and pushed live to Merchant Portal.'
+                      : 'Wholesale MOQ Enforcement turned OFF and pushed live.'
+                  );
+                }}
                 className={`px-4 py-2 rounded-full text-xs font-bold border transition-all cursor-pointer shrink-0 ${
                   draft.enforceMoq
                     ? 'bg-emerald-500/20 border-emerald-500/60 text-emerald-300'
@@ -876,10 +1018,14 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
                   </div>
                   <button
                     type="button"
-                    onClick={() => setDraft((prev) => ({ ...prev, enforceMoq: true }))}
+                    onClick={() => {
+                      const next = { ...draft, enforceMoq: true };
+                      setDraft(next);
+                      handleSaveSettings(next, 'MOQ Enforcement activated & pushed live to Merchant Portal.');
+                    }}
                     className="px-3.5 py-1.5 rounded-lg bg-amber-400 text-[#120F0D] font-bold text-xs shrink-0 cursor-pointer"
                   >
-                    Turn Enforcement ON
+                    Turn Enforcement ON &amp; Push
                   </button>
                 </div>
               )}
@@ -990,13 +1136,39 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
                     : 'MOQ enforcement is currently disabled. Merchants can submit any non-empty order.'}
                 </p>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2 shrink-0 flex-wrap">
                 <button
                   type="button"
                   onClick={() => setActiveTab('products')}
                   className="px-3.5 py-2 rounded-xl bg-[#120F0D] border border-[#3A2D25] text-xs font-semibold text-[#DE9E74] hover:border-[#C98A5B] cursor-pointer"
                 >
                   Configure Product MOQs &rarr;
+                </button>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => {
+                    const hasPositiveRule =
+                      draft.globalMinOrderQty > 0 ||
+                      draft.globalMinLineQty > 0 ||
+                      draft.globalMinOrderValue > 0 ||
+                      customMoqProductsCount > 0;
+                    const nextDraft: MerchantPortalSettings =
+                      hasPositiveRule && !draft.enforceMoq
+                        ? { ...draft, enforceMoq: true }
+                        : draft;
+                    setDraft(nextDraft);
+                    handleSaveSettings(
+                      nextDraft,
+                      hasPositiveRule && !draft.enforceMoq
+                        ? 'Global MOQ values saved, Enforcement auto-enabled & pushed live to Merchant Portal.'
+                        : 'Global MOQ rules saved & pushed live to Merchant Portal.'
+                    );
+                  }}
+                  className="px-5 py-2.5 rounded-xl bg-[#C98A5B] hover:bg-[#DE9E74] text-[#120F0D] font-bold text-xs flex items-center gap-2 cursor-pointer transition-all shadow-sm disabled:opacity-60"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{saving ? 'Pushing Live...' : 'Save & Push Global MOQ Rules'}</span>
                 </button>
               </div>
             </div>
@@ -1021,6 +1193,22 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
             </div>
 
             <div className="flex flex-wrap items-center gap-2.5">
+              {modifiedProducts.length > 0 && (
+                <button
+                  type="button"
+                  disabled={savingAllProds}
+                  onClick={handleSaveAllModifiedProductMoqs}
+                  className="px-4 py-1.5 rounded-lg bg-[#C98A5B] hover:bg-[#DE9E74] text-[#120F0D] font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>
+                    {savingAllProds
+                      ? 'Pushing...'
+                      : `Push All Modified (${modifiedProducts.length})`}
+                  </span>
+                </button>
+              )}
+
               <div className="relative">
                 <Search className="w-4 h-4 text-[#A69385] absolute left-3 top-2.5" />
                 <input
@@ -1236,6 +1424,13 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
                       customMinOrderValue: m.customMinOrderValue ? String(m.customMinOrderValue) : '',
                     };
 
+                    const isMerchantModified =
+                      edit.bypassLoginHours !== Boolean(m.bypassLoginHours) ||
+                      edit.allowedLoginStart !== (m.allowedLoginStart || '') ||
+                      edit.allowedLoginEnd !== (m.allowedLoginEnd || '') ||
+                      (parseInt(edit.customMoqUnits, 10) || 0) !== (m.customMoqUnits || 0) ||
+                      (parseFloat(edit.customMinOrderValue) || 0) !== (m.customMinOrderValue || 0);
+
                     return (
                       <tr key={m.id} className="hover:bg-[#221B17]/50 transition-colors">
                         <td className="py-3.5 px-4">
@@ -1337,9 +1532,17 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
                             type="button"
                             disabled={savingMerchantId === m.id}
                             onClick={() => handleSaveMerchantOverride(m)}
-                            className="px-3.5 py-1.5 rounded-lg bg-[#C98A5B] hover:bg-[#DE9E74] text-[#120F0D] font-bold text-[11px] cursor-pointer transition-all"
+                            className={`px-3.5 py-1.5 rounded-lg font-bold text-[11px] cursor-pointer transition-all ${
+                              isMerchantModified
+                                ? 'bg-gradient-to-r from-[#C98A5B] to-[#DE9E74] text-[#120F0D] ring-2 ring-[#DE9E74]/50'
+                                : 'bg-[#221B17] hover:bg-[#2C211B] text-[#EDE6DE]'
+                            }`}
                           >
-                            {savingMerchantId === m.id ? 'Saving...' : 'Apply'}
+                            {savingMerchantId === m.id
+                              ? 'Saving...'
+                              : isMerchantModified
+                              ? 'Push Live'
+                              : 'Applied'}
                           </button>
                         </td>
                       </tr>

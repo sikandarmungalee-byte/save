@@ -471,6 +471,7 @@ export const normalizeProduct = (p: any, idx = 0): Product => ({
   badge: p?.badge || '',
   packagingType: p?.packagingType || 'dozen',
   moq: p?.moq !== undefined && p?.moq !== null ? Math.max(0, Number(p.moq) || 0) : undefined,
+  ...(Array.isArray(p?.sizes) ? { sizes: p.sizes } : {}),
 });
 
 function healInvoicesList(rawInvoices: Invoice[], customerList: Customer[], userList: User[]): { invoices: Invoice[]; changed: boolean } {
@@ -597,6 +598,19 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const isWritingCloud = useRef(false);
   const lastSyncedTimestampRef = useRef<number>(0);
   const hasCleanedCloudDemoRef = useRef<boolean>(false);
+  const hasFirestoreSnapshotRef = useRef<boolean>(false);
+  const merchantSettingsRef = useRef<MerchantPortalSettings>(merchantSettings);
+  useEffect(() => {
+    merchantSettingsRef.current = merchantSettings;
+  }, [merchantSettings]);
+  const productsRef = useRef<Product[]>(products);
+  useEffect(() => {
+    productsRef.current = products;
+  }, [products]);
+  const usersRef = useRef<User[]>(users);
+  useEffect(() => {
+    usersRef.current = users;
+  }, [users]);
 
   // Helper to persist state to local cache
   const persistToLocal = useCallback((override?: Partial<ERPDatabase>) => {
@@ -701,7 +715,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (cleaned.company) setCompany(cleaned.company);
     if (cleaned.merchantSettings) {
-      setMerchantSettings(normalizeMerchantSettings(cleaned.merchantSettings));
+      const normalized = normalizeMerchantSettings(cleaned.merchantSettings);
+      merchantSettingsRef.current = normalized;
+      setMerchantSettings(normalized);
     }
     if (Array.isArray(cleaned.categories) && (respectEmptyArrays || cleaned.categories.length > 0)) {
       setCategories(cleaned.categories);
@@ -709,7 +725,15 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const activeUsers = Array.isArray(cleaned.users) ? cleaned.users : [MASTER_ADMIN_USER];
     if (Array.isArray(cleaned.users)) {
+      usersRef.current = activeUsers;
       setUsers(activeUsers);
+      setCurrentUser((prev) => {
+        if (!prev) return prev;
+        const fresh = activeUsers.find((u) => u.id === prev.id);
+        if (!fresh) return prev;
+        const nextMerged = { ...prev, ...fresh };
+        return JSON.stringify(prev) === JSON.stringify(nextMerged) ? prev : nextMerged;
+      });
     }
 
     const activeCustomers = Array.isArray(cleaned.customers) ? cleaned.customers : [];
@@ -718,7 +742,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     if (Array.isArray(cleaned.products) && (respectEmptyArrays || cleaned.products.length > 0)) {
-      setProducts(cleaned.products.map((p, i) => normalizeProduct(p, i)));
+      const normalizedProducts = cleaned.products.map((p, i) => normalizeProduct(p, i));
+      productsRef.current = normalizedProducts;
+      setProducts(normalizedProducts);
     }
 
     if (Array.isArray(cleaned.invoices) && (respectEmptyArrays || cleaned.invoices.length > 0)) {
@@ -884,9 +910,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
-    // Hydrate from server backend only if Firestore has not yet delivered newer data
+    // Hydrate from server backend only if Firestore has not yet delivered data
     safeFetchJson<ERPDatabase>('/api/sync').then((res) => {
-      if (!mounted || !res.ok || !res.data) return;
+      if (!mounted || !res.ok || !res.data || hasFirestoreSnapshotRef.current) return;
       const srvTs = res.data.lastUpdated ? new Date(res.data.lastUpdated).getTime() : 0;
       if (lastSyncedTimestampRef.current === 0 || srvTs > lastSyncedTimestampRef.current) {
         applyDatabaseSnapshot(res.data, { respectEmptyArrays: true });
@@ -897,6 +923,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const unsub = onSnapshot(doc(db, 'erp', 'main'), (snapshot) => {
       if (!mounted) return;
       if (snapshot.exists()) {
+        hasFirestoreSnapshotRef.current = true;
         const cloudData = snapshot.data() as Partial<ERPDatabase>;
         const { cleaned, stripped } = applyDatabaseSnapshot(cloudData, {
           respectEmptyArrays: true,
@@ -1307,8 +1334,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
     };
 
+    const currentUsers = usersRef.current;
     console.log('[UserRegistration] New user account object assembled. Updating local cache & Cloud Firestore:', newUser.id);
-    const nextUsers = [...users, newUser];
+    const nextUsers = [...currentUsers, newUser];
+    usersRef.current = nextUsers;
     setUsers(nextUsers);
     persistToLocal({ users: nextUsers });
     await syncToCloud({ users: nextUsers });
@@ -1326,7 +1355,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     console.log('[UserManagement] Updating user account id:', id, data);
 
     let updatedResult: User | null = null;
-    const nextUsers = users.map((u) => {
+    const nextUsers = usersRef.current.map((u) => {
       if (u.id === id) {
         const mod = { ...u, ...data };
         updatedResult = mod;
@@ -1335,6 +1364,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return u;
     });
 
+    usersRef.current = nextUsers;
     setUsers(nextUsers);
     persistToLocal({ users: nextUsers });
     await syncToCloud({ users: nextUsers });
@@ -1354,7 +1384,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     console.log('[UserManagement] Deleting user account id:', id);
-    const nextUsers = users.filter((u) => u.id !== id);
+    const nextUsers = usersRef.current.filter((u) => u.id !== id);
+    usersRef.current = nextUsers;
     setUsers(nextUsers);
     persistToLocal({ users: nextUsers });
     await syncToCloud({ users: nextUsers });
@@ -1373,12 +1404,18 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     data: Partial<MerchantPortalSettings>
   ): Promise<MerchantPortalSettings> => {
     const updated: MerchantPortalSettings = {
-      ...normalizeMerchantSettings({ ...merchantSettings, ...data }),
+      ...normalizeMerchantSettings({ ...merchantSettingsRef.current, ...data }),
       updatedAt: new Date().toISOString(),
       updatedBy: currentUser?.name || 'Administrator',
     };
+    merchantSettingsRef.current = updated;
     setMerchantSettings(updated);
     persistToLocal({ merchantSettings: updated });
+    safeFetchJson('/api/merchant-settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated),
+    }).catch(() => {});
     await syncToCloud({ merchantSettings: updated });
     return updated;
   };
@@ -1526,13 +1563,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       moq: data.moq !== undefined ? Math.max(0, Number(data.moq) || 0) : undefined,
     };
 
-    const nextProducts = [newProd, ...products];
+    const nextProducts = [newProd, ...productsRef.current];
     let nextCats = categories;
     if (cleanCategory && !categories.some((c) => c.toLowerCase() === cleanCategory.toLowerCase())) {
       nextCats = [...categories, cleanCategory];
       setCategories(nextCats);
     }
 
+    productsRef.current = nextProducts;
     setProducts(nextProducts);
     persistToLocal({ products: nextProducts, categories: nextCats });
     await syncToCloud({ products: nextProducts, categories: nextCats });
@@ -1542,7 +1580,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateProduct = async (id: string, data: Partial<Product>): Promise<Product> => {
     let resProd: Product | null = null;
-    const nextProducts = products.map((p) => {
+    const nextProducts = productsRef.current.map((p) => {
       if (p.id === id) {
         const mod = { ...p, ...data };
         resProd = mod;
@@ -1551,6 +1589,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return p;
     });
 
+    productsRef.current = nextProducts;
     setProducts(nextProducts);
     persistToLocal({ products: nextProducts });
     await syncToCloud({ products: nextProducts });
@@ -1560,7 +1599,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const toggleProductShowcase = async (id: string): Promise<boolean> => {
     let newState = false;
-    const nextProducts = products.map((p) => {
+    const nextProducts = productsRef.current.map((p) => {
       if (p.id === id) {
         newState = p.showcase === false ? true : false;
         return { ...p, showcase: newState };
@@ -1568,6 +1607,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return p;
     });
 
+    productsRef.current = nextProducts;
     setProducts(nextProducts);
     persistToLocal({ products: nextProducts });
     await syncToCloud({ products: nextProducts });
@@ -1575,7 +1615,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteProduct = async (id: string) => {
-    const nextProducts = products.filter((p) => p.id !== id);
+    const nextProducts = productsRef.current.filter((p) => p.id !== id);
+    productsRef.current = nextProducts;
     setProducts(nextProducts);
     persistToLocal({ products: nextProducts });
     await syncToCloud({ products: nextProducts });
@@ -2951,15 +2992,18 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const orderNumber = data.orderNumber || `ORD-${now.getFullYear()}-${String(merchantOrders.length + 1).padStart(4, '0')}`;
     const items = data.items || [];
 
-    if (currentUser?.role === 'merchant') {
-      const accessCheck = checkMerchantPortalAccess(merchantSettings, currentUser, now, 'order');
+    const liveUser = (currentUser && usersRef.current.find((u) => u.id === currentUser.id)) || currentUser;
+    const liveSettings = merchantSettingsRef.current || merchantSettings;
+
+    if (liveUser?.role === 'merchant') {
+      const accessCheck = checkMerchantPortalAccess(liveSettings, liveUser, now, 'order');
       if (!accessCheck.allowed) {
         throw new Error(accessCheck.message);
       }
 
       const scheduleCheck = evaluateDeliveryScheduleConstraint({
-        settings: merchantSettings,
-        user: currentUser,
+        settings: liveSettings,
+        user: liveUser,
         requestedDeliveryDate: data.requestedDeliveryDate,
         now,
       });
@@ -2970,9 +3014,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const moqCheck = evaluateMerchantOrderMOQ({
       items,
-      products,
-      user: currentUser,
-      settings: merchantSettings,
+      products: productsRef.current,
+      user: liveUser,
+      settings: liveSettings,
       currency: company?.currency || 'R',
     });
     if (moqCheck.enforced && !moqCheck.valid) {
