@@ -17,7 +17,11 @@ import {
 } from 'lucide-react';
 import { useERP } from '../../context/ERPContext';
 import { SHOWCASE_CONTACT } from './showcaseData';
-import { checkMerchantPortalAccess, normalizeMerchantSettings } from '../../utils/merchantRules';
+import {
+  checkMerchantPortalAccess,
+  evaluateDeliveryScheduleConstraint,
+  normalizeMerchantSettings,
+} from '../../utils/merchantRules';
 
 interface ShowcaseMerchantLoginPageProps {
   onNavigate: (tab: string) => void;
@@ -43,7 +47,11 @@ export const ShowcaseMerchantLoginPage: React.FC<ShowcaseMerchantLoginPageProps>
   }, []);
 
   const normalizedSettings = normalizeMerchantSettings(merchantSettings);
-  const portalAccess = checkMerchantPortalAccess(normalizedSettings, null, nowTick);
+  const portalAccess = checkMerchantPortalAccess(normalizedSettings, null, nowTick, 'order');
+  const deliveryConstraint = evaluateDeliveryScheduleConstraint({
+    settings: normalizedSettings,
+    now: nowTick,
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -179,10 +187,10 @@ export const ShowcaseMerchantLoginPage: React.FC<ShowcaseMerchantLoginPageProps>
               </p>
             </div>
 
-            {/* Live Portal Operating Window & MOQ Notice */}
+            {/* Live Portal Access, Ordering Window, Cutoff & MOQ Notice */}
             <div
               className={`p-3.5 rounded-2xl border text-xs flex flex-col gap-1.5 ${
-                !portalAccess.allowed
+                !portalAccess.loginAllowed
                   ? 'bg-amber-50 border-amber-200 text-amber-950'
                   : 'bg-[#FBF7F1] border-[#E8D9CD] text-[#4C2A1A]'
               }`}
@@ -191,26 +199,46 @@ export const ShowcaseMerchantLoginPage: React.FC<ShowcaseMerchantLoginPageProps>
                 <div className="flex items-center gap-2 font-bold">
                   <span
                     className={`w-2 h-2 rounded-full ${
-                      portalAccess.allowed ? 'bg-emerald-500' : 'bg-amber-500'
+                      portalAccess.loginAllowed ? 'bg-emerald-500' : 'bg-amber-500'
                     }`}
                   />
                   <Clock className="w-3.5 h-3.5 text-[#8D5037]" />
                   <span>
-                    {portalAccess.reasonCode === 'MANUAL_LOCKDOWN'
+                    {portalAccess.loginAllowed
+                      ? 'Portal Sign-In: Open 24/7'
+                      : portalAccess.reasonCode === 'MANUAL_LOCKDOWN'
                       ? 'Portal Temporarily Paused'
-                      : portalAccess.allowed
-                      ? 'Merchant Desk Open'
-                      : 'Outside Ordering Hours'}
+                      : 'Outside Portal Sign-In Hours'}
                   </span>
                 </div>
                 <span className="font-mono text-[11px] font-semibold text-[#75412E]">
-                  {portalAccess.currentDayLabel} · {portalAccess.todayWindowText} ({portalAccess.currentTimeHHMM})
+                  {portalAccess.orderingAllowed
+                    ? `Ordering Open · ${portalAccess.todayWindowText}`
+                    : `Ordering Closed${portalAccess.nextOpenText ? ` · Opens ${portalAccess.nextOpenText}` : ''}`}
                 </span>
               </div>
-              {!portalAccess.allowed && (
+              {portalAccess.loginAllowed && !portalAccess.orderingAllowed && (
+                <p className="text-[11px] text-[#66483B] leading-relaxed">
+                  Sign in anytime to view invoices, PODs, statements, or prepare draft orders. Order submission window today ({portalAccess.currentDayLabel}):{' '}
+                  <strong className="font-mono">{portalAccess.todayWindowText}</strong>.
+                </p>
+              )}
+              {!portalAccess.loginAllowed && (
                 <p className="text-[11px] text-amber-900 leading-relaxed">
                   {portalAccess.message} (VIP override accounts &amp; staff may still sign in.)
                 </p>
+              )}
+              {normalizedSettings.enforceNextDayCutoff && (
+                <div className="flex items-center gap-1.5 text-[11px] text-[#75412E] pt-1 border-t border-[#E8D9CD]/70">
+                  <Truck className="w-3.5 h-3.5 text-[#CC8468] shrink-0" />
+                  <span>
+                    Next-Day Delivery Cutoff: <strong className="font-mono">{normalizedSettings.nextDayCutoffTime}</strong>
+                    {' · '}
+                    {deliveryConstraint.isTomorrowAvailable
+                      ? `Order before ${normalizedSettings.nextDayCutoffTime} for tomorrow`
+                      : `Earliest delivery: ${deliveryConstraint.minAllowedDate}`}
+                  </span>
+                </div>
               )}
               {normalizedSettings.enforceMoq && (
                 <div className="flex items-center gap-1.5 text-[11px] text-[#75412E] pt-1 border-t border-[#E8D9CD]/70">

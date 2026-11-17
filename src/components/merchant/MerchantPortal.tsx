@@ -51,7 +51,9 @@ import { InvoicePrintModal } from '../InvoicePrintModal';
 import { SHOWCASE_CONTACT } from '../showcase/showcaseData';
 import { MerchantReportsTab } from './MerchantReportsTab';
 import {
+  addDaysToYYYYMMDD,
   checkMerchantPortalAccess,
+  evaluateDeliveryScheduleConstraint,
   evaluateMerchantOrderMOQ,
   normalizeMerchantSettings,
 } from '../../utils/merchantRules';
@@ -184,9 +186,37 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
   );
 
   const portalAccess = useMemo(
-    () => checkMerchantPortalAccess(normalizedSettings, currentUser, nowTick),
+    () => checkMerchantPortalAccess(normalizedSettings, currentUser, nowTick, 'order'),
     [normalizedSettings, currentUser, nowTick]
   );
+
+  const deliveryConstraint = useMemo(
+    () =>
+      evaluateDeliveryScheduleConstraint({
+        settings: normalizedSettings,
+        user: currentUser,
+        requestedDeliveryDate,
+        now: nowTick,
+      }),
+    [normalizedSettings, currentUser, requestedDeliveryDate, nowTick]
+  );
+
+  useEffect(() => {
+    if (
+      deliveryConstraint.enforced &&
+      (!requestedDeliveryDate || requestedDeliveryDate < deliveryConstraint.minAllowedDate)
+    ) {
+      setRequestedDeliveryDate(deliveryConstraint.minAllowedDate);
+      if (deliveryConstraint.minLeadDays >= 2) {
+        setDeliveryPreset('twoDays');
+      }
+    }
+  }, [
+    deliveryConstraint.enforced,
+    deliveryConstraint.minAllowedDate,
+    deliveryConstraint.minLeadDays,
+    requestedDeliveryDate,
+  ]);
 
   // Find linked customer record from ERP database if available
   const linkedCustomer = useMemo(() => {
@@ -479,24 +509,31 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
   };
 
   const handleSelectDeliveryPreset = (preset: 'tomorrow' | 'twoDays' | 'threeDays' | 'custom') => {
+    if (preset === 'tomorrow' && deliveryConstraint.enforced && !deliveryConstraint.isTomorrowAvailable) {
+      setOrderNotice(deliveryConstraint.message);
+      setTimeout(() => setOrderNotice(null), 6000);
+      return;
+    }
     setDeliveryPreset(preset);
-    const now = Date.now();
+    const baseToday = deliveryConstraint.todayDate;
     if (preset === 'tomorrow') {
-      const d = new Date(now + 86400000);
-      setRequestedDeliveryDate(d.toISOString().split('T')[0]);
+      setRequestedDeliveryDate(addDaysToYYYYMMDD(baseToday, 1));
     } else if (preset === 'twoDays') {
-      const d = new Date(now + 86400000 * 2);
-      setRequestedDeliveryDate(d.toISOString().split('T')[0]);
+      setRequestedDeliveryDate(addDaysToYYYYMMDD(baseToday, 2));
     } else if (preset === 'threeDays') {
-      const d = new Date(now + 86400000 * 3);
-      setRequestedDeliveryDate(d.toISOString().split('T')[0]);
+      setRequestedDeliveryDate(addDaysToYYYYMMDD(baseToday, 3));
     }
   };
 
   const handlePlaceOrderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!portalAccess.allowed) {
+    if (!portalAccess.orderingAllowed) {
       setOrderNotice(portalAccess.message);
+      setTimeout(() => setOrderNotice(null), 6000);
+      return;
+    }
+    if (deliveryConstraint.enforced && !deliveryConstraint.valid) {
+      setOrderNotice(deliveryConstraint.message);
       setTimeout(() => setOrderNotice(null), 6000);
       return;
     }
@@ -734,18 +771,21 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
 
       {/* Main Container */}
       <main className="flex-1 max-w-7xl mx-auto w-full p-4 sm:p-8 space-y-6">
-        {/* Portal Ordering Window Alert Banner (when locked/closed while already logged in) */}
-        {!portalAccess.allowed && (
+        {/* Portal Ordering Window Alert Banner (portal stays open 24/7 for browsing, invoices, PODs & draft carts) */}
+        {!portalAccess.orderingAllowed && (
           <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 text-xs sm:text-sm font-medium flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
             <div className="flex items-start gap-3">
               <Clock className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
               <div>
                 <div className="font-bold">
                   {portalAccess.reasonCode === 'MANUAL_LOCKDOWN'
-                    ? 'Ordering Temporarily Paused by Savouré Dispatch'
-                    : 'Wholesale Ordering Window Currently Closed'}
+                    ? 'New Order Submissions Temporarily Paused — Portal Access Open 24/7'
+                    : 'Ordering Window Currently Closed — Portal & Cart Preparation Open'}
                 </div>
-                <p className="text-xs text-amber-900 mt-0.5">{portalAccess.message}</p>
+                <p className="text-xs text-amber-900 mt-0.5">
+                  {portalAccess.message}{' '}
+                  {portalAccess.nextOpenText ? `Next ordering window opens ${portalAccess.nextOpenText}.` : ''}
+                </p>
               </div>
             </div>
             <span className="text-[11px] font-mono font-bold px-3 py-1 rounded-full bg-amber-100 border border-amber-300 text-amber-900 shrink-0">
@@ -1499,14 +1539,19 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                   <div className="grid grid-cols-2 gap-1.5 mb-2">
                     <button
                       type="button"
+                      disabled={deliveryConstraint.enforced && !deliveryConstraint.isTomorrowAvailable}
                       onClick={() => handleSelectDeliveryPreset('tomorrow')}
-                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-semibold text-center border cursor-pointer transition-colors ${
-                        deliveryPreset === 'tomorrow'
-                          ? 'bg-[#2B150A] text-white border-[#2B150A]'
-                          : 'bg-[#FBF7F1] text-[#66483B] border-[#BD896E]/20 hover:bg-[#EAD8C6]'
+                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-semibold text-center border transition-colors ${
+                        deliveryConstraint.enforced && !deliveryConstraint.isTomorrowAvailable
+                          ? 'bg-stone-100 text-stone-400 border-stone-200 cursor-not-allowed line-through'
+                          : deliveryPreset === 'tomorrow'
+                          ? 'bg-[#2B150A] text-white border-[#2B150A] cursor-pointer'
+                          : 'bg-[#FBF7F1] text-[#66483B] border-[#BD896E]/20 hover:bg-[#EAD8C6] cursor-pointer'
                       }`}
                     >
-                      Tomorrow Morning
+                      {deliveryConstraint.enforced && !deliveryConstraint.isTomorrowAvailable
+                        ? 'Tomorrow (Cutoff Passed)'
+                        : 'Tomorrow Morning'}
                     </button>
                     <button
                       type="button"
@@ -1546,6 +1591,7 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                   <input
                     type="date"
                     required
+                    min={deliveryConstraint.minAllowedDate}
                     value={requestedDeliveryDate}
                     onChange={(e) => {
                       setRequestedDeliveryDate(e.target.value);
@@ -1553,6 +1599,24 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                     }}
                     className="w-full px-3 py-2 rounded-xl bg-[#FBF7F1] border border-[#BD896E]/30 text-xs text-[#2B150A] focus:outline-hidden focus:border-[#CC8468]"
                   />
+
+                  {deliveryConstraint.enforced && (
+                    <div
+                      className={`mt-2 p-2.5 rounded-xl border text-[11px] leading-snug ${
+                        !deliveryConstraint.valid
+                          ? 'bg-amber-50 border-amber-300 text-amber-950 font-medium'
+                          : deliveryConstraint.isTomorrowAvailable
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                          : 'bg-[#FBF7F1] border-[#E8D9CD] text-[#66483B]'
+                      }`}
+                    >
+                      {!deliveryConstraint.valid
+                        ? deliveryConstraint.message
+                        : deliveryConstraint.isTomorrowAvailable
+                        ? `Order before ${deliveryConstraint.cutoffTime} today for tomorrow (${deliveryConstraint.tomorrowDate}).`
+                        : `Cutoff (${deliveryConstraint.cutoffTime}) passed · Next available delivery: ${deliveryConstraint.minAllowedDate}.`}
+                    </div>
+                  )}
                 </div>
 
                 {/* Delivery Location */}
@@ -1727,15 +1791,18 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                   disabled={
                     isSubmittingOrder ||
                     selectedOrderItems.length === 0 ||
-                    !portalAccess.allowed ||
+                    !portalAccess.orderingAllowed ||
+                    (deliveryConstraint.enforced && !deliveryConstraint.valid) ||
                     (moqCheck.enforced && !moqCheck.valid)
                   }
                   className="w-full py-3.5 rounded-full bg-[#CC8468] hover:bg-[#B86643] disabled:opacity-50 text-white font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm hover:-translate-y-0.5"
                 >
                   <Send className="w-4 h-4" />
                   <span>
-                    {!portalAccess.allowed
-                      ? 'Portal Ordering Currently Closed'
+                    {!portalAccess.orderingAllowed
+                      ? `Ordering Window Closed${portalAccess.nextOpenText ? ` (${portalAccess.nextOpenText})` : ''}`
+                      : deliveryConstraint.enforced && !deliveryConstraint.valid
+                      ? `Select Delivery From ${deliveryConstraint.minAllowedDate}`
                       : isSubmittingOrder
                       ? 'Submitting to Live Oven Queue...'
                       : moqCheck.enforced && selectedOrderItems.length > 0 && !moqCheck.valid

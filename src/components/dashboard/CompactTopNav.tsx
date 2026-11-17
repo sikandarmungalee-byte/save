@@ -97,6 +97,8 @@ export const CompactTopNav: React.FC<CompactTopNavProps> = ({
         return Boolean(perms.manageUsers);
       case 'merchants':
         return Boolean(perms.merchants ?? perms.manageUsers);
+      case 'merchant-controls':
+        return Boolean(perms.manageUsers ?? perms.merchantOrders);
       case 'pos':
         return Boolean(perms.pos ?? true);
       case 'production-line':

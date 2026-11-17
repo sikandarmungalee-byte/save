@@ -40,6 +40,7 @@ import {
   DEFAULT_MERCHANT_PORTAL_SETTINGS,
   normalizeMerchantSettings,
   checkMerchantPortalAccess,
+  evaluateDeliveryScheduleConstraint,
   evaluateMerchantOrderMOQ,
 } from '../utils/merchantRules';
 
@@ -1148,9 +1149,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         throw new Error('This user account has been disabled by an administrator.');
       }
 
-      // Enforce Admin-configured Merchant Login Hours & Portal Pause
+      // Enforce Portal Sign-In Access (24/7 when alwaysAllowPortalAccess is true)
       if (matchedUser.role === 'merchant') {
-        const accessCheck = checkMerchantPortalAccess(effectiveMerchantSettings, matchedUser);
+        const accessCheck = checkMerchantPortalAccess(
+          effectiveMerchantSettings,
+          matchedUser,
+          new Date(),
+          'login'
+        );
         if (!accessCheck.allowed) {
           await recordLoginLog({
             userId: matchedUser.id,
@@ -2965,9 +2971,19 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const items = data.items || [];
 
     if (currentUser?.role === 'merchant') {
-      const accessCheck = checkMerchantPortalAccess(merchantSettings, currentUser, now);
+      const accessCheck = checkMerchantPortalAccess(merchantSettings, currentUser, now, 'order');
       if (!accessCheck.allowed) {
         throw new Error(accessCheck.message);
+      }
+
+      const scheduleCheck = evaluateDeliveryScheduleConstraint({
+        settings: merchantSettings,
+        user: currentUser,
+        requestedDeliveryDate: data.requestedDeliveryDate,
+        now,
+      });
+      if (scheduleCheck.enforced && !scheduleCheck.valid) {
+        throw new Error(scheduleCheck.message);
       }
     }
 

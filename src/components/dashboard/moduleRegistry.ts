@@ -1626,29 +1626,33 @@ export const ERP_MODULES: ERPModule[] = [
   {
     id: 'merchant-controls',
     number: 23,
-    title: 'Merchant Hours & MOQ',
-    shortTitle: 'Hours & MOQ',
-    subtitle: 'Login Windows & Minimum Orders',
-    description: 'Configure merchant portal operating schedules, manual lockdown, global/product MOQs, and per-merchant VIP overrides.',
+    title: 'Ordering Windows & MOQ',
+    shortTitle: 'Ordering & MOQ',
+    subtitle: 'Ordering Windows, Cutoff & MOQ',
+    description: 'Keep portal sign-in open 24/7 while setting daily order submission windows, next-day delivery cutoffs, global/product MOQs, and per-merchant overrides.',
     icon: SlidersHorizontal,
     badge: (ctx) => {
       const settings = ctx.merchantSettings;
-      if (settings?.manualLockdown) return 'PAUSED';
-      const access = checkMerchantPortalAccess(settings);
+      if (settings?.manualLockdown) return 'ORDERS PAUSED';
+      const access = checkMerchantPortalAccess(settings, null, new Date(), 'order');
       if (settings?.enforceLoginHours) {
-        return access.allowed ? 'OPEN NOW' : 'CLOSED NOW';
+        return access.orderingAllowed ? 'ORDERS OPEN' : 'WINDOW CLOSED';
       }
+      if (settings?.enforceNextDayCutoff) return `CUTOFF ${settings.nextDayCutoffTime || '14:00'}`;
       if (settings?.enforceMoq) return 'MOQ ACTIVE';
-      return 'OPEN 24/7';
+      return 'PORTAL 24/7';
     },
     subcategories: [
       {
         id: 'merchant-hours-schedule',
-        title: 'Login Hours & Weekly Schedule',
-        subtitle: 'Set daily portal opening/closing windows & emergency pause',
+        title: 'Ordering Window & Next-Day Cutoff',
+        subtitle: '24/7 portal access, daily order submission times & next-day delivery cutoff',
         icon: Clock,
         actionType: 'tab',
-        badge: (ctx) => (ctx.merchantSettings?.enforceLoginHours ? 'ENFORCED' : '24/7'),
+        badge: (ctx) =>
+          ctx.merchantSettings?.enforceLoginHours || ctx.merchantSettings?.enforceNextDayCutoff
+            ? 'ACTIVE'
+            : 'OPEN 24/7',
         targetConfig: { initialTab: 'hours' }
       },
       {
@@ -1672,7 +1676,7 @@ export const ERP_MODULES: ERPModule[] = [
       {
         id: 'merchant-account-overrides',
         title: 'Merchant VIP & Custom Overrides',
-        subtitle: '24/7 VIP bypass, custom login hours & account MOQs',
+        subtitle: '24/7 VIP ordering bypass, custom windows & account MOQs',
         icon: Store,
         actionType: 'tab',
         badge: (ctx) => `${(ctx.users || []).filter((u) => u.role === 'merchant').length} hubs`,

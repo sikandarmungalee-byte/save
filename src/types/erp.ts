@@ -732,13 +732,18 @@ export interface MerchantDaySchedule {
 }
 
 export interface MerchantPortalSettings {
-  enforceLoginHours: boolean;
-  manualLockdown: boolean;
+  alwaysAllowPortalAccess: boolean; // Keep merchant portal sign-in open 24/7
+  enforceLoginHours: boolean;       // Enforce daily ordering window hours
+  manualLockdown: boolean;          // Pause new order submissions
   lockdownMessage: string;
   closedHoursMessage: string;
   timezone: string;
   autoLogoutOutsideHours: boolean;
   schedule: Record<DayOfWeekKey, MerchantDaySchedule>;
+  enforceNextDayCutoff: boolean;    // Cutoff rule for next-day delivery dates
+  nextDayCutoffTime: string;        // 24h "HH:MM", e.g. "14:00"
+  allowSameDayDelivery: boolean;    // Whether today is allowed as delivery date
+  nextDayCutoffMessage: string;
   enforceMoq: boolean;
   globalMinOrderQty: number;
   globalMinLineQty: number;

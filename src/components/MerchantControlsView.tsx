@@ -9,6 +9,7 @@ import {
 import {
   ORDERED_DAYS,
   checkMerchantPortalAccess,
+  evaluateDeliveryScheduleConstraint,
   getTimeInTimezone,
   normalizeMerchantSettings,
 } from '../utils/merchantRules';
@@ -32,6 +33,7 @@ import {
   Globe,
   Scale,
   Users,
+  Truck,
 } from 'lucide-react';
 
 interface MerchantControlsViewProps {
@@ -127,7 +129,8 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
 
   const currency = company?.currency || 'R';
   const liveClock = getTimeInTimezone(draft.timezone, nowTick);
-  const livePortalAccess = checkMerchantPortalAccess(draft, null, nowTick);
+  const livePortalAccess = checkMerchantPortalAccess(draft, null, nowTick, 'order');
+  const liveDeliveryCutoff = evaluateDeliveryScheduleConstraint({ settings: draft, now: nowTick });
   const hasUnsavedChanges =
     JSON.stringify(normalizeMerchantSettings(merchantSettings)) !==
     JSON.stringify(normalizeMerchantSettings(draft));
@@ -306,37 +309,51 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
             <div className="flex flex-wrap items-center gap-2 mb-2">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#C98A5B]/15 text-[#DE9E74] text-[11px] font-bold uppercase tracking-wider">
                 <Clock className="w-3.5 h-3.5" />
-                <span>Merchant Access & MOQ Control Center</span>
+                <span>Merchant Ordering &amp; MOQ Control Center</span>
               </span>
               <span
                 className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider border ${
-                  livePortalAccess.allowed
+                  draft.alwaysAllowPortalAccess
                     ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700/60'
-                    : 'bg-rose-950/80 text-rose-300 border-rose-700/60'
+                    : 'bg-[#221B17] text-[#EDE6DE] border-[#3A2D25]'
+                }`}
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>
+                  {draft.alwaysAllowPortalAccess
+                    ? 'Portal Sign-In: Always Open (24/7)'
+                    : 'Portal Sign-In: Window Restricted'}
+                </span>
+              </span>
+              <span
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider border ${
+                  livePortalAccess.orderingAllowed
+                    ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700/60'
+                    : 'bg-amber-950/80 text-amber-300 border-amber-700/60'
                 }`}
               >
                 <span
                   className={`w-2 h-2 rounded-full ${
-                    livePortalAccess.allowed ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'
+                    livePortalAccess.orderingAllowed ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
                   }`}
                 />
                 <span>
                   {draft.manualLockdown
-                    ? 'Portal Paused (Lockdown)'
+                    ? 'Orders Paused (Manual Pause)'
                     : !draft.enforceLoginHours
-                    ? 'Open 24/7 (Schedule Off)'
-                    : livePortalAccess.allowed
-                    ? `Portal Open (${livePortalAccess.todayWindowText})`
-                    : 'Portal Closed Right Now'}
+                    ? 'Ordering Window: Open 24/7'
+                    : livePortalAccess.orderingAllowed
+                    ? `Ordering Open (${livePortalAccess.todayWindowText})`
+                    : `Ordering Closed Now (${livePortalAccess.todayWindowText})`}
                 </span>
               </span>
             </div>
 
             <h1 className="text-2xl sm:text-3xl font-serif font-bold text-white tracking-tight">
-              Merchant Login Hours &amp; MOQ Rules
+              Merchant Ordering Windows, Cutoff &amp; MOQ Rules
             </h1>
             <p className="mt-1 text-xs text-[#A69385] max-w-2xl leading-relaxed">
-              Control exact login times, daily open/close hours, emergency portal pause, global &amp; per-product Minimum Order Quantities (MOQ), and per-merchant VIP overrides — linked directly to Merchant Login, Wholesale Order Desk, Catalog &amp; Cloud Sync.
+              Keep merchant portal access open 24/7 for invoices, PODs, statements, and draft carts while controlling daily order submission times, next-day delivery cutoffs, global &amp; SKU MOQs, and per-merchant VIP overrides.
             </p>
           </div>
 
@@ -376,40 +393,50 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
         {/* KPI Status Strip */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
           <div className="p-3.5 rounded-xl bg-[#120F0D] border border-[#2C211B]">
-            <div className="text-[10px] uppercase tracking-wider text-[#A69385]">Login Hours Gate</div>
-            <div className="mt-1 flex items-center justify-between">
+            <div className="text-[10px] uppercase tracking-wider text-[#A69385]">Portal Sign-In Access</div>
+            <div className="mt-1 flex items-center justify-between gap-2">
+              <span className={`text-sm font-bold ${draft.alwaysAllowPortalAccess ? 'text-emerald-400' : 'text-amber-300'}`}>
+                {draft.alwaysAllowPortalAccess ? 'Always Open 24/7' : 'Window Gated'}
+              </span>
+              <span className="text-[11px] font-mono text-[#A69385]">Invoices &amp; Carts</span>
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-[#120F0D] border border-[#2C211B]">
+            <div className="text-[10px] uppercase tracking-wider text-[#A69385]">Daily Ordering Window</div>
+            <div className="mt-1 flex items-center justify-between gap-2">
               <span className={`text-sm font-bold ${draft.enforceLoginHours ? 'text-emerald-400' : 'text-[#EDE6DE]'}`}>
-                {draft.enforceLoginHours ? 'Active Schedule' : 'Unrestricted (24/7)'}
+                {draft.enforceLoginHours ? 'Timed Window' : 'Unrestricted (24/7)'}
               </span>
               <span className="text-[11px] font-mono text-[#DE9E74]">{livePortalAccess.todayWindowText}</span>
             </div>
           </div>
 
           <div className="p-3.5 rounded-xl bg-[#120F0D] border border-[#2C211B]">
-            <div className="text-[10px] uppercase tracking-wider text-[#A69385]">Order MOQ Enforcement</div>
-            <div className="mt-1 flex items-center justify-between">
-              <span className={`text-sm font-bold ${draft.enforceMoq ? 'text-emerald-400' : 'text-[#EDE6DE]'}`}>
-                {draft.enforceMoq ? 'Enforced on Portal' : 'Disabled (Any Qty)'}
+            <div className="text-[10px] uppercase tracking-wider text-[#A69385]">Next-Day Delivery Cutoff</div>
+            <div className="mt-1 flex items-center justify-between gap-2">
+              <span className={`text-sm font-bold ${draft.enforceNextDayCutoff ? 'text-emerald-400' : 'text-[#EDE6DE]'}`}>
+                {draft.enforceNextDayCutoff ? `Before ${draft.nextDayCutoffTime}` : 'Flexible (Off)'}
               </span>
               <span className="text-[11px] font-mono text-[#DE9E74]">
-                {draft.globalMinOrderQty > 0 ? `${draft.globalMinOrderQty} packs` : 'No global min'}
+                {draft.enforceNextDayCutoff
+                  ? liveDeliveryCutoff.isTomorrowAvailable
+                    ? 'Tomorrow Open'
+                    : `Next: ${liveDeliveryCutoff.minAllowedDate}`
+                  : `${customMoqProductsCount} SKU MOQs`}
               </span>
             </div>
           </div>
 
           <div className="p-3.5 rounded-xl bg-[#120F0D] border border-[#2C211B]">
-            <div className="text-[10px] uppercase tracking-wider text-[#A69385]">Product-Level MOQs</div>
-            <div className="mt-1 flex items-center justify-between">
-              <span className="text-sm font-bold font-mono text-white">{customMoqProductsCount} SKUs</span>
-              <span className="text-[11px] text-[#A69385]">of {products.length} items</span>
-            </div>
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-[#120F0D] border border-[#2C211B]">
-            <div className="text-[10px] uppercase tracking-wider text-[#A69385]">Merchant Overrides</div>
-            <div className="mt-1 flex items-center justify-between">
-              <span className="text-sm font-bold font-mono text-white">{overrideMerchantsCount} Accounts</span>
-              <span className="text-[11px] text-[#A69385]">of {merchantUsers.length} merchants</span>
+            <div className="text-[10px] uppercase tracking-wider text-[#A69385]">Order MOQ &amp; Overrides</div>
+            <div className="mt-1 flex items-center justify-between gap-2">
+              <span className={`text-sm font-bold ${draft.enforceMoq ? 'text-emerald-400' : 'text-[#EDE6DE]'}`}>
+                {draft.enforceMoq ? 'MOQ Enforced' : 'MOQ Off'}
+              </span>
+              <span className="text-[11px] font-mono text-[#DE9E74]">
+                {draft.globalMinOrderQty > 0 ? `${draft.globalMinOrderQty} packs` : `${overrideMerchantsCount} VIP`}
+              </span>
             </div>
           </div>
         </div>
@@ -425,7 +452,7 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
         {/* Section Tabs */}
         <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-[#2C211B]">
           {[
-            { id: 'hours', label: 'Login Times & Schedule', icon: Clock },
+            { id: 'hours', label: 'Ordering Window & Cutoff', icon: Clock },
             { id: 'moq', label: 'Global MOQ Rules', icon: Scale },
             { id: 'products', label: `Product MOQs (${products.length})`, icon: PackageCheck },
             { id: 'merchants', label: `Merchant Overrides (${merchantUsers.length})`, icon: Users },
@@ -452,22 +479,54 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
       </div>
 
       {/* ================================================================= */}
-      {/* TAB 1: LOGIN TIMES & WEEKLY SCHEDULE                              */}
+      {/* TAB 1: ORDERING WINDOW, 24/7 ACCESS & NEXT-DAY DELIVERY CUTOFF    */}
       {/* ================================================================= */}
       {activeTab === 'hours' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left: Toggles & Lockdown Settings (5 cols) */}
+          {/* Left: Portal Access, Ordering Window, Next-Day Cutoff & Pause (5 cols) */}
           <div className="lg:col-span-5 space-y-5">
-            {/* Master Login Hours Switch */}
+            {/* 1. Always Allow Portal Access (24/7 Sign-In) */}
+            <div className="bg-[#171311] border border-[#2C211B] rounded-2xl p-6 space-y-3">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-base font-serif font-bold text-white flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    <span>Always Allow Portal Sign-In (24/7)</span>
+                  </h2>
+                  <p className="text-xs text-[#A69385] mt-1 leading-relaxed">
+                    When ON (recommended), merchants can always sign in to view invoices, delivery PODs, statements, and build draft carts — the schedule only governs when new orders can be submitted.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDraft((prev) => ({
+                      ...prev,
+                      alwaysAllowPortalAccess: !prev.alwaysAllowPortalAccess,
+                    }))
+                  }
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer shrink-0 ${
+                    draft.alwaysAllowPortalAccess
+                      ? 'bg-emerald-500/20 border-emerald-500/60 text-emerald-300'
+                      : 'bg-amber-500/15 border-amber-500/50 text-amber-300'
+                  }`}
+                >
+                  {draft.alwaysAllowPortalAccess ? '24/7 OPEN' : 'GATED LOGIN'}
+                </button>
+              </div>
+            </div>
+
+            {/* 2. Daily Ordering Window Switch */}
             <div className="bg-[#171311] border border-[#2C211B] rounded-2xl p-6 space-y-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-base font-serif font-bold text-white flex items-center gap-2">
                     <Clock className="w-4 h-4 text-[#DE9E74]" />
-                    <span>Enforce Merchant Login Hours</span>
+                    <span>Enforce Daily Ordering Window</span>
                   </h2>
                   <p className="text-xs text-[#A69385] mt-1 leading-relaxed">
-                    When enabled, merchants can only sign in and submit new orders during the active daily times configured on the right. Admin &amp; staff logins are never restricted.
+                    Only accept new wholesale order submissions between the daily open &amp; close times configured on the right (e.g. 08:00 to 17:00).
                   </p>
                 </div>
 
@@ -488,25 +547,6 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
               </div>
 
               <div className="pt-3 border-t border-[#2C211B] space-y-3">
-                <label className="flex items-center justify-between gap-3 cursor-pointer p-3 rounded-xl bg-[#120F0D] border border-[#2C211B]">
-                  <div>
-                    <div className="text-xs font-semibold text-white">
-                      Block Orders If Session Crosses Closing Time
-                    </div>
-                    <div className="text-[11px] text-[#8A776B]">
-                      Prevents merchants already logged in from placing orders after closing time
-                    </div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={draft.autoLogoutOutsideHours}
-                    onChange={(e) =>
-                      setDraft((prev) => ({ ...prev, autoLogoutOutsideHours: e.target.checked }))
-                    }
-                    className="w-4 h-4 accent-[#C98A5B] cursor-pointer"
-                  />
-                </label>
-
                 <div>
                   <label className="block text-xs font-semibold text-[#EDE6DE] mb-1.5 flex items-center gap-1.5">
                     <Globe className="w-3.5 h-3.5 text-[#DE9E74]" />
@@ -526,7 +566,7 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
 
                 <div>
                   <label className="block text-xs font-semibold text-[#EDE6DE] mb-1.5">
-                    Closed-Hours Message (Shown at Login)
+                    Outside-Ordering-Window Message (Shown in Portal)
                   </label>
                   <textarea
                     rows={2}
@@ -540,7 +580,104 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
               </div>
             </div>
 
-            {/* Emergency / Manual Portal Pause */}
+            {/* 3. Next-Day Delivery Cutoff & Lead Time */}
+            <div className="bg-[#171311] border border-[#2C211B] rounded-2xl p-6 space-y-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-base font-serif font-bold text-white flex items-center gap-2">
+                    <Truck className="w-4 h-4 text-[#DE9E74]" />
+                    <span>Next-Day Delivery Cutoff</span>
+                  </h2>
+                  <p className="text-xs text-[#A69385] mt-1 leading-relaxed">
+                    Set a daily cutoff time for orders requiring tomorrow&apos;s delivery. After cutoff, merchants can only schedule delivery from the following day (+2 days).
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDraft((prev) => ({
+                      ...prev,
+                      enforceNextDayCutoff: !prev.enforceNextDayCutoff,
+                    }))
+                  }
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer shrink-0 ${
+                    draft.enforceNextDayCutoff
+                      ? 'bg-emerald-500/20 border-emerald-500/60 text-emerald-300'
+                      : 'bg-[#221B17] border-[#3A2D25] text-[#A69385]'
+                  }`}
+                >
+                  {draft.enforceNextDayCutoff ? 'ENFORCED' : 'OFF'}
+                </button>
+              </div>
+
+              <div className="pt-3 border-t border-[#2C211B] space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#EDE6DE] mb-1">
+                      Daily Cutoff for Tomorrow&apos;s Delivery
+                    </label>
+                    <input
+                      type="time"
+                      value={draft.nextDayCutoffTime}
+                      onChange={(e) =>
+                        setDraft((prev) => ({ ...prev, nextDayCutoffTime: e.target.value || '14:00' }))
+                      }
+                      className="w-full px-3 py-2 bg-[#120F0D] border border-[#3A2D25] rounded-xl text-xs font-mono text-white focus:outline-hidden focus:border-[#C98A5B]"
+                    />
+                  </div>
+
+                  <label className="flex items-center justify-between gap-2 p-3 rounded-xl bg-[#120F0D] border border-[#2C211B] cursor-pointer">
+                    <div>
+                      <div className="text-[11px] font-semibold text-white">Allow Same-Day</div>
+                      <div className="text-[10px] text-[#8A776B]">Today before cutoff</div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={draft.allowSameDayDelivery}
+                      onChange={(e) =>
+                        setDraft((prev) => ({ ...prev, allowSameDayDelivery: e.target.checked }))
+                      }
+                      className="w-4 h-4 accent-[#C98A5B] cursor-pointer"
+                    />
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#EDE6DE] mb-1.5">
+                    Cutoff Explanation Message
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={draft.nextDayCutoffMessage}
+                    onChange={(e) =>
+                      setDraft((prev) => ({ ...prev, nextDayCutoffMessage: e.target.value }))
+                    }
+                    className="w-full px-3 py-2 bg-[#120F0D] border border-[#2C211B] rounded-xl text-xs text-white placeholder-[#6E5B4F] focus:outline-hidden focus:border-[#C98A5B]"
+                  />
+                </div>
+
+                <div
+                  className={`p-3 rounded-xl border text-[11px] flex items-center justify-between gap-2 ${
+                    !draft.enforceNextDayCutoff
+                      ? 'bg-[#120F0D] border-[#2C211B] text-[#A69385]'
+                      : liveDeliveryCutoff.isTomorrowAvailable
+                      ? 'bg-emerald-950/40 border-emerald-700/50 text-emerald-200'
+                      : 'bg-amber-950/40 border-amber-700/50 text-amber-200'
+                  }`}
+                >
+                  <span>
+                    {!draft.enforceNextDayCutoff
+                      ? `Preview: Enable cutoff to lock Tomorrow delivery after ${draft.nextDayCutoffTime}.`
+                      : liveDeliveryCutoff.isTomorrowAvailable
+                      ? `Before ${draft.nextDayCutoffTime} today → Tomorrow (${liveDeliveryCutoff.tomorrowDate}) available`
+                      : `After ${draft.nextDayCutoffTime} cutoff → Earliest delivery is ${liveDeliveryCutoff.minAllowedDate}`}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* 4. Pause New Order Submissions */}
             <div
               className={`border rounded-2xl p-6 space-y-4 transition-colors ${
                 draft.manualLockdown
@@ -556,10 +693,10 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
                     ) : (
                       <Unlock className="w-4 h-4 text-emerald-400" />
                     )}
-                    <span>Emergency / Manual Portal Pause</span>
+                    <span>Pause New Order Submissions</span>
                   </h2>
                   <p className="text-xs text-[#A69385] mt-1">
-                    Instantly close merchant login &amp; ordering at any time (e.g. bakery maintenance, public holiday, or oven capacity full).
+                    Instantly pause incoming wholesale order submissions (e.g. public holiday or full oven capacity). Merchants can still access invoices &amp; PODs while portal access is 24/7.
                   </p>
                 </div>
 
@@ -595,16 +732,16 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
             </div>
           </div>
 
-          {/* Right: 7-Day Time Schedule Matrix (7 cols) */}
+          {/* Right: 7-Day Ordering Window Matrix (7 cols) */}
           <div className="lg:col-span-7 bg-[#171311] border border-[#2C211B] rounded-2xl p-6 space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#2C211B]">
               <div>
                 <h2 className="text-base font-serif font-bold text-white flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-[#DE9E74]" />
-                  <span>Daily Wholesale Ordering &amp; Login Hours</span>
+                  <span>Daily Wholesale Ordering Window</span>
                 </h2>
                 <p className="text-xs text-[#A69385] mt-0.5">
-                  Set exact open and close times for each day of the week ({draft.timezone}).
+                  Set exact open &amp; close hours for when merchants can submit orders each day ({draft.timezone}).
                 </p>
               </div>
             </div>
@@ -709,7 +846,7 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
                       </div>
                     ) : (
                       <span className="text-[11px] font-semibold text-rose-400/90 px-3 py-1 rounded-lg bg-rose-950/40 border border-rose-900/40">
-                        Portal Closed on {label}s
+                        Orders Closed on {label}s
                       </span>
                     )}
                   </div>
@@ -1107,8 +1244,8 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
                 <thead className="bg-[#221B17] text-[#A69385] uppercase text-[10px] font-serif tracking-wider border-b border-[#2C211B]">
                   <tr>
                     <th className="py-3 px-4">Merchant &amp; Branch</th>
-                    <th className="py-3 px-4 text-center">24/7 Bypass</th>
-                    <th className="py-3 px-4">Custom Login Window</th>
+                    <th className="py-3 px-4 text-center">VIP Order Bypass</th>
+                    <th className="py-3 px-4">Custom Ordering Window</th>
                     <th className="py-3 px-4">Custom Min Packs</th>
                     <th className="py-3 px-4">Custom Min Spend ({currency})</th>
                     <th className="py-3 px-4 text-right">Save</th>

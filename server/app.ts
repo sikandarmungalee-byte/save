@@ -186,9 +186,9 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
     return res.status(401).json({ error: 'Incorrect password. Please verify your password and try again.' });
   }
 
-  // Enforce Merchant Login Window / Portal Schedule when active
+  // Enforce Merchant Login Window only when Admin disables alwaysAllowPortalAccess
   if (user.role === 'merchant') {
-    const accessCheck = checkMerchantPortalAccess(db.merchantSettings, user);
+    const accessCheck = checkMerchantPortalAccess(db.merchantSettings, user, new Date(), 'login');
     if (!accessCheck.allowed) {
       db.loginLogs.unshift({
         id: 'log_' + Date.now(),
