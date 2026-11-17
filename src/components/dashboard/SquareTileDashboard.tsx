@@ -251,9 +251,6 @@ export const SquareTileDashboard: React.FC<SquareTileDashboardProps> = ({
                 <span className="font-serif text-lg sm:text-xl font-bold tracking-tight text-[#2B150A]">
                   Savouré
                 </span>
-                <span className="text-[10px] tracking-wider uppercase font-sans font-semibold text-[#391E0F] bg-stone-100 px-2 py-0.5 rounded border border-[#CC8468]/30">
-                  Enterprise Operations
-                </span>
               </div>
               <div className="flex items-center gap-2 mt-0.5 text-xs text-stone-500">
                 <span className="font-semibold text-[#391E0F]">Welcome back, {userName}</span>

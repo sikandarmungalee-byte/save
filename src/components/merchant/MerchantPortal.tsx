@@ -636,9 +636,6 @@ export const MerchantPortal: React.FC<MerchantPortalProps> = ({ onBackToWebsite 
                 <span className="font-serif text-lg font-bold tracking-tight text-white">
                   Savouré Commercial Merchant Portal
                 </span>
-                <span className="hidden sm:inline-block text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded bg-[#CC8468]/30 text-[#E0A282] border border-[#CC8468]/40">
-                  Direct B2B Order Desk
-                </span>
               </div>
               <div className="text-xs text-[#C5B7AC] flex items-center gap-2">
                 <Store className="w-3.5 h-3.5 text-[#CC8468]" />
