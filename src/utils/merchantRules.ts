@@ -64,11 +64,20 @@ export function normalizeMerchantSettings(
     };
   }
 
+  const rawLockdownMsg =
+    typeof raw?.lockdownMessage === 'string' ? raw.lockdownMessage.trim() : '';
+  const isLegacyLockdownMsg =
+    rawLockdownMsg ===
+    'The Wholesale Merchant Portal is temporarily paused by Savouré Dispatch. Please contact our kitchen desk for urgent orders.';
+
+  const rawClosedHoursMsg =
+    typeof raw?.closedHoursMessage === 'string' ? raw.closedHoursMessage.trim() : '';
+  const isLegacyClosedHoursMsg =
+    rawClosedHoursMsg ===
+    'Merchant portal sign-in is only open during scheduled wholesale ordering hours.';
+
   return {
-    alwaysAllowPortalAccess:
-      raw?.alwaysAllowPortalAccess !== undefined
-        ? Boolean(raw.alwaysAllowPortalAccess)
-        : DEFAULT_MERCHANT_PORTAL_SETTINGS.alwaysAllowPortalAccess,
+    alwaysAllowPortalAccess: true,
     enforceLoginHours:
       raw?.enforceLoginHours !== undefined
         ? Boolean(raw.enforceLoginHours)
@@ -78,12 +87,12 @@ export function normalizeMerchantSettings(
         ? Boolean(raw.manualLockdown)
         : DEFAULT_MERCHANT_PORTAL_SETTINGS.manualLockdown,
     lockdownMessage:
-      typeof raw?.lockdownMessage === 'string' && raw.lockdownMessage.trim()
-        ? raw.lockdownMessage
+      rawLockdownMsg && !isLegacyLockdownMsg
+        ? rawLockdownMsg
         : DEFAULT_MERCHANT_PORTAL_SETTINGS.lockdownMessage,
     closedHoursMessage:
-      typeof raw?.closedHoursMessage === 'string' && raw.closedHoursMessage.trim()
-        ? raw.closedHoursMessage
+      rawClosedHoursMsg && !isLegacyClosedHoursMsg
+        ? rawClosedHoursMsg
         : DEFAULT_MERCHANT_PORTAL_SETTINGS.closedHoursMessage,
     timezone:
       typeof raw?.timezone === 'string' && raw.timezone.trim()
@@ -347,18 +356,18 @@ export function checkMerchantPortalAccess(
     }
   }
 
-  // When alwaysAllowPortalAccess is true (default), login is ALWAYS open 24/7
-  const loginAllowed = settings.alwaysAllowPortalAccess ? true : orderingAllowed;
-  const allowed = mode === 'login' ? loginAllowed : orderingAllowed;
+  // Portal sign-in is ALWAYS open 24/7 — schedule & pause strictly apply to order submissions
+  const loginAllowed = true;
+  const allowed = mode === 'login' ? true : orderingAllowed;
 
   return {
     allowed,
     loginAllowed,
     orderingAllowed,
-    alwaysAllowPortalAccess: settings.alwaysAllowPortalAccess,
-    reasonCode: mode === 'login' && loginAllowed && !orderingAllowed ? 'UNRESTRICTED' : orderingReason,
+    alwaysAllowPortalAccess: true,
+    reasonCode: mode === 'login' ? 'OPEN' : orderingReason,
     message:
-      mode === 'login' && loginAllowed && !orderingAllowed
+      mode === 'login'
         ? 'Portal access is open 24/7.'
         : orderingMessage,
     currentTimeHHMM: timeHHMM,

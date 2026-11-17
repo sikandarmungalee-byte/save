@@ -61,21 +61,54 @@
   "products": [],
   "categories": [],
   "merchantSettings": {
+    "alwaysAllowPortalAccess": true,
     "enforceLoginHours": false,
     "manualLockdown": false,
-    "lockdownMessage": "The Wholesale Merchant Portal is temporarily paused by Savouré Dispatch. Please contact our kitchen desk for urgent orders.",
-    "closedHoursMessage": "Merchant portal sign-in is only open during scheduled wholesale ordering hours.",
+    "lockdownMessage": "New wholesale order submissions are temporarily paused by Savouré Dispatch. You can still access your portal 24/7 to view invoices, PODs, and order history.",
+    "closedHoursMessage": "Wholesale order submissions are only open during scheduled ordering hours. You can still browse the portal 24/7, view invoices/statements, and prepare your draft order.",
     "timezone": "Africa/Johannesburg",
     "autoLogoutOutsideHours": true,
     "schedule": {
-      "monday": { "enabled": true, "openTime": "08:00", "closeTime": "17:00" },
-      "tuesday": { "enabled": true, "openTime": "08:00", "closeTime": "17:00" },
-      "wednesday": { "enabled": true, "openTime": "08:00", "closeTime": "17:00" },
-      "thursday": { "enabled": true, "openTime": "08:00", "closeTime": "17:00" },
-      "friday": { "enabled": true, "openTime": "08:00", "closeTime": "17:00" },
-      "saturday": { "enabled": true, "openTime": "08:00", "closeTime": "13:00" },
-      "sunday": { "enabled": false, "openTime": "08:00", "closeTime": "13:00" }
+      "monday": {
+        "enabled": true,
+        "openTime": "08:00",
+        "closeTime": "17:00"
+      },
+      "tuesday": {
+        "enabled": true,
+        "openTime": "08:00",
+        "closeTime": "17:00"
+      },
+      "wednesday": {
+        "enabled": true,
+        "openTime": "08:00",
+        "closeTime": "17:00"
+      },
+      "thursday": {
+        "enabled": true,
+        "openTime": "08:00",
+        "closeTime": "17:00"
+      },
+      "friday": {
+        "enabled": true,
+        "openTime": "08:00",
+        "closeTime": "17:00"
+      },
+      "saturday": {
+        "enabled": true,
+        "openTime": "08:00",
+        "closeTime": "13:00"
+      },
+      "sunday": {
+        "enabled": false,
+        "openTime": "08:00",
+        "closeTime": "13:00"
+      }
     },
+    "enforceNextDayCutoff": false,
+    "nextDayCutoffTime": "14:00",
+    "allowSameDayDelivery": false,
+    "nextDayCutoffMessage": "Next-day delivery orders close after cutoff time. Orders placed after cutoff are scheduled from the following delivery day.",
     "enforceMoq": false,
     "globalMinOrderQty": 0,
     "globalMinLineQty": 0,

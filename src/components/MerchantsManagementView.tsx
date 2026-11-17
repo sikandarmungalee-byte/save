@@ -729,12 +729,12 @@ export const MerchantsManagementView: React.FC<MerchantsManagementViewProps> = (
                 </div>
               </div>
 
-              {/* Login Hours & MOQ Overrides */}
+              {/* Ordering Window & MOQ Overrides */}
               <div className="p-4 rounded-xl bg-[#221B17] border border-[#3A2D25] space-y-3">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-serif font-bold uppercase tracking-wider text-[#DE9E74] flex items-center gap-1.5">
                     <Clock className="w-3.5 h-3.5 text-[#C98A5B]" />
-                    <span>Login Hours &amp; MOQ Overrides</span>
+                    <span>Ordering Window &amp; MOQ Overrides</span>
                   </label>
                   <label className="flex items-center gap-2 text-xs text-amber-300 font-semibold cursor-pointer">
                     <input
@@ -743,11 +743,11 @@ export const MerchantsManagementView: React.FC<MerchantsManagementViewProps> = (
                       onChange={(e) => setBypassLoginHours(e.target.checked)}
                       className="accent-[#C98A5B] w-4 h-4"
                     />
-                    <span>24/7 VIP Access</span>
+                    <span>VIP Ordering Anytime</span>
                   </label>
                 </div>
                 <p className="text-[11px] text-[#A69385]">
-                  Leave blank to follow the global Merchant Hours &amp; MOQ policy configured in Admin ERP.
+                  Leave blank to follow the global Ordering Window &amp; MOQ policy configured in Admin ERP.
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>

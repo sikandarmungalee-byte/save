@@ -186,25 +186,7 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
     return res.status(401).json({ error: 'Incorrect password. Please verify your password and try again.' });
   }
 
-  // Enforce Merchant Login Window only when Admin disables alwaysAllowPortalAccess
-  if (user.role === 'merchant') {
-    const accessCheck = checkMerchantPortalAccess(db.merchantSettings, user, new Date(), 'login');
-    if (!accessCheck.allowed) {
-      db.loginLogs.unshift({
-        id: 'log_' + Date.now(),
-        userId: user.id,
-        userName: user.name,
-        userEmail: user.email,
-        action: 'LOGIN',
-        status: 'FAILED',
-        timestamp: new Date().toISOString(),
-        device: req.headers['user-agent'] || 'Web Browser',
-        details: `Login blocked (${accessCheck.reasonCode}): ${accessCheck.message}`,
-      });
-      saveDatabase(db);
-      return res.status(403).json({ error: accessCheck.message });
-    }
-  }
+  // Portal access is always open 24/7 for merchants (ordering window only governs order submissions)
 
   // Update last login
   user.lastLogin = new Date().toISOString();

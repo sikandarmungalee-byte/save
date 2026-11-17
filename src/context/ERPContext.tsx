@@ -1149,26 +1149,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         throw new Error('This user account has been disabled by an administrator.');
       }
 
-      // Enforce Portal Sign-In Access (24/7 when alwaysAllowPortalAccess is true)
-      if (matchedUser.role === 'merchant') {
-        const accessCheck = checkMerchantPortalAccess(
-          effectiveMerchantSettings,
-          matchedUser,
-          new Date(),
-          'login'
-        );
-        if (!accessCheck.allowed) {
-          await recordLoginLog({
-            userId: matchedUser.id,
-            userName: matchedUser.name,
-            userEmail: matchedUser.email,
-            action: 'LOGIN',
-            status: 'FAILED',
-            details: `Merchant login blocked (${accessCheck.reasonCode}): ${accessCheck.message}`,
-          });
-          throw new Error(accessCheck.message);
-        }
-      }
+      // Portal access is always open 24/7 for merchants; ordering window & cutoff apply when placing orders
 
       setCurrentUser(matchedUser);
       try {

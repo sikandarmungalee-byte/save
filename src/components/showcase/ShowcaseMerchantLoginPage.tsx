@@ -188,44 +188,30 @@ export const ShowcaseMerchantLoginPage: React.FC<ShowcaseMerchantLoginPageProps>
             </div>
 
             {/* Live Portal Access, Ordering Window, Cutoff & MOQ Notice */}
-            <div
-              className={`p-3.5 rounded-2xl border text-xs flex flex-col gap-1.5 ${
-                !portalAccess.loginAllowed
-                  ? 'bg-amber-50 border-amber-200 text-amber-950'
-                  : 'bg-[#FBF7F1] border-[#E8D9CD] text-[#4C2A1A]'
-              }`}
-            >
+            <div className="p-3.5 rounded-2xl border text-xs flex flex-col gap-1.5 bg-[#FBF7F1] border-[#E8D9CD] text-[#4C2A1A]">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-2 font-bold">
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      portalAccess.loginAllowed ? 'bg-emerald-500' : 'bg-amber-500'
-                    }`}
-                  />
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
                   <Clock className="w-3.5 h-3.5 text-[#8D5037]" />
-                  <span>
-                    {portalAccess.loginAllowed
-                      ? 'Portal Sign-In: Open 24/7'
-                      : portalAccess.reasonCode === 'MANUAL_LOCKDOWN'
-                      ? 'Portal Temporarily Paused'
-                      : 'Outside Portal Sign-In Hours'}
-                  </span>
+                  <span>Portal Open 24/7</span>
                 </div>
                 <span className="font-mono text-[11px] font-semibold text-[#75412E]">
-                  {portalAccess.orderingAllowed
+                  {portalAccess.reasonCode === 'MANUAL_LOCKDOWN'
+                    ? 'Order Submissions Paused'
+                    : portalAccess.orderingAllowed
                     ? `Ordering Open · ${portalAccess.todayWindowText}`
                     : `Ordering Closed${portalAccess.nextOpenText ? ` · Opens ${portalAccess.nextOpenText}` : ''}`}
                 </span>
               </div>
-              {portalAccess.loginAllowed && !portalAccess.orderingAllowed && (
+              {!portalAccess.orderingAllowed && (
                 <p className="text-[11px] text-[#66483B] leading-relaxed">
-                  Sign in anytime to view invoices, PODs, statements, or prepare draft orders. Order submission window today ({portalAccess.currentDayLabel}):{' '}
-                  <strong className="font-mono">{portalAccess.todayWindowText}</strong>.
-                </p>
-              )}
-              {!portalAccess.loginAllowed && (
-                <p className="text-[11px] text-amber-900 leading-relaxed">
-                  {portalAccess.message} (VIP override accounts &amp; staff may still sign in.)
+                  Sign in anytime to view invoices, PODs, statements, or prepare draft carts.
+                  {portalAccess.reasonCode !== 'MANUAL_LOCKDOWN' && (
+                    <>
+                      {' '}Today&apos;s order submission window ({portalAccess.currentDayLabel}):{' '}
+                      <strong className="font-mono">{portalAccess.todayWindowText}</strong>.
+                    </>
+                  )}
                 </p>
               )}
               {normalizedSettings.enforceNextDayCutoff && (

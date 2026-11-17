@@ -311,19 +311,9 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
                 <Clock className="w-3.5 h-3.5" />
                 <span>Merchant Ordering &amp; MOQ Control Center</span>
               </span>
-              <span
-                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider border ${
-                  draft.alwaysAllowPortalAccess
-                    ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700/60'
-                    : 'bg-[#221B17] text-[#EDE6DE] border-[#3A2D25]'
-                }`}
-              >
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider border bg-emerald-950/80 text-emerald-300 border-emerald-700/60">
                 <ShieldCheck className="w-3.5 h-3.5" />
-                <span>
-                  {draft.alwaysAllowPortalAccess
-                    ? 'Portal Sign-In: Always Open (24/7)'
-                    : 'Portal Sign-In: Window Restricted'}
-                </span>
+                <span>Portal Always Open (24/7)</span>
               </span>
               <span
                 className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider border ${
@@ -393,11 +383,9 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
         {/* KPI Status Strip */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
           <div className="p-3.5 rounded-xl bg-[#120F0D] border border-[#2C211B]">
-            <div className="text-[10px] uppercase tracking-wider text-[#A69385]">Portal Sign-In Access</div>
+            <div className="text-[10px] uppercase tracking-wider text-[#A69385]">Portal Access</div>
             <div className="mt-1 flex items-center justify-between gap-2">
-              <span className={`text-sm font-bold ${draft.alwaysAllowPortalAccess ? 'text-emerald-400' : 'text-amber-300'}`}>
-                {draft.alwaysAllowPortalAccess ? 'Always Open 24/7' : 'Window Gated'}
-              </span>
+              <span className="text-sm font-bold text-emerald-400">Always Open 24/7</span>
               <span className="text-[11px] font-mono text-[#A69385]">Invoices &amp; Carts</span>
             </div>
           </div>
@@ -485,35 +473,22 @@ export const MerchantControlsView: React.FC<MerchantControlsViewProps> = ({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left: Portal Access, Ordering Window, Next-Day Cutoff & Pause (5 cols) */}
           <div className="lg:col-span-5 space-y-5">
-            {/* 1. Always Allow Portal Access (24/7 Sign-In) */}
-            <div className="bg-[#171311] border border-[#2C211B] rounded-2xl p-6 space-y-3">
+            {/* 1. Portal Always Open 24/7 Guarantee */}
+            <div className="bg-[#171311] border border-emerald-800/40 rounded-2xl p-5 space-y-2">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-base font-serif font-bold text-white flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                    <span>Always Allow Portal Sign-In (24/7)</span>
+                    <span>Portal Always Open (24/7)</span>
                   </h2>
                   <p className="text-xs text-[#A69385] mt-1 leading-relaxed">
-                    When ON (recommended), merchants can always sign in to view invoices, delivery PODs, statements, and build draft carts — the schedule only governs when new orders can be submitted.
+                    The Merchant Portal never closes — merchants can always sign in anytime to view invoices, PODs, statements, and build draft carts. Only new order submissions follow the ordering hours &amp; next-day cutoff below.
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    setDraft((prev) => ({
-                      ...prev,
-                      alwaysAllowPortalAccess: !prev.alwaysAllowPortalAccess,
-                    }))
-                  }
-                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer shrink-0 ${
-                    draft.alwaysAllowPortalAccess
-                      ? 'bg-emerald-500/20 border-emerald-500/60 text-emerald-300'
-                      : 'bg-amber-500/15 border-amber-500/50 text-amber-300'
-                  }`}
-                >
-                  {draft.alwaysAllowPortalAccess ? '24/7 OPEN' : 'GATED LOGIN'}
-                </button>
+                <span className="px-3 py-1 rounded-full text-[11px] font-bold border bg-emerald-500/20 border-emerald-500/60 text-emerald-300 shrink-0">
+                  24/7 OPEN
+                </span>
               </div>
             </div>
 
